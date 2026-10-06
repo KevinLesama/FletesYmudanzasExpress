@@ -1,0 +1,105 @@
+export type RequestStatus = 'Pendiente de revisión' | 'Pendiente de seña' | 'Confirmada' | 'Cancelada'
+export type TripStatus = 'Confirmada' | 'Tentativa'
+export type VehicleStatus = 'Disponible' | 'Asignado' | 'En taller'
+export type DriverStatus = 'Activo' | 'Inactivo'
+export type PaymentConcept = 'Seña' | 'Saldo'
+export type PaymentMethod = 'Transferencia' | 'Efectivo'
+export type ReceivedBy = 'Administración' | 'Chofer'
+
+export interface Factor {
+  label: string
+  amount: number
+}
+
+export interface Driver {
+  id: string
+  initials: string
+  name: string
+  phone: string
+  status: DriverStatus
+  baseRate: number // tarifa por viaje (sueldo base)
+  ratePerKm: number
+  ratePerHour: number
+  factors: Factor[]
+}
+
+export interface TripIncident {
+  id: string
+  type: string
+  description: string
+  time: string
+}
+
+export interface RemitoPhoto {
+  name: string
+  dataUrl: string
+}
+
+export interface Vehicle {
+  id: string
+  type: string
+  capacityKg: number
+  status: VehicleStatus
+  assignedNote?: string
+}
+
+export interface Place {
+  label: string
+  address: string
+  barrio: string
+  floor: string
+  elevator: boolean
+}
+
+export interface CargoItem {
+  name: string
+  units: number
+  note?: string
+}
+
+export interface RequestCargo {
+  items: CargoItem[]
+  approxUnits: number
+  fragile: boolean
+  notes: string
+}
+
+export interface ShiftRequest {
+  id: string // FEX-1048
+  client: string
+  phone: string
+  status: RequestStatus
+  date: string // yyyy-mm-dd
+  arrivalRange: [string, string]
+  serviceRange: [string, string]
+  origin: Place
+  destination: Place
+  cargo: RequestCargo
+  driverId?: string
+  vehicleId?: string
+  price: number
+  depositRequired: number
+  depositReceived: number
+  confirmed?: boolean
+  estimatedKm?: number
+  estimatedHours?: number
+  arrivedAt?: string
+  finishedAt?: string
+  incidents?: TripIncident[]
+  remitoPhoto?: RemitoPhoto
+}
+
+export interface Payment {
+  concept: PaymentConcept
+  method: PaymentMethod
+  receivedBy: ReceivedBy
+  amount: number
+  date: string
+  notes?: string
+}
+
+export interface RequestFilter {
+  search: string
+  date: string
+  status: string
+}
