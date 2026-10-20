@@ -18,8 +18,9 @@ import { AppShell } from '../components/AppShell'
 import { MiniCalendar } from '../components/MiniCalendar'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
-import { EmptyState } from '../components/EmptyState'
-import { DRIVERS, REQUESTS, VEHICLES, driverById, vehicleById } from '../mockData'
+import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
 import { R } from '../routes'
 import { brand } from '../theme'
 import { DEMO_DATE, fmtLong } from '../format'
@@ -41,23 +42,34 @@ export function AgendaPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
+  const requestsState = useAsync(() => api.listRequests(), [])
+  const catalogState = useAsync(async () => {
+    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
+    return { drivers, vehicles }
+  }, [])
+  const allRequests = requestsState.data ?? []
+  const drivers = catalogState.data?.drivers ?? []
+  const vehicles = catalogState.data?.vehicles ?? []
+
   const trips = useMemo(
     () =>
-      REQUESTS.filter(
-        (t) =>
-          t.date === date &&
-          (driver === 'all' || t.driverId === driver) &&
-          (vehicle === 'all' || t.vehicleId === vehicle) &&
-          (status === 'all' || t.status === status),
-      ).sort((a, b) => a.serviceRange[0].localeCompare(b.serviceRange[0])),
-    [date, driver, vehicle, status],
+      allRequests
+        .filter(
+          (t) =>
+            t.date === date &&
+            (driver === 'all' || t.driverId === driver) &&
+            (vehicle === 'all' || t.vehicleId === vehicle) &&
+            (status === 'all' || t.status === status),
+        )
+        .sort((a, b) => a.serviceRange[0].localeCompare(b.serviceRange[0])),
+    [allRequests, date, driver, vehicle, status],
   )
 
   const marked = useMemo(() => {
     const s = new Set<string>()
-    REQUESTS.filter((r) => r.status !== 'Cancelada').forEach((r) => s.add(r.date))
+    allRequests.filter((r) => r.status !== 'Cancelada').forEach((r) => s.add(r.date))
     return s
-  }, [])
+  }, [allRequests])
 
   const [year, month] = useMemo(() => {
     const [y, m] = date.split('-').map(Number)
@@ -69,7 +81,11 @@ export function AgendaPage() {
     setDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-01`)
   }
 
-  const selected = REQUESTS.find((r) => r.id === selectedId) ?? null
+  const selected = allRequests.find((r) => r.id === selectedId) ?? null
+  const selectedDriverName = selected?.driverId ? drivers.find((d) => d.id === selected.driverId)?.name : undefined
+  const selectedVehicleName = selected?.vehicleId
+    ? `${selected.vehicleId} · ${vehicles.find((v) => v.id === selected.vehicleId)?.type ?? ''}`
+    : undefined
 
   const filterSelect = (
     label: string,
@@ -131,11 +147,11 @@ export function AgendaPage() {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, flexGrow: 1 }}>
             {filterSelect('Chofer', driver, setDriver, [
               { value: 'all', label: 'Todos los choferes' },
-              ...DRIVERS.map((d) => ({ value: d.id, label: d.name })),
+              ...drivers.map((d) => ({ value: d.id, label: d.name })),
             ], 'agenda-filter-driver')}
             {filterSelect('Vehículo', vehicle, setVehicle, [
               { value: 'all', label: 'Todos los vehículos' },
-              ...VEHICLES.map((v) => ({ value: v.id, label: `${v.id} · ${v.type}` })),
+              ...vehicles.map((v) => ({ value: v.id, label: `${v.id} · ${v.type}` })),
             ], 'agenda-filter-vehicle')}
             {filterSelect('Estado', status, setStatus, [
               { value: 'all', label: 'Todos los estados' },
@@ -173,7 +189,11 @@ export function AgendaPage() {
 
         {/* Panel derecho: grilla de planificación */}
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: { xs: 1.5, md: 2.5 } }}>
-          {trips.length === 0 ? (
+          {requestsState.loading ? (
+            <LoadingState label="Cargando agenda..." />
+          ) : requestsState.error ? (
+            <ErrorState message={requestsState.error} onRetry={requestsState.reload} />
+          ) : trips.length === 0 ? (
             <EmptyState
               title="No hay viajes para estos filtros"
               subtext="Probá con otra selección o cambiá la fecha para ver los viajes cargados."
@@ -197,10 +217,8 @@ export function AgendaPage() {
         <TripDetailModal
           trip={selected}
           role="admin"
-          driverName={driverById(selected.driverId)?.name}
-          vehicleName={
-            selected.vehicleId ? `${selected.vehicleId} · ${vehicleById(selected.vehicleId)?.type}` : undefined
-          }
+          driverName={selectedDriverName}
+          vehicleName={selectedVehicleName}
           onClose={() => setSelectedId(null)}
           onOpenPlan={() => {
             window.location.href = R.planificacion(selected.id)

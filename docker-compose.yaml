@@ -1,0 +1,33 @@
+# Docker Compose: levanta el backend (FastAPI) y el frontend (nginx con la
+# app compilada). La base de datos vive en Supabase; no se levanta Postgres
+# local. Completar DATABASE_URL en backend/.env (copiado de backend/.env.example)
+# antes de arrancar.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: fletes-ppp-backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      APP_ENV: docker
+      CORS_ORIGINS: http://localhost:8080
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fletes-ppp-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped

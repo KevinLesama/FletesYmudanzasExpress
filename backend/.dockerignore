@@ -1,0 +1,20 @@
+# Entorno virtual / cache de Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Tests temporales
+tests/tmp/
+*.db
+*.sqlite3

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
@@ -22,7 +22,9 @@ import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-materia
 import { AppShell } from '../components/AppShell'
 import { StatusChip } from '../components/StatusChip'
 import { R } from '../routes'
-import { CLIENTS } from '../mockData'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
+import type { Client } from '../types'
 import { brand } from '../theme'
 
 export function NuevaSolicitudPage() {
@@ -30,9 +32,12 @@ export function NuevaSolicitudPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [step, setStep] = useState(0)
 
+  const clientsState = useAsync(() => api.listClients(), [])
+  const clients: Client[] = clientsState.data ?? []
+
   // client
   const [clientMode, setClientMode] = useState<'existente' | 'nuevo'>('existente')
-  const [selectedClient, setSelectedClient] = useState('Lucía Benítez')
+  const [selectedClientId, setSelectedClientId] = useState('')
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
 
@@ -56,9 +61,16 @@ export function NuevaSolicitudPage() {
   const [notes, setNotes] = useState('')
 
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  const clientReady = clientMode === 'existente' ? selectedClient !== '' : newName.trim() !== '' && newPhone.trim() !== ''
+  useEffect(() => {
+    if (clientMode === 'existente' && !selectedClientId && clients.length > 0) {
+      setSelectedClientId(String(clients[0].id))
+    }
+  }, [clientMode, selectedClientId, clients])
+
+  const clientReady = clientMode === 'existente' ? selectedClientId !== '' : newName.trim() !== '' && newPhone.trim() !== ''
   const serviceReady =
     date !== '' && arriveFrom !== '' && arriveTo !== '' && originAddress.trim() !== '' && originFloor.trim() !== '' && destAddress.trim() !== '' && destFloor.trim() !== ''
   const cargoReady = cargoDesc.trim() !== '' && cargoQty.trim() !== ''
@@ -73,12 +85,63 @@ export function NuevaSolicitudPage() {
     </Typography>
   )
 
-  const save = () => {
-    setSaved(true)
-    setToast('Solicitud guardada · FEX-1049')
-    setTimeout(() => {
-      window.location.href = R.solicitudes
-    }, 1600)
+  const save = async () => {
+    setSaving(true)
+    try {
+      let clientId: number | null = null
+      let clientName = ''
+      let phone = ''
+      if (clientMode === 'existente') {
+        clientId = Number(selectedClientId)
+        const c = clients.find((x) => String(x.id) === selectedClientId)
+        clientName = c?.name ?? ''
+        phone = c?.phone ?? ''
+      } else {
+        const created = await api.createClient({ name: newName.trim(), phone: newPhone.trim() })
+        clientId = created.id
+        clientName = created.name
+        phone = created.phone
+      }
+
+      const created = await api.createRequest({
+        client_id: clientId,
+        client_name: clientName,
+        phone,
+        date,
+        arrival_from: arriveFrom,
+        arrival_to: arriveTo,
+        service_from: arriveFrom,
+        service_to: arriveTo,
+        origin: {
+          address: originAddress,
+          barrio: originBarrio,
+          floor: originFloor,
+          elevator: originElevator === 'Sí',
+        },
+        destination: {
+          address: destAddress,
+          barrio: destBarrio,
+          floor: destFloor,
+          elevator: destElevator === 'Sí',
+        },
+        cargo: {
+          items: [],
+          approx_units: Number(cargoQty || 0),
+          fragile: fragile === 'Sí',
+          notes: cargoDesc + (notes ? ` · ${notes}` : ''),
+        },
+      })
+
+      setSaved(true)
+      setToast(`Solicitud guardada · ${created.id}`)
+      setTimeout(() => {
+        window.location.href = R.planificacion(created.id)
+      }, 1400)
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'No pudimos guardar la solicitud.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -129,9 +192,9 @@ export function NuevaSolicitudPage() {
                 {clientMode === 'existente' ? (
                   <Stack spacing={1.5}>
                     {label('Seleccionar cliente', true)}
-                    <Select size="small" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)} sx={{ bgcolor: '#fff' }}>
-                      {CLIENTS.map((c) => (
-                        <MenuItem key={c.name} value={c.name}>
+                    <Select size="small" value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} sx={{ bgcolor: '#fff' }}>
+                      {clients.map((c) => (
+                        <MenuItem key={c.id} value={String(c.id)}>
                           {c.name} · {c.phone}
                         </MenuItem>
                       ))}
@@ -268,11 +331,11 @@ export function NuevaSolicitudPage() {
                 <Button
                   variant="contained"
                   startIcon={<Check />}
-                  disabled={!cargoReady}
+                  disabled={!cargoReady || saving}
                   onClick={save}
                   sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
                 >
-                  Guardar solicitud
+                  {saving ? 'Guardando...' : 'Guardar solicitud'}
                 </Button>
               )}
             </Stack>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -13,48 +13,102 @@ import {
 } from '@mui/material'
 import { Add, Close, InfoOutlined, Paid, RestartAlt, Save, Tune } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
-import { DRIVERS, tripEarnings } from '../mockData'
-import { loadChoferConfig, resetChoferConfig, saveChoferConfig, type ChoferConfig } from '../choferConfig'
+import { ErrorState, LoadingState } from '../components/EmptyState'
+import { tripEarnings } from '../mockData'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
 import { ars } from '../format'
 import { brand } from '../theme'
+import type { Driver, Factor } from '../types'
 
 const DEMO_DRIVER_ID = 'JA'
 const SAMPLE_KM = 18
 const SAMPLE_HOURS = 2
 
+interface ChoferConfig {
+  baseRate: number
+  ratePerKm: number
+  ratePerHour: number
+  factors: Factor[]
+}
+
+function toConfig(driver: Driver): ChoferConfig {
+  return {
+    baseRate: driver.baseRate,
+    ratePerKm: driver.ratePerKm,
+    ratePerHour: driver.ratePerHour,
+    factors: driver.factors.map((f) => ({ ...f })),
+  }
+}
+
 export function ChoferConfigPage() {
-  const [config, setConfig] = useState<ChoferConfig>(() => loadChoferConfig(DEMO_DRIVER_ID))
+  const driverState = useAsync(() => api.listDrivers(), [])
+  const drivers: Driver[] = driverState.data ?? []
+  const driver = drivers.find((d) => d.id === DEMO_DRIVER_ID)
+
+  const [config, setConfig] = useState<ChoferConfig | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  const driver = DRIVERS.find((d) => d.id === DEMO_DRIVER_ID)!
+  useEffect(() => {
+    if (driver) setConfig(toConfig(driver))
+  }, [driver])
 
-  const patch = (p: Partial<ChoferConfig>) => setConfig((c) => ({ ...c, ...p }))
+  if (driverState.loading || (!config && driver)) {
+    return (
+      <ChoferShell active="config" breadcrumb={['Chofer', 'Mi configuración']} title="Mi configuración">
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <LoadingState label="Cargando configuración..." />
+        </Box>
+      </ChoferShell>
+    )
+  }
+
+  if (driverState.error || !driver || !config) {
+    return (
+      <ChoferShell active="config" breadcrumb={['Chofer', 'Mi configuración']} title="Mi configuración">
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <ErrorState message={driverState.error ?? 'No encontramos el chofer de demostración.'} onRetry={driverState.reload} />
+        </Box>
+      </ChoferShell>
+    )
+  }
+
+  const patch = (p: Partial<ChoferConfig>) => setConfig((c) => (c ? { ...c, ...p } : c))
 
   const setNum = (key: 'baseRate' | 'ratePerKm' | 'ratePerHour', v: string) =>
     patch({ [key]: Number(v.replace(/[^\d]/g, '')) || 0 })
 
-  const setFactor = (idx: number, p: Partial<{ label: string; amount: number }>) =>
-    setConfig((c) => ({
-      ...c,
-      factors: c.factors.map((f, i) => (i === idx ? { ...f, ...p } : f)),
-    }))
+  const setFactor = (idx: number, p: Partial<Factor>) =>
+    setConfig((c) => (c ? { ...c, factors: c.factors.map((f, i) => (i === idx ? { ...f, ...p } : f)) } : c))
 
   const removeFactor = (idx: number) =>
-    setConfig((c) => ({ ...c, factors: c.factors.filter((_, i) => i !== idx) }))
+    setConfig((c) => (c ? { ...c, factors: c.factors.filter((_, i) => i !== idx) } : c))
 
-  const addFactor = () => setConfig((c) => ({ ...c, factors: [...c.factors, { label: '', amount: 0 }] }))
+  const addFactor = () => setConfig((c) => (c ? { ...c, factors: [...c.factors, { label: '', amount: 0 }] } : c))
 
   const preview = tripEarnings({ ...driver, ...config }, SAMPLE_KM, SAMPLE_HOURS)
 
-  const save = () => {
-    saveChoferConfig(DEMO_DRIVER_ID, config)
-    setToast('Configuración guardada')
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.updateDriverRates(DEMO_DRIVER_ID, {
+        base_rate: config.baseRate,
+        rate_per_km: config.ratePerKm,
+        rate_per_hour: config.ratePerHour,
+        factors: config.factors,
+      })
+      setToast('Configuración guardada')
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'No pudimos guardar la configuración.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const reset = () => {
-    resetChoferConfig(DEMO_DRIVER_ID)
-    setConfig(loadChoferConfig(DEMO_DRIVER_ID))
-    setToast('Restauramos los valores de ejemplo')
+    setConfig(toConfig(driver))
+    setToast('Restauramos los valores del servidor')
   }
 
   return (
@@ -65,8 +119,8 @@ export function ChoferConfigPage() {
         title="Mi configuración"
         description="Definí tu tarifa base y los adicionales de cada viaje."
         action={
-          <Button variant="contained" startIcon={<Save />} onClick={save} sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}>
-            Guardar
+          <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving} sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}>
+            {saving ? 'Guardando...' : 'Guardar'}
           </Button>
         }
       >
@@ -178,8 +232,8 @@ export function ChoferConfigPage() {
             <Button variant="outlined" startIcon={<RestartAlt />} onClick={reset} sx={{ color: brand.navy, borderColor: '#D9D4C9' }}>
               Restaurar valores de ejemplo
             </Button>
-            <Button variant="contained" startIcon={<Save />} onClick={save}>
-              Guardar configuración
+            <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>
+              {saving ? 'Guardando...' : 'Guardar configuración'}
             </Button>
           </Stack>
         </Stack>

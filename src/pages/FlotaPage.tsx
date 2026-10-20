@@ -30,8 +30,10 @@ import {
 } from '@mui/material'
 import { Add, Check, Close, Edit, InfoOutlined, LocalShipping, Person } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
+import { ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
-import { DRIVERS, VEHICLES } from '../mockData'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
 import { ars } from '../format'
 import { brand } from '../theme'
 import type { Driver, DriverStatus, Vehicle, VehicleStatus } from '../types'
@@ -45,8 +47,12 @@ export function FlotaPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [tab, setTab] = useState(0)
-  const [drivers, setDrivers] = useState<Driver[]>(DRIVERS.map((d) => ({ ...d })))
-  const [vehicles, setVehicles] = useState<Vehicle[]>(VEHICLES.map((v) => ({ ...v })))
+  const fleet = useAsync(async () => {
+    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
+    return { drivers, vehicles }
+  }, [])
+  const drivers: Driver[] = fleet.data?.drivers ?? []
+  const vehicles: Vehicle[] = fleet.data?.vehicles ?? []
   const [dialog, setDialog] = useState<DialogState>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -57,6 +63,26 @@ export function FlotaPage() {
 
   const openAdd = () => setDialog({ mode: tab === 0 ? 'driver' : 'vehicle', data: null })
   const openEdit = (mode: 'driver' | 'vehicle', data: Driver | Vehicle) => setDialog({ mode, data: data as any })
+
+  if (fleet.loading) {
+    return (
+      <AppShell active="flota" breadcrumb={['Operación', 'Choferes y vehículos']} title="Flota">
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <LoadingState label="Cargando flota..." />
+        </Box>
+      </AppShell>
+    )
+  }
+
+  if (fleet.error) {
+    return (
+      <AppShell active="flota" breadcrumb={['Operación', 'Choferes y vehículos']} title="Flota">
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <ErrorState message={fleet.error} onRetry={fleet.reload} />
+        </Box>
+      </AppShell>
+    )
+  }
 
   return (
     <>
@@ -230,15 +256,10 @@ export function FlotaPage() {
         <RecordDialog
           state={dialog}
           onClose={() => setDialog(null)}
-          onSave={(driver, vehicle) => {
-            if (driver) {
-              setDrivers((prev) => (prev.some((d) => d.id === driver.id) ? prev.map((d) => (d.id === driver.id ? driver : d)) : [...prev, driver]))
-            }
-            if (vehicle) {
-              setVehicles((prev) => (prev.some((v) => v.id === vehicle.id) ? prev.map((v) => (v.id === vehicle.id ? vehicle : v)) : [...prev, vehicle]))
-            }
+          onSaved={(message) => {
             setDialog(null)
-            setToast(driver ? 'Cambios guardados' : 'Vehículo guardado')
+            setToast(message)
+            fleet.reload()
           }}
         />
       )}
@@ -255,11 +276,11 @@ export function FlotaPage() {
 function RecordDialog({
   state,
   onClose,
-  onSave,
+  onSaved,
 }: {
   state: NonNullable<DialogState>
   onClose: () => void
-  onSave: (driver?: Driver, vehicle?: Vehicle) => void
+  onSaved: (message: string) => void
 }) {
   const isDriver = state.mode === 'driver'
   const initialD = (state.data as Driver) ?? null
@@ -272,34 +293,47 @@ function RecordDialog({
   const [capacity, setCapacity] = useState(initialV ? String(initialV.capacityKg) : '')
   const [driverStatus, setDriverStatus] = useState<DriverStatus>(initialD?.status ?? 'Activo')
   const [vehicleStatus, setVehicleStatus] = useState<VehicleStatus>(initialV?.status ?? 'Disponible')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const editing = !!state.data
   const canSave = isDriver ? name.trim() !== '' && phone.trim() !== '' : id.trim() !== '' && type.trim() !== '' && Number(capacity) > 0
 
-  const save = () => {
-    if (isDriver) {
-      const seq = 3 + (editing ? Math.floor(Math.random() * 10) : 0)
-      const driver: Driver = {
-        id: initialD?.id ?? `DR${seq}`,
-        initials: name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
-        name,
-        phone,
-        status: driverStatus,
-        baseRate: initialD?.baseRate ?? 60000,
-        ratePerKm: initialD?.ratePerKm ?? 800,
-        ratePerHour: initialD?.ratePerHour ?? 10000,
-        factors: initialD?.factors ?? [],
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      if (isDriver) {
+        if (editing) {
+          await api.updateDriver(initialD!.id, { name, phone, status: driverStatus })
+        } else {
+          await api.createDriver({ name, phone, status: driverStatus })
+        }
+        onSaved('Cambios guardados')
+      } else {
+        if (editing) {
+          await api.updateVehicle(initialV!.id, {
+            id,
+            type,
+            capacity_kg: Number(capacity),
+            status: vehicleStatus,
+            assigned_note: vehicleStatus === 'Asignado' ? initialV?.assignedNote ?? null : null,
+          })
+        } else {
+          await api.createVehicle({
+            id,
+            type,
+            capacity_kg: Number(capacity),
+            status: vehicleStatus,
+            assigned_note: null,
+          })
+        }
+        onSaved('Vehículo guardado')
       }
-      onSave(driver)
-    } else {
-      const vehicle: Vehicle = {
-        id,
-        type,
-        capacityKg: Number(capacity),
-        status: vehicleStatus,
-        assignedNote: vehicleStatus === 'Asignado' ? 'FEX-1047 · hasta 14:00' : undefined,
-      }
-      onSave(undefined, vehicle)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos guardar los cambios.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -324,6 +358,11 @@ function RecordDialog({
         </Stack>
       </DialogTitle>
       <DialogContent sx={{ px: 3, pt: 2.5 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
         {isDriver ? (
           <Stack spacing={2}>
             <TextField label="Nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" placeholder="Nombre completo" />
@@ -361,8 +400,8 @@ function RecordDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
         <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>Cancelar</Button>
-        <Button variant="contained" startIcon={<Check />} disabled={!canSave} onClick={save}>
-          Guardar
+        <Button variant="contained" startIcon={<Check />} disabled={!canSave || saving} onClick={save}>
+          {saving ? 'Guardando...' : 'Guardar'}
         </Button>
       </DialogActions>
     </Dialog>

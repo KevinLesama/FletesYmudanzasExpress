@@ -27,60 +27,49 @@ import {
 } from '@mui/material'
 import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search, WarningAmber } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
+import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
-import { REQUESTS } from '../mockData'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
 import { ars, fmtDate } from '../format'
 import { brand } from '../theme'
-import type { Payment, PaymentConcept, PaymentMethod, ReceivedBy } from '../types'
-
-interface TripPay {
-  id: string
-  client: string
-  date: string
-  price: number
-  payments: Payment[]
-}
-
-const INITIAL_TRIPS: TripPay[] = [
-  { id: 'FEX-1046', client: 'Marta Ríos', date: '2026-09-24', price: 240000, payments: [{ concept: 'Seña', method: 'Transferencia', receivedBy: 'Administración', amount: 120000, date: '2026-09-22', notes: 'Seña 50%' }, { concept: 'Saldo', method: 'Transferencia', receivedBy: 'Chofer', amount: 60000, date: '2026-09-23', notes: 'Pago parcial en destino' }] },
-  { id: 'FEX-1047', client: 'Estudio Sur', date: '2026-09-24', price: 325000, payments: [{ concept: 'Seña', method: 'Efectivo', receivedBy: 'Administración', amount: 162500, date: '2026-09-23', notes: 'Seña 50% reserva' }] },
-  { id: 'FEX-1048', client: 'Kevin', date: '2026-09-24', price: 185000, payments: [] },
-]
+import type { Payment, PaymentConcept, PaymentMethod, PaymentSummary, ReceivedBy } from '../types'
 
 export function PagosPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const [trips, setTrips] = useState<TripPay[]>(INITIAL_TRIPS.map((t) => ({ ...t, payments: [...t.payments] })))
   const [date, setDate] = useState('all')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
-  const [dialogTrip, setDialogTrip] = useState<string | null>(null)
+  const [dialogTrip, setDialogTrip] = useState<PaymentSummary | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const summaryState = useAsync(() => api.paymentsSummary(), [])
+  const trips: PaymentSummary[] = summaryState.data ?? []
 
   const rows = useMemo(() => {
-    return trips
-      .map((t) => {
-        const seña = t.payments.filter((p) => p.concept === 'Seña').reduce((a, p) => a + p.amount, 0)
-        const cobrado = t.payments.reduce((a, p) => a + p.amount, 0)
-        const saldo = Math.max(t.price - cobrado, 0)
-        const estado = saldo === 0 ? 'Cobrado' : cobrado === 0 ? 'Sin pagos' : 'Parcial'
-        return { ...t, seña, cobrado, saldo, estado }
-      })
-      .filter((r) => {
-        if (date !== 'all' && r.date !== date) return false
-        if (status !== 'all' && r.estado !== status) return false
-        const q = search.trim().toLowerCase()
-        if (q && !r.client.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) return false
-        return true
-      })
+    return trips.filter((r) => {
+      if (date !== 'all' && r.date !== date) return false
+      if (status !== 'all' && r.state !== status) return false
+      const q = search.trim().toLowerCase()
+      if (q && !r.client.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) return false
+      return true
+    })
   }, [trips, date, status, search])
 
-  const activeTrip = trips.find((t) => t.id === dialogTrip)
-
-  const registerPayment = (id: string, payment: Payment) => {
-    setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, payments: [...t.payments, payment] } : t)))
-    setDialogTrip(null)
-    setToast(`Pago registrado · ${id} · ${ars(payment.amount)}`)
+  const registerPayment = async (trip: PaymentSummary, payment: Payment) => {
+    setBusy(true)
+    try {
+      await api.addPayment(trip.id, payment)
+      setDialogTrip(null)
+      setToast(`Pago registrado · ${trip.id} · ${ars(payment.amount)}`)
+      summaryState.reload()
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'No pudimos registrar el pago.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const paymentGridDesktop = (
@@ -106,14 +95,14 @@ export function PagosPage() {
                 <Typography sx={{ fontSize: 12, color: '#B8C0C9' }}>{fmtDate(r.date)}</Typography>
               </TableCell>
               <TableCell align="right">{ars(r.price)}</TableCell>
-              <TableCell align="right">{ars(r.seña)}</TableCell>
-              <TableCell align="right">{ars(r.cobrado)}</TableCell>
+              <TableCell align="right">{ars(r.deposit)}</TableCell>
+              <TableCell align="right">{ars(r.collected)}</TableCell>
               <TableCell align="right">
-                <Typography sx={{ fontWeight: 800, color: r.saldo > 0 ? '#98621B' : brand.navy }}>{ars(r.saldo)}</Typography>
+                <Typography sx={{ fontWeight: 800, color: r.balance > 0 ? '#98621B' : brand.navy }}>{ars(r.balance)}</Typography>
               </TableCell>
-              <TableCell><StatusChip label={r.estado} /></TableCell>
+              <TableCell><StatusChip label={r.state} /></TableCell>
               <TableCell align="right">
-                <Button size="small" startIcon={<Add sx={{ fontSize: 15 }} />} onClick={() => setDialogTrip(r.id)} sx={{ color: brand.navy }}>
+                <Button size="small" startIcon={<Add sx={{ fontSize: 15 }} />} onClick={() => setDialogTrip(r)} sx={{ color: brand.navy }}>
                   Registrar pago
                 </Button>
               </TableCell>
@@ -133,17 +122,17 @@ export function PagosPage() {
               <ReceiptLong sx={{ fontSize: 16, color: '#8A939E' }} />
               <Typography sx={{ fontWeight: 800, fontSize: 13.5, color: brand.navy }}>{r.id}</Typography>
             </Stack>
-            <StatusChip label={r.estado} />
+            <StatusChip label={r.state} />
           </Stack>
           <Typography sx={{ mt: 0.6, fontWeight: 700, fontSize: 14 }}>{r.client}</Typography>
           <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{fmtDate(r.date)}</Typography>
           <Box sx={{ my: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#F8F6F1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2 }}>
             <Money label="Precio acordado" value={ars(r.price)} />
-            <Money label="Seña recibida" value={ars(r.seña)} />
-            <Money label="Total cobrado" value={ars(r.cobrado)} />
-            <Money label="Saldo pendiente" value={ars(r.saldo)} strong />
+            <Money label="Seña recibida" value={ars(r.deposit)} />
+            <Money label="Total cobrado" value={ars(r.collected)} />
+            <Money label="Saldo pendiente" value={ars(r.balance)} strong />
           </Box>
-          <Button fullWidth variant="outlined" size="small" startIcon={<Add />} onClick={() => setDialogTrip(r.id)} sx={{ color: brand.navy, borderColor: '#D9D4C9' }}>
+          <Button fullWidth variant="outlined" size="small" startIcon={<Add />} onClick={() => setDialogTrip(r)} sx={{ color: brand.navy, borderColor: '#D9D4C9' }}>
             Registrar pago
           </Button>
         </Box>
@@ -212,13 +201,17 @@ export function PagosPage() {
           </FormControl>
         </Box>
 
-        {rows.length === 0 ? (
-          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, py: 8, textAlign: 'center' }}>
-            <Box sx={{ width: 52, height: 52, borderRadius: '50%', bgcolor: '#F0F2F5', color: '#8A939E', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1.5 }}>
-              <Search />
-            </Box>
-            <Typography sx={{ fontWeight: 700 }}>No encontramos viajes</Typography>
-            <Typography sx={{ fontSize: 13.5, color: '#8A939E', mt: 0.5 }}>Probá cambiar la búsqueda o los filtros.</Typography>
+        {summaryState.loading ? (
+          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+            <LoadingState label="Cargando pagos..." />
+          </Box>
+        ) : summaryState.error ? (
+          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+            <ErrorState message={summaryState.error} onRetry={summaryState.reload} />
+          </Box>
+        ) : rows.length === 0 ? (
+          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+            <EmptyState title="No encontramos viajes" subtext="Probá cambiar la búsqueda o los filtros." />
           </Box>
         ) : isMobile ? (
           paymentGridMobile
@@ -234,11 +227,12 @@ export function PagosPage() {
         </Stack>
       </AppShell>
 
-      {activeTrip && (
+      {dialogTrip && (
         <PaymentDialog
-          trip={activeTrip}
+          trip={dialogTrip}
           onClose={() => setDialogTrip(null)}
-          onSave={(payment) => registerPayment(activeTrip.id, payment)}
+          onSave={(payment) => registerPayment(dialogTrip, payment)}
+          busy={busy}
         />
       )}
 
@@ -264,18 +258,20 @@ function PaymentDialog({
   trip,
   onClose,
   onSave,
+  busy,
 }: {
-  trip: TripPay
+  trip: PaymentSummary
   onClose: () => void
   onSave: (payment: Payment) => void
+  busy?: boolean
 }) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const cobrado = trip.payments.reduce((a, p) => a + p.amount, 0)
+  const cobrado = trip.collected
   const saldo = Math.max(trip.price - cobrado, 0)
 
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState('2026-09-24')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [concept, setConcept] = useState<PaymentConcept>('Saldo')
   const [method, setMethod] = useState<PaymentMethod>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')
@@ -362,7 +358,7 @@ function PaymentDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
         <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>Cancelar</Button>
-        <Button variant="contained" startIcon={<Add />} onClick={save}>Guardar pago</Button>
+        <Button variant="contained" startIcon={<Add />} disabled={busy} onClick={save}>{busy ? 'Guardando...' : 'Guardar pago'}</Button>
       </DialogActions>
     </Dialog>
   )

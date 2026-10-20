@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -44,12 +45,14 @@ import {
   Undo,
 } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
+import { ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { R, useQuery } from '../routes'
-import { DRIVERS, VEHICLES, driverById, vehicleById, hasConflict, getRequest } from '../mockData'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
-import type { ReceivedBy, ShiftRequest } from '../types'
+import type { Availability, Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
 
 interface SectionCardProps {
@@ -105,54 +108,100 @@ function RouteStop({
 
 export function PlanificacionPage() {
   const query = useQuery()
-  const id = (query.get('id') ?? 'FEX-1048').toUpperCase()
+  const id = (query.get('id') ?? '').toUpperCase()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
-  const request = getRequest(id)
+  const requestState = useAsync(() => api.getRequest(id), [id])
+  const catalogState = useAsync(async () => {
+    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
+    return { drivers, vehicles }
+  }, [])
+  const request = requestState.data
+  const drivers: Driver[] = catalogState.data?.drivers ?? []
+  const vehicles: Vehicle[] = catalogState.data?.vehicles ?? []
 
-  const [driverId, setDriverId] = useState('JA')
-  const [vehicleId, setVehicleId] = useState('MOV-05')
+  const [driverId, setDriverId] = useState('')
+  const [vehicleId, setVehicleId] = useState('')
   const [start, setStart] = useState('11:00')
   const [end, setEnd] = useState('13:00')
-  const [price, setPrice] = useState(() => String(request?.price ?? 185000))
-  const [depositRequired, setDepositRequired] = useState(() => String(Math.round((request?.price ?? 185000) * 0.5)))
-  const [depositReceived, setDepositReceived] = useState(0)
+  const [price, setPrice] = useState('')
+  const [depositRequired, setDepositRequired] = useState('')
   const [saved, setSaved] = useState(false)
-  const [confirmed, setConfirmed] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [availability, setAvailability] = useState<Availability | null>(null)
 
-  const selectedDriver = driverById(driverId)
-  const selectedVehicle = vehicleById(vehicleId)
+  // Sincroniza el formulario cuando llega la solicitud.
+  useEffect(() => {
+    if (!request) return
+    setDriverId(request.driverId ?? '')
+    setVehicleId(request.vehicleId ?? '')
+    setStart(request.serviceRange[0] || '11:00')
+    setEnd(request.serviceRange[1] || '13:00')
+    setPrice(String(request.price ?? 0))
+    setDepositRequired(String(request.depositRequired ?? 0))
+    setConfirmedState(request.status === 'Confirmada')
+    setCancelled(request.status === 'Cancelada')
+  }, [request])
 
-  const conflict = hasConflict(driverId, [start, end], request?.id)
-  const vehicleBusy = vehicleId === 'MOV-04' || vehicleId === 'MOV-01' || vehicleId === 'MOV-07'
+  const [confirmedState, setConfirmedState] = useState(false)
+
+  const depositReceived = request?.depositReceived ?? 0
   const depositOk = depositReceived >= Number(depositRequired || 0) && Number(depositRequired) > 0
+
+  const selectedDriver = drivers.find((d) => d.id === driverId)
+  const selectedVehicle = vehicles.find((v) => v.id === vehicleId)
+
+  const conflict = !!availability && !availability.driverAvailable
+  const vehicleBusy = !!availability && !availability.vehicleAvailable
   const canConfirm = depositOk && !conflict && !vehicleBusy && !!driverId && !!vehicleId
 
-  const driverOption = (did: string) => {
-    const d = driverById(did)!
-    const busy = did === 'MR'
-    return (
-      <MenuItem value={did} disabled={busy} key={did}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <Person sx={{ fontSize: 16, color: '#8A939E' }} />
-          <span>{d.name}</span>
-          {busy && <span style={{ fontSize: 12, color: '#9C493A' }}>· Ocupado 10:00-12:00</span>}
-        </Stack>
-      </MenuItem>
-    )
-  }
+  // Consulta de disponibilidad real cada vez que cambian los valores relevantes.
+  useEffect(() => {
+    if (!request || !driverId || !vehicleId) {
+      setAvailability(null)
+      return
+    }
+    let active = true
+    api
+      .availability({
+        date: request.date,
+        start,
+        end,
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        exclude: request.id,
+      })
+      .then((result) => {
+        if (active) setAvailability(result)
+      })
+      .catch(() => {
+        if (active) setAvailability(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [request, driverId, vehicleId, start, end])
 
-  const vehicleOption = (vid: string) => {
-    const v = vehicleById(vid)!
-    const note = v.status === 'En taller' ? '· En taller' : v.id === 'MOV-04' ? '· Ocupado 12:00-14:00' : v.id === 'MOV-01' ? '· Ocupado 10:00-12:00' : ''
-    const disabled = v.status !== 'Disponible' || v.id !== 'MOV-05'
+  const driverOption = (d: Driver) => (
+    <MenuItem value={d.id} key={d.id}>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <Person sx={{ fontSize: 16, color: '#8A939E' }} />
+        <span>{d.name}</span>
+        {d.status !== 'Activo' && <span style={{ fontSize: 12, color: '#9C493A' }}>· {d.status}</span>}
+      </Stack>
+    </MenuItem>
+  )
+
+  const vehicleOption = (v: Vehicle) => {
+    const disabled = v.status === 'En taller'
+    const note = v.status !== 'Disponible' ? `· ${v.status}` : ''
     return (
-      <MenuItem value={vid} disabled={disabled} key={vid}>
+      <MenuItem value={v.id} disabled={disabled} key={v.id}>
         <Stack direction="row" alignItems="center" spacing={1}>
           <LocalShipping sx={{ fontSize: 16, color: '#8A939E' }} />
           <span>
@@ -164,18 +213,55 @@ export function PlanificacionPage() {
     )
   }
 
-  const requestId = request?.id ?? 'FEX-1048'
-  const requestClient = request?.client ?? 'Lucía Benítez'
-  const requestPhone = request?.phone ?? '11 4500-1287'
-  const requestDate = request?.date ?? '2026-09-24'
-  const requestArrival = request?.arrivalRange ?? (['09:00', '11:00'] as [string, string])
+  const requestId = request?.id ?? id
+  const requestClient = request?.client ?? ''
+  const requestPhone = request?.phone ?? ''
+  const requestDate = request?.date ?? ''
+  const requestArrival = request?.arrivalRange ?? (['--:--', '--:--'] as [string, string])
   const requestOrigin = request?.origin
   const requestDestination = request?.destination
 
   const wa = waLink(
-    request?.phone ?? '11 3291-5140',
-    `Hola ${requestClient}, te escribimos por tu viaje ${requestId} del ${fmtDateEs(requestDate)} · servicio ${(request?.serviceRange ?? ['11:00', '13:00']).join(' a ')}.`,
+    requestPhone,
+    `Hola ${requestClient}, te escribimos por tu viaje ${requestId} del ${fmtDateEs(requestDate)} · servicio ${(request?.serviceRange ?? ['', '']).join(' a ')}.`,
   )
+
+  const runAction = async (fn: () => Promise<ShiftRequest | unknown>, successMessage: string) => {
+    setBusy(true)
+    try {
+      await fn()
+      await requestState.reload()
+      setToast(successMessage)
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'No pudimos completar la operación.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (requestState.loading || catalogState.loading) {
+    return (
+      <AppShell active="solicitudes" breadcrumb={['Gestión', 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <LoadingState label="Cargando solicitud..." />
+        </Box>
+      </AppShell>
+    )
+  }
+
+  if (requestState.error || !request) {
+    return (
+      <AppShell active="solicitudes" breadcrumb={['Gestión', 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <ErrorState message={requestState.error ?? 'No encontramos la solicitud solicitada.'} onRetry={requestState.reload} />
+        </Box>
+      </AppShell>
+    )
+  }
+
+  const confirmed = confirmedState
+  const cancelledFlag = cancelled
+
 
   const planning = (
     <>
@@ -216,49 +302,45 @@ export function PlanificacionPage() {
         <FormControl size="small" fullWidth>
           <InputLabel>Chofer</InputLabel>
           <Select label="Chofer" value={driverId} onChange={(e) => setDriverId(e.target.value)}>
-            {DRIVERS.map((d) => driverOption(d.id))}
+            {drivers.map((d) => driverOption(d))}
           </Select>
         </FormControl>
         <FormControl size="small" fullWidth>
           <InputLabel>Vehículo</InputLabel>
           <Select label="Vehículo" value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-            {VEHICLES.map((v) => vehicleOption(v.id))}
+            {vehicles.map((v) => vehicleOption(v))}
           </Select>
         </FormControl>
       </Stack>
 
       <Stack spacing={1} sx={{ mt: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <CheckCircle sx={{ fontSize: 16, color: '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
-            {selectedDriver?.name} — disponible para este horario
+          <CheckCircle sx={{ fontSize: 16, color: conflict ? '#B9761F' : '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: conflict ? '#B9761F' : '#2F7D55' }}>
+            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — {conflict ? 'no disponible para este horario' : 'disponible para este horario'}
           </Typography>
         </Stack>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
-            {selectedVehicle?.id} · {selectedVehicle?.type} · {selectedVehicle?.capacityKg} kg — disponible
+          <LocalShipping sx={{ fontSize: 16, color: vehicleBusy ? '#B9761F' : '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: vehicleBusy ? '#B9761F' : '#2F7D55' }}>
+            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — {vehicleBusy ? 'no disponible' : 'disponible'}
           </Typography>
         </Stack>
       </Stack>
 
-      <Box sx={{ mt: 2 }}>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#5C6B7A', mb: 1 }}>Otras disponibilidades</Typography>
-        <Stack spacing={0.8}>
-          <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
-            <WarningAmber sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#B9761F' }} />
-            Marcelo Rodríguez · MOV-01 · ocupado 10:00-12:00 · FEX-1046
-          </Typography>
-          <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
-            <WarningAmber sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#B9761F' }} />
-            MOV-04 · ocupado 12:00-14:00 · FEX-1047
-          </Typography>
-          <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
-            <BugReport sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#8A939E' }} />
-            MOV-07 · en taller
-          </Typography>
-        </Stack>
-      </Box>
+      {availability && availability.conflicts.length > 0 && (
+        <Box sx={{ mt: 2 }}>
+          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#5C6B7A', mb: 1 }}>Conflictos detectados</Typography>
+          <Stack spacing={0.8}>
+            {availability.conflicts.map((c) => (
+              <Typography key={c} sx={{ fontSize: 12.5, color: '#8A939E' }}>
+                <WarningAmber sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#B9761F' }} />
+                {c}
+              </Typography>
+            ))}
+          </Stack>
+        </Box>
+      )}
 
       {(conflict || vehicleBusy) && (
         <Box sx={{ mt: 2, p: 1.4, borderRadius: 2, bgcolor: '#FFF3EF', border: '1px solid #F3DAD2', color: '#9C493A' }}>
@@ -410,20 +492,30 @@ export function PlanificacionPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
               <Button
                 variant="outlined"
-                startIcon={<Save />}
-                disabled={cancelled}
+                startIcon={busy ? <CircularProgress size={16} /> : <Save />}
+                disabled={cancelledFlag || busy}
                 sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }}
-                onClick={() => {
-                  setSaved(true)
-                  setToast('Planificación tentativa guardada')
-                }}
+                onClick={() =>
+                  runAction(
+                    () =>
+                      api.updateRequest(request.id, {
+                        driver_id: driverId || null,
+                        vehicle_id: vehicleId || null,
+                        service_from: start,
+                        service_to: end,
+                        price: Number(price || 0),
+                        deposit_required: Number(depositRequired || 0),
+                      }),
+                    'Planificación tentativa guardada',
+                  ).then(() => setSaved(true))
+                }
               >
                 Guardar planificación tentativa
               </Button>
               <Button
                 variant="outlined"
                 startIcon={<Paid />}
-                disabled={cancelled}
+                disabled={cancelledFlag || busy}
                 sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }}
                 onClick={() => setDialogOpen(true)}
               >
@@ -431,32 +523,47 @@ export function PlanificacionPage() {
               </Button>
               <Button
                 variant="outlined"
-                startIcon={cancelled ? <Undo /> : <Block />}
+                startIcon={cancelledFlag ? <Undo /> : <Block />}
+                disabled={busy}
                 sx={
-                  cancelled
+                  cancelledFlag
                     ? { color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }
                     : { color: '#9C493A', borderColor: '#E5B8AD', bgcolor: '#FFF7F5', py: 1.1, '&:hover': { borderColor: '#9C493A', bgcolor: '#FFEFEB' } }
                 }
                 onClick={() => {
-                  if (cancelled) {
-                    setCancelled(false)
-                    setToast('Viaje reactivado · ' + requestId)
+                  if (cancelledFlag) {
+                    runAction(
+                      () => api.updateRequest(request.id, { status: 'Pendiente de seña', confirmed: false }),
+                      'Viaje reactivado · ' + requestId,
+                    )
                   } else {
                     setCancelOpen(true)
                   }
                 }}
               >
-                {cancelled ? 'Reactivar viaje' : 'Cancelar viaje'}
+                {cancelledFlag ? 'Reactivar viaje' : 'Cancelar viaje'}
               </Button>
               <Button
                 variant="contained"
-                startIcon={<Check />}
-                disabled={!canConfirm || cancelled}
+                startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <Check />}
+                disabled={!canConfirm || cancelledFlag || busy}
                 sx={{ py: 1.1 }}
-                onClick={() => {
-                  setConfirmed(true)
-                  setToast('Viaje confirmado · FEX-' + requestId)
-                }}
+                onClick={() =>
+                  runAction(
+                    () =>
+                      api.updateRequest(request.id, {
+                        driver_id: driverId,
+                        vehicle_id: vehicleId,
+                        service_from: start,
+                        service_to: end,
+                        price: Number(price || 0),
+                        deposit_required: Number(depositRequired || 0),
+                        status: 'Confirmada',
+                        confirmed: true,
+                      }),
+                    'Viaje confirmado · ' + requestId,
+                  )
+                }
               >
                 Confirmar viaje
               </Button>
@@ -476,10 +583,20 @@ export function PlanificacionPage() {
         depositRequired={Number(depositRequired || 0)}
         price={Number(price || 0)}
         received={depositReceived}
-        onSave={(amount) => {
-          setDepositReceived((r) => r + amount)
+        onSave={(amount, date, concept, method, receivedBy, notes) => {
           setDialogOpen(false)
-          setToast(`Seña registrada · ${ars(amount)}`)
+          runAction(
+            () =>
+              api.addPayment(request.id, {
+                concept,
+                method,
+                receivedBy,
+                amount,
+                date,
+                notes,
+              }),
+            `Seña registrada · ${ars(amount)}`,
+          )
         }}
       />
 
@@ -487,9 +604,8 @@ export function PlanificacionPage() {
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         onConfirm={() => {
-          setCancelled(true)
           setCancelOpen(false)
-          setToast('Viaje cancelado · ' + requestId)
+          runAction(() => api.updateRequest(request.id, { status: 'Cancelada' }), 'Viaje cancelado · ' + requestId)
         }}
         requestId={requestId}
       />
@@ -583,12 +699,12 @@ function DepositDialog({
   depositRequired: number
   price: number
   received: number
-  onSave: (amount: number) => void
+  onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: 'Transferencia' | 'Efectivo', receivedBy: ReceivedBy, notes?: string) => void
 }) {
   const [amount, setAmount] = useState(String(depositRequired || ''))
-  const [date, setDate] = useState('2026-09-24')
-  const [concept, setConcept] = useState('Seña')
-  const [method, setMethod] = useState('Transferencia')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [concept, setConcept] = useState<'Seña' | 'Saldo'>('Seña')
+  const [method, setMethod] = useState<'Transferencia' | 'Efectivo'>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -598,11 +714,11 @@ function DepositDialog({
   const save = () => {
     const num = Number(amount || 0)
     const max = Math.max(price - received, depositRequired)
-    if (num < depositRequired || num > max) {
-      setError(`Ingresá un importe entre ${ars(depositRequired)} y ${ars(max)}.`)
+    if (num <= 0 || num > max) {
+      setError(`Ingresá un importe entre $ 1 y ${ars(max)}.`)
       return
     }
-    onSave(num)
+    onSave(num, date, concept, method, receivedBy, notes || undefined)
   }
 
   return (
@@ -645,14 +761,14 @@ function DepositDialog({
           <Stack direction="row" spacing={1.5}>
             <FormControl size="small" fullWidth>
               <InputLabel>Concepto</InputLabel>
-              <Select label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value)}>
+              <Select label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value as 'Seña' | 'Saldo')}>
                 <MenuItem value="Seña">Seña</MenuItem>
                 <MenuItem value="Saldo">Saldo</MenuItem>
               </Select>
             </FormControl>
             <FormControl size="small" fullWidth>
               <InputLabel>Medio</InputLabel>
-              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as 'Transferencia' | 'Efectivo')}>
                 <MenuItem value="Transferencia">Transferencia</MenuItem>
                 <MenuItem value="Efectivo">Efectivo</MenuItem>
               </Select>

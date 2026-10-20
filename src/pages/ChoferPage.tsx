@@ -24,15 +24,23 @@ import { ChoferShell } from '../components/ChoferShell'
 import { StatusChip } from '../components/StatusChip'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
-import { DRIVERS, REQUESTS, vehicleById, tripEarnings } from '../mockData'
-import { loadChoferConfig } from '../choferConfig'
+import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
+import { tripEarnings } from '../mockData'
 import { DEMO_DATE, fmtLong } from '../format'
 import { brand } from '../theme'
-import type { ShiftRequest } from '../types'
+import type { Driver, ShiftRequest } from '../types'
 
 const DEMO_DRIVER_ID = 'JA'
 
 const nowTime = () => new Date().toTimeString().slice(0, 5)
+
+const nowLocal = () => {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 function shiftDate(date: string, delta: number): string {
   const [y, m, d] = date.split('-').map(Number)
@@ -41,50 +49,50 @@ function shiftDate(date: string, delta: number): string {
 }
 
 export function ChoferPage() {
-  const driver = DRIVERS.find((d) => d.id === DEMO_DRIVER_ID)!
-  const cfg = loadChoferConfig(DEMO_DRIVER_ID)
-  const driverWithCfg = { ...driver, ...cfg }
-
   const [date, setDate] = useState(DEMO_DATE)
-  const [trips, setTrips] = useState<ShiftRequest[]>(() =>
-    REQUESTS.filter((r) => r.driverId === DEMO_DRIVER_ID).map((r) => ({
-      ...r,
-      incidents: r.incidents ? [...r.incidents] : [],
-    })),
-  )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [incidentOpen, setIncidentOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const tripsState = useAsync(() => api.listRequests({ driver_id: DEMO_DRIVER_ID }), [])
+  const driversState = useAsync(() => api.listDrivers(), [])
+  const trips: ShiftRequest[] = tripsState.data ?? []
+  const drivers: Driver[] = driversState.data ?? []
+  const driver = drivers.find((d) => d.id === DEMO_DRIVER_ID)
+  const vehicles = useAsync(() => api.listVehicles(), [])
 
   const dayTrips = useMemo(() => trips.filter((t) => t.date === date), [trips, date])
   const selected = trips.find((t) => t.id === selectedId) ?? null
+  const selectedVehicleName = selected?.vehicleId
+    ? `${selected.vehicleId} · ${(vehicles.data ?? []).find((v) => v.id === selected.vehicleId)?.type ?? ''}`
+    : undefined
 
-  const updateTrip = (id: string, patch: Partial<ShiftRequest>) =>
-    setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
-
-  const markLlegada = (t: ShiftRequest) => {
-    updateTrip(t.id, { arrivedAt: `2026-09-24T${nowTime()}` })
-    setToast('Llegada marcada · por tu cuenta')
+  const runAction = async (fn: () => Promise<unknown>, message: string) => {
+    setBusy(true)
+    try {
+      await fn()
+      await tripsState.reload()
+      setToast(message)
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'No pudimos completar la operación.')
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const markFin = (t: ShiftRequest) => {
-    updateTrip(t.id, { finishedAt: `2026-09-24T${nowTime()}` })
-    setToast('Viaje finalizado · buen servicio')
-  }
+  const markLlegada = (t: ShiftRequest) => runAction(() => api.markArrived(t.id, nowLocal()), 'Llegada marcada · por tu cuenta')
+  const markFin = (t: ShiftRequest) => runAction(() => api.markFinished(t.id, nowLocal()), 'Viaje finalizado · buen servicio')
 
   const saveRemito = (t: ShiftRequest, file: File) => {
     const reader = new FileReader()
     reader.onload = () => {
-      updateTrip(t.id, { remitoPhoto: { name: file.name, dataUrl: String(reader.result) } })
-      setToast('Remito cargado (demo, sin guardado)')
+      runAction(() => api.setRemito(t.id, { name: file.name, dataUrl: String(reader.result) }), 'Remito cargado')
     }
     reader.readAsDataURL(file)
   }
 
-  const removeRemito = (t: ShiftRequest) => {
-    updateTrip(t.id, { remitoPhoto: undefined })
-    setToast('Remito quitado')
-  }
+  const removeRemito = (t: ShiftRequest) => runAction(() => api.deleteRemito(t.id), 'Remito quitado')
 
   return (
     <>
@@ -108,12 +116,20 @@ export function ChoferPage() {
           <Chip label={fmtLong(date)} sx={{ fontWeight: 700, bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', ml: 0.5 }} />
         </Stack>
 
-        {dayTrips.length === 0 ? (
-          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, py: 8, textAlign: 'center' }}>
-            <Typography sx={{ fontWeight: 700 }}>Sin viajes asignados para esta fecha</Typography>
-            <Typography sx={{ fontSize: 14, color: '#8A939E', mt: 0.5 }}>
-              Cuando la administración te asigne un servicio en este día, va a aparecer acá.
-            </Typography>
+        {tripsState.loading ? (
+          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+            <LoadingState label="Cargando viajes..." />
+          </Box>
+        ) : tripsState.error ? (
+          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+            <ErrorState message={tripsState.error} onRetry={tripsState.reload} />
+          </Box>
+        ) : dayTrips.length === 0 ? (
+          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+            <EmptyState
+              title="Sin viajes asignados para esta fecha"
+              subtext="Cuando la administración te asigne un servicio en este día, va a aparecer acá."
+            />
           </Box>
         ) : (
           <AgendaGrid trips={dayTrips} onOpenTrip={(t) => setSelectedId(t.id)} />
@@ -124,13 +140,13 @@ export function ChoferPage() {
         <TripDetailModal
           trip={selected}
           role="chofer"
-          driverName={driver.name}
-          vehicleName={selected.vehicleId ? `${selected.vehicleId} · ${vehicleById(selected.vehicleId)?.type}` : undefined}
+          driverName={driver?.name}
+          vehicleName={selectedVehicleName}
           onClose={() => setSelectedId(null)}
-          earnings={tripEarnings(driverWithCfg, selected.estimatedKm ?? 0, selected.estimatedHours ?? 0)}
+          earnings={driver ? tripEarnings(driver, selected.estimatedKm ?? 0, selected.estimatedHours ?? 0) : undefined}
           onMarkLlegada={() => markLlegada(selected)}
           onMarkFin={() => markFin(selected)}
-          onAddIncident={(inc) => updateTrip(selected.id, { incidents: [...(selected.incidents ?? []), inc] })}
+          onAddIncident={(inc) => runAction(() => api.addIncident(selected.id, inc), 'Incidente reportado')}
           onRemito={(file) => saveRemito(selected, file)}
           onRemoveRemito={() => removeRemito(selected)}
           onReport={() => setIncidentOpen(true)}
@@ -142,14 +158,8 @@ export function ChoferPage() {
           open={incidentOpen}
           onClose={() => setIncidentOpen(false)}
           onSave={(type, description) => {
-            updateTrip(selected.id, {
-              incidents: [
-                ...(selected.incidents ?? []),
-                { id: `INC-${Math.floor(1000 + Math.random() * 8999)}`, type, description, time: `2026-09-24T${nowTime()}` },
-              ],
-            })
             setIncidentOpen(false)
-            setToast('Incidente reportado')
+            runAction(() => api.addIncident(selected.id, { type, description, time: nowLocal() }), 'Incidente reportado')
           }}
         />
       )}

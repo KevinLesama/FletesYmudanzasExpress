@@ -57,6 +57,24 @@ function mpaRoutes(): Plugin {
 export default defineConfig({
   base: '/',
   plugins: [react(), mpaRoutes()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {

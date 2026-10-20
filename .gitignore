@@ -1,10 +1,30 @@
-# dependencies
+# dependencias
 node_modules/
 
-# build output
+# salida de build
 dist/
+dist-ssr/
+*.local
 
-# editor / os
+# variables de entorno (nunca versionar secretos)
+.env
+.env.*
+!.env.example
+
+# Python / backend
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.sqlite3
+*.db
+
+# editor / sistema operativo
 .vscode/
 .idea/
 .DS_Store
@@ -13,6 +33,10 @@ Thumbs.db
 # logs
 *.log
 npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
 
-# misc
+# temporales
+tmp/
+temp/
 .kombai/

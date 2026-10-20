@@ -21,9 +21,10 @@ import {
 } from '@mui/material'
 import { Add, ArrowForward, ArrowBack, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
-import { EmptyState } from '../components/EmptyState'
+import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
-import { REQUESTS } from '../mockData'
+import { api } from '../api'
+import { useAsync } from '../useAsync'
 import { R } from '../routes'
 import { brand } from '../theme'
 import { fmtDate } from '../format'
@@ -35,15 +36,31 @@ export function SolicitudesPage() {
   const [date, setDate] = useState('all')
   const [status, setStatus] = useState('all')
 
+  const { data, loading, error, reload } = useAsync(() => api.listRequests(), [])
+
   const list = useMemo(() => {
-    return REQUESTS.filter((r) => {
-      const q = search.trim().toLowerCase()
-      if (q && !r.client.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) return false
-      if (date !== 'all' && r.date.slice(5).replace('-', '/') !== date && r.date.slice(8) !== date) return false
-      if (status !== 'all' && r.status !== status) return false
-      return true
-    }).sort((a, b) => Number(b.id.slice(4)) - Number(a.id.slice(4)))
-  }, [search, date, status])
+    const requests = data ?? []
+    return requests
+      .filter((r) => {
+        const q = search.trim().toLowerCase()
+        if (q && !r.client.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) return false
+        if (date !== 'all' && r.date.slice(5).replace('-', '/') !== date && r.date.slice(8) !== date) return false
+        if (status !== 'all' && r.status !== status) return false
+        return true
+      })
+      .sort((a, b) => Number(b.id.slice(4)) - Number(a.id.slice(4)))
+  }, [data, search, date, status])
+
+  const dateOptions = useMemo(() => {
+    const unique = Array.from(new Set((data ?? []).map((r) => r.date)))
+      .sort()
+      .reverse()
+    return [
+      { value: 'all', label: 'Todas las fechas' },
+      ...unique.map((d) => ({ value: d.slice(5).replace('-', '/'), label: fmtDate(d, true) })),
+    ]
+  }, [data])
+
 
   const clearFilters = () => {
     setSearch('')
@@ -52,13 +69,6 @@ export function SolicitudesPage() {
   }
 
   const filtersActive = search !== '' || date !== 'all' || status !== 'all'
-
-  const dateOptions = [
-    { value: 'all', label: 'Todas las fechas' },
-    { value: '24/09', label: '24/09' },
-    { value: '26/09', label: '26/09' },
-    { value: '20/09', label: '20/09' },
-  ]
 
   const statusOptions = [
     { value: 'all', label: 'Todos los estados' },
@@ -140,7 +150,15 @@ export function SolicitudesPage() {
       </Box>
 
       {/* List */}
-      {list.length === 0 ? (
+      {loading ? (
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <LoadingState label="Cargando solicitudes..." />
+        </Box>
+      ) : error ? (
+        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <ErrorState message={error} onRetry={reload} />
+        </Box>
+      ) : list.length === 0 ? (
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
           <EmptyState title="No encontramos solicitudes" subtext="Probá cambiar la búsqueda o los filtros." />
         </Box>

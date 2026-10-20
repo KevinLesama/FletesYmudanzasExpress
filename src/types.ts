@@ -1,3 +1,6 @@
+// Tipos del dominio (los mismos que ya usaba la demo) y los DTO que devuelve
+// la API. La API habla en snake_case; los DTO se mapean a estos tipos en api.ts.
+
 export type RequestStatus = 'Pendiente de revisión' | 'Pendiente de seña' | 'Confirmada' | 'Cancelada'
 export type TripStatus = 'Confirmada' | 'Tentativa'
 export type VehicleStatus = 'Disponible' | 'Asignado' | 'En taller'
@@ -5,6 +8,7 @@ export type DriverStatus = 'Activo' | 'Inactivo'
 export type PaymentConcept = 'Seña' | 'Saldo'
 export type PaymentMethod = 'Transferencia' | 'Efectivo'
 export type ReceivedBy = 'Administración' | 'Chofer'
+export type PaymentState = 'Cobrado' | 'Parcial' | 'Sin pagos'
 
 export interface Factor {
   label: string
@@ -87,9 +91,11 @@ export interface ShiftRequest {
   finishedAt?: string
   incidents?: TripIncident[]
   remitoPhoto?: RemitoPhoto
+  payments?: Payment[]
 }
 
 export interface Payment {
+  id?: number
   concept: PaymentConcept
   method: PaymentMethod
   receivedBy: ReceivedBy
@@ -102,4 +108,27 @@ export interface RequestFilter {
   search: string
   date: string
   status: string
+}
+
+export interface Client {
+  id: number
+  name: string
+  phone: string
+}
+
+export interface PaymentSummary {
+  id: string
+  client: string
+  date: string
+  price: number
+  deposit: number
+  collected: number
+  balance: number
+  state: PaymentState
+}
+
+export interface Availability {
+  driverAvailable: boolean
+  vehicleAvailable: boolean
+  conflicts: string[]
 }
