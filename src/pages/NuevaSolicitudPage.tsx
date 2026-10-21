@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   InputAdornment,
@@ -14,13 +13,13 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
-  Snackbar,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
 import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -62,7 +61,7 @@ export function NuevaSolicitudPage() {
 
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
 
   useEffect(() => {
     if (clientMode === 'existente' && !selectedClientId && clients.length > 0) {
@@ -133,12 +132,12 @@ export function NuevaSolicitudPage() {
       })
 
       setSaved(true)
-      setToast(`Solicitud guardada · ${created.id}`)
+      setToast({ message: `Solicitud guardada · ${created.id}`, tone: 'success' })
       setTimeout(() => {
         window.location.href = R.planificacion(created.id)
       }, 1400)
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos guardar la solicitud.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos guardar la solicitud.', tone: 'error' })
     } finally {
       setSaving(false)
     }
@@ -343,9 +342,7 @@ export function NuevaSolicitudPage() {
         </Box>
       </AppShell>
 
-      <Snackbar open={!!toast} autoHideDuration={2500} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>{toast}</Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -14,7 +13,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -25,11 +23,11 @@ import { StatusChip } from '../components/StatusChip'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { tripEarnings } from '../mockData'
 import { DEMO_DATE, fmtLong } from '../format'
-import { brand } from '../theme'
 import type { Driver, ShiftRequest } from '../types'
 
 const DEMO_DRIVER_ID = 'JA'
@@ -52,7 +50,7 @@ export function ChoferPage() {
   const [date, setDate] = useState(DEMO_DATE)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [incidentOpen, setIncidentOpen] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
 
   const tripsState = useAsync(() => api.listRequests({ driver_id: DEMO_DRIVER_ID }), [])
@@ -73,9 +71,9 @@ export function ChoferPage() {
     try {
       await fn()
       await tripsState.reload()
-      setToast(message)
+      setToast({ message, tone: 'success' })
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos completar la operación.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos completar la operación.', tone: 'error' })
     } finally {
       setBusy(false)
     }
@@ -164,11 +162,7 @@ export function ChoferPage() {
         />
       )}
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }

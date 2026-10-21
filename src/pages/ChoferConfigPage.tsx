@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   Divider,
   IconButton,
   InputAdornment,
-  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -14,6 +12,7 @@ import {
 import { Add, Close, InfoOutlined, Paid, RestartAlt, Save, Tune } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { Toast, type ToastState } from '../components/Toast'
 import { tripEarnings } from '../mockData'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -47,7 +46,7 @@ export function ChoferConfigPage() {
   const driver = drivers.find((d) => d.id === DEMO_DRIVER_ID)
 
   const [config, setConfig] = useState<ChoferConfig | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -98,9 +97,9 @@ export function ChoferConfigPage() {
         rate_per_hour: config.ratePerHour,
         factors: config.factors,
       })
-      setToast('Configuración guardada')
+      setToast({ message: 'Configuración guardada', tone: 'success' })
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos guardar la configuración.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos guardar la configuración.', tone: 'error' })
     } finally {
       setSaving(false)
     }
@@ -108,7 +107,7 @@ export function ChoferConfigPage() {
 
   const reset = () => {
     setConfig(toConfig(driver))
-    setToast('Restauramos los valores del servidor')
+    setToast({ message: 'Restauramos los valores del servidor', tone: 'success' })
   }
 
   return (
@@ -239,11 +238,7 @@ export function ChoferConfigPage() {
         </Stack>
       </ChoferShell>
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }

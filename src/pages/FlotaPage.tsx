@@ -13,7 +13,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   Tab,
   Tabs,
@@ -32,6 +31,7 @@ import { Add, Check, Close, Edit, InfoOutlined, LocalShipping, Person } from '@m
 import { AppShell } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars } from '../format'
@@ -54,7 +54,7 @@ export function FlotaPage() {
   const drivers: Driver[] = fleet.data?.drivers ?? []
   const vehicles: Vehicle[] = fleet.data?.vehicles ?? []
   const [dialog, setDialog] = useState<DialogState>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
 
   const activeVehicles = vehicles.filter((v) => v.status === 'Disponible').length
   const assignedVehicles = vehicles.filter((v) => v.status === 'Asignado').length
@@ -258,17 +258,13 @@ export function FlotaPage() {
           onClose={() => setDialog(null)}
           onSaved={(message) => {
             setDialog(null)
-            setToast(message)
+            setToast({ message, tone: 'success' })
             fleet.reload()
           }}
         />
       )}
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }

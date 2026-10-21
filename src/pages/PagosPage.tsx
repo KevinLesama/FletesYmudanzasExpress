@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   Dialog,
@@ -12,7 +11,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -29,6 +27,7 @@ import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search, WarningAmber } fro
 import { AppShell } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate } from '../format'
@@ -42,7 +41,7 @@ export function PagosPage() {
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
   const [dialogTrip, setDialogTrip] = useState<PaymentSummary | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
 
   const summaryState = useAsync(() => api.paymentsSummary(), [])
@@ -63,10 +62,10 @@ export function PagosPage() {
     try {
       await api.addPayment(trip.id, payment)
       setDialogTrip(null)
-      setToast(`Pago registrado · ${trip.id} · ${ars(payment.amount)}`)
+      setToast({ message: `Pago registrado · ${trip.id} · ${ars(payment.amount)}`, tone: 'success' })
       summaryState.reload()
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos registrar el pago.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos registrar el pago.', tone: 'error' })
     } finally {
       setBusy(false)
     }
@@ -236,11 +235,7 @@ export function PagosPage() {
         />
       )}
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }

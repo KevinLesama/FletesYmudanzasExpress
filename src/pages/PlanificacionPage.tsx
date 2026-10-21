@@ -13,8 +13,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
-  Alert,
   Stack,
   TextField,
   Typography,
@@ -46,6 +44,7 @@ import {
 } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { Toast, type ToastState } from '../components/Toast'
 import { StatusChip } from '../components/StatusChip'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { R, useQuery } from '../routes'
@@ -131,9 +130,10 @@ export function PlanificacionPage() {
   const [cancelled, setCancelled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
   const [availability, setAvailability] = useState<Availability | null>(null)
+  const [availabilityError, setAvailabilityError] = useState(false)
 
   // Sincroniza el formulario cuando llega la solicitud.
   useEffect(() => {
@@ -158,12 +158,14 @@ export function PlanificacionPage() {
 
   const conflict = !!availability && !availability.driverAvailable
   const vehicleBusy = !!availability && !availability.vehicleAvailable
-  const canConfirm = depositOk && !conflict && !vehicleBusy && !!driverId && !!vehicleId
+  // A failed availability check must never read as "available".
+  const canConfirm = depositOk && !conflict && !vehicleBusy && !availabilityError && !!driverId && !!vehicleId
 
   // Consulta de disponibilidad real cada vez que cambian los valores relevantes.
   useEffect(() => {
     if (!request || !driverId || !vehicleId) {
       setAvailability(null)
+      setAvailabilityError(false)
       return
     }
     let active = true
@@ -177,10 +179,16 @@ export function PlanificacionPage() {
         exclude: request.id,
       })
       .then((result) => {
-        if (active) setAvailability(result)
+        if (active) {
+          setAvailability(result)
+          setAvailabilityError(false)
+        }
       })
       .catch(() => {
-        if (active) setAvailability(null)
+        if (active) {
+          setAvailability(null)
+          setAvailabilityError(true)
+        }
       })
     return () => {
       active = false
@@ -231,9 +239,9 @@ export function PlanificacionPage() {
     try {
       await fn()
       await requestState.reload()
-      setToast(successMessage)
+      setToast({ message: successMessage, tone: 'success' })
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos completar la operación.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos completar la operación.', tone: 'error' })
     } finally {
       setBusy(false)
     }
@@ -315,15 +323,15 @@ export function PlanificacionPage() {
 
       <Stack spacing={1} sx={{ mt: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <CheckCircle sx={{ fontSize: 16, color: conflict ? '#B9761F' : '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: conflict ? '#B9761F' : '#2F7D55' }}>
-            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — {conflict ? 'no disponible para este horario' : 'disponible para este horario'}
+          <CheckCircle sx={{ fontSize: 16, color: availabilityError || conflict ? '#B9761F' : '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: availabilityError || conflict ? '#B9761F' : '#2F7D55' }}>
+            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — {availabilityError ? 'disponibilidad sin verificar' : conflict ? 'no disponible para este horario' : 'disponible para este horario'}
           </Typography>
         </Stack>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: vehicleBusy ? '#B9761F' : '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: vehicleBusy ? '#B9761F' : '#2F7D55' }}>
-            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — {vehicleBusy ? 'no disponible' : 'disponible'}
+          <LocalShipping sx={{ fontSize: 16, color: availabilityError || vehicleBusy ? '#B9761F' : '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: availabilityError || vehicleBusy ? '#B9761F' : '#2F7D55' }}>
+            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — {availabilityError ? 'disponibilidad sin verificar' : vehicleBusy ? 'no disponible' : 'disponible'}
           </Typography>
         </Stack>
       </Stack>
@@ -338,6 +346,17 @@ export function PlanificacionPage() {
                 {c}
               </Typography>
             ))}
+          </Stack>
+        </Box>
+      )}
+
+      {availabilityError && (
+        <Box sx={{ mt: 2, p: 1.4, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #EBD3AE', color: '#98621B' }}>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <InfoOutlined sx={{ fontSize: 16, mt: 0.2 }} />
+            <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
+              No pudimos verificar la disponibilidad. La confirmación queda bloqueada hasta poder comprobarla.
+            </Typography>
           </Stack>
         </Box>
       )}
@@ -610,16 +629,7 @@ export function PlanificacionPage() {
         requestId={requestId}
       />
 
-      <Snackbar
-        open={!!toast}
-        autoHideDuration={3500}
-        onClose={() => setToast(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled" onClose={() => setToast(null)} sx={{ bgcolor: brand.navy }}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }
