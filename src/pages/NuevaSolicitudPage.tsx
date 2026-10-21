@@ -198,7 +198,7 @@ export function NuevaSolicitudPage() {
                         </MenuItem>
                       ))}
                     </Select>
-                    <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+                    <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
                       Usamos estos datos para coordinar el servicio con el cliente.
                     </Typography>
                   </Stack>
@@ -226,7 +226,7 @@ export function NuevaSolicitudPage() {
                 <StepHeading n="02" title="Servicio" subtitle="Fecha solicitada, horario aproximado y recorrido." />
                 <Stack spacing={2.5}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#8A939E', letterSpacing: '0.06em' }}>
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#6E7A87', letterSpacing: '0.06em' }}>
                       Fecha y horario
                     </Typography>
                     <TextField label="Fecha solicitada" type="date" value={date} onChange={(e) => setDate(e.target.value)} size="small" fullWidth sx={{ maxWidth: 260 }} />
@@ -267,7 +267,7 @@ export function NuevaSolicitudPage() {
                 <StepHeading n="03" title="Carga" subtitle="Contanos qué hay que trasladar para elegir el vehículo adecuado." />
                 <Stack spacing={2.5}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#8A939E', letterSpacing: '0.06em' }}>
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#6E7A87', letterSpacing: '0.06em' }}>
                       Detalles de la carga
                     </Typography>
                     <TextField
@@ -308,7 +308,7 @@ export function NuevaSolicitudPage() {
           </Box>
 
           <Stack direction={{ xs: 'column-reverse', md: 'row' }} spacing={1.5} sx={{ mt: 2.5, justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
               {step === 2 ? 'Revisá los datos antes de guardar.' : 'Los campos con * son obligatorios.'}
             </Typography>
             <Stack direction="row" spacing={1.5}>
@@ -355,7 +355,7 @@ function StepHeading({ n, title, subtitle }: { n: string; title: string; subtitl
       </Box>
       <Box>
         <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 16 }}>{title}</Typography>
-        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{subtitle}</Typography>
+        <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{subtitle}</Typography>
       </Box>
     </Stack>
   )

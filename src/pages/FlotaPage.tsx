@@ -137,7 +137,7 @@ export function FlotaPage() {
                       </Avatar>
                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{d.name}</Typography>
-                        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{d.phone}</Typography>
+                        <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{d.phone}</Typography>
                         <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: brand.navy, mt: 0.25 }}>
                           Tarifa base · {ars(d.baseRate)} / viaje
                         </Typography>
@@ -175,7 +175,7 @@ export function FlotaPage() {
                       <TableCell>{d.phone}</TableCell>
                       <TableCell>
                         <Typography sx={{ fontWeight: 800, color: brand.navy }}>{ars(d.baseRate)}</Typography>
-                        <Typography sx={{ fontSize: 12, color: '#8A939E' }}>por viaje</Typography>
+                        <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>por viaje</Typography>
                       </TableCell>
                       <TableCell><StatusChip label={d.status} /></TableCell>
                       <TableCell align="right">
@@ -201,9 +201,9 @@ export function FlotaPage() {
                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{v.id}</Typography>
-                          <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{v.type}</Typography>
+                          <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{v.type}</Typography>
                         </Stack>
-                        <Typography sx={{ fontSize: 12, color: '#8A939E' }}>Capacidad registrada · {v.capacityKg} kg</Typography>
+                        <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>Capacidad registrada · {v.capacityKg} kg</Typography>
                       </Box>
                       <StatusChip label={v.status} />
                     </Stack>
@@ -236,7 +236,7 @@ export function FlotaPage() {
                       <TableCell>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <StatusChip label={v.status} />
-                          {v.status === 'Asignado' && <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{v.assignedNote}</Typography>}
+                          {v.status === 'Asignado' && <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{v.assignedNote}</Typography>}
                         </Stack>
                       </TableCell>
                       <TableCell align="right">
@@ -344,7 +344,7 @@ function RecordDialog({
             <Typography sx={{ fontSize: 17, fontFamily: "'Manrope', sans-serif", fontWeight: 800 }}>
               {editing ? 'Editar' : isDriver ? 'Agregar chofer' : 'Agregar vehículo'}
             </Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
               {isDriver ? 'Completá los datos del chofer.' : 'Completá los datos del vehículo.'}
             </Typography>
           </Box>

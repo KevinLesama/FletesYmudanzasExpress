@@ -145,7 +145,7 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
                 width: GUTTER,
                 textAlign: 'center',
                 fontSize: 10.5,
-                color: '#8A939E',
+                color: '#6E7A87',
                 fontWeight: 600,
                 transform: 'translateY(-50%)',
                 zIndex: 4,

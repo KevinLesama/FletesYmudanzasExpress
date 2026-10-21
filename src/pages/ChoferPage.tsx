@@ -189,7 +189,7 @@ function IncidentDialog({
           </Box>
           <Box sx={{ flexGrow: 1 }}>
             <Typography sx={{ fontSize: 17, fontFamily: "'Manrope', sans-serif", fontWeight: 800 }}>Reportar incidente</Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>Queda registrado en el viaje para la administración.</Typography>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>Queda registrado en el viaje para la administración.</Typography>
           </Box>
           <IconButton onClick={onClose} size="small" aria-label="Cerrar">
             <Close fontSize="small" />

@@ -114,14 +114,14 @@ export function ChoferShell({
 
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#8A939E' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#6E7A87' }}>
           <LocalShipping sx={{ fontSize: 16 }} />
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
         </Stack>
       </Box>
       <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
       <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#8A939E', '&:hover': { color: brand.navy } }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#6E7A87', '&:hover': { color: brand.navy } }}>
           <Logout fontSize="small" />
           <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
         </Stack>
@@ -172,7 +172,7 @@ export function ChoferShell({
                     sx={{
                       fontSize: 12.5,
                       fontWeight: i === breadcrumb.length - 1 ? 700 : 500,
-                      color: i === breadcrumb.length - 1 ? brand.navy : '#8A939E',
+                      color: i === breadcrumb.length - 1 ? brand.navy : '#6E7A87',
                     }}
                   >
                     {part}

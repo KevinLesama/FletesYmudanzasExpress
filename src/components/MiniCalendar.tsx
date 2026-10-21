@@ -108,7 +108,7 @@ export function MiniCalendar({
 
       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 1.4 }}>
         <Box sx={{ width: 4, height: 4, borderRadius: 50, bgcolor: brand.orange }} />
-        <Typography sx={{ fontSize: 11, color: '#8A939E' }}>Día con viajes</Typography>
+        <Typography sx={{ fontSize: 11, color: '#6E7A87' }}>Día con viajes</Typography>
       </Stack>
     </Box>
   )

@@ -98,7 +98,7 @@ export function SolicitudesPage() {
     >
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
         <Chip label="Listado completo" size="small" sx={{ bgcolor: '#EEF2FA', color: '#526B8A', fontWeight: 700 }} />
-        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+        <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
           {list.length} {list.length === 1 ? 'solicitud' : 'solicitudes'} en total
         </Typography>
       </Stack>
@@ -122,7 +122,7 @@ export function SolicitudesPage() {
           placeholder="Buscar por cliente o número de solicitud"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#8A939E', mr: 1 }} /> }}
+          InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#6E7A87', mr: 1 }} /> }}
         />
         <FormControl size="small">
           <InputLabel>Filtrar por fecha</InputLabel>
@@ -210,7 +210,7 @@ export function SolicitudesPage() {
             justifyContent="space-between"
             sx={{ px: 2.5, py: 1.5, borderTop: '1px solid #EDEAE3', bgcolor: '#FBF9F6' }}
           >
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
               Mostrando 1-{list.length} de {list.length} solicitudes
             </Typography>
             <Stack direction="row" spacing={1}>
@@ -234,7 +234,7 @@ export function SolicitudesPage() {
               <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Typography sx={{ fontWeight: 800, fontSize: 13, color: brand.navy }}>{r.id}</Typography>
-                  <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>· {fmtDate(r.date, true)}</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>· {fmtDate(r.date, true)}</Typography>
                 </Stack>
                 <StatusChip label={r.status} />
               </Stack>
@@ -259,8 +259,8 @@ export function SolicitudesPage() {
       )}
 
       <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mt: 2.5 }}>
-        <InfoOutlined sx={{ fontSize: 15, color: '#8A939E', mt: 0.2 }} />
-        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+        <InfoOutlined sx={{ fontSize: 15, color: '#6E7A87', mt: 0.2 }} />
+        <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
           Una solicitud se confirma cuando se acuerdan las condiciones y se registra la seña.
         </Typography>
       </Stack>

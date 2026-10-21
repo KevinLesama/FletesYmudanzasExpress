@@ -138,7 +138,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
       </Stack>
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#8A939E' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#6E7A87' }}>
           <LocationOn sx={{ fontSize: 16 }} />
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Buenos Aires, Argentina</Typography>
         </Stack>
@@ -148,10 +148,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>María Rodríguez</Typography>
-          <Typography sx={{ fontSize: 12, color: '#8A939E' }}>Administradora</Typography>
+          <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>Administradora</Typography>
         </Box>
-        <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none', color: '#8A939E' }}>
-          <IconButton size="small" sx={{ color: '#8A939E' }}>
+        <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none', color: '#6E7A87' }}>
+          <IconButton size="small" sx={{ color: '#6E7A87' }}>
             <Logout fontSize="small" />
           </IconButton>
         </a>
@@ -204,7 +204,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
                     sx={{
                       fontSize: 12.5,
                       fontWeight: i === breadcrumb.length - 1 ? 700 : 500,
-                      color: i === breadcrumb.length - 1 ? brand.navy : '#8A939E',
+                      color: i === breadcrumb.length - 1 ? brand.navy : '#6E7A87',
                     }}
                   >
                     {part}

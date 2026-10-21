@@ -205,7 +205,7 @@ export function AgendaPage() {
                   Planificación del día
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
-                <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{trips.length} viajes · por hora</Typography>
+                <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{trips.length} viajes · por hora</Typography>
               </Stack>
               <AgendaGrid trips={trips} onOpenTrip={(t) => setSelectedId(t.id)} />
             </>
