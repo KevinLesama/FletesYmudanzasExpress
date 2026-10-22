@@ -108,28 +108,28 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
             <Stack direction="row" alignItems="center" spacing={{ xs: 1.5, sm: 2 }} sx={{ ml: 'auto', flexWrap: 'wrap' }}>
               <Stack direction="row" alignItems="center" spacing={0.8}>
                 <Box sx={{ width: 14, height: 11, borderRadius: 0.8, border: '1.5px solid #C9E3D2', bgcolor: '#EFF8F2' }} />
-                <Typography sx={{ fontSize: 11.5, color: '#5C6B7A' }}>
-                  Confirmada · <strong style={{ color: '#397A55' }}>CONFIRMADA</strong>
+                <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>
+                  Confirmada
                 </Typography>
               </Stack>
               <Stack direction="row" alignItems="center" spacing={0.8}>
                 <Box sx={{ width: 14, height: 11, borderRadius: 0.8, border: '1.5px dashed #E0B45F', bgcolor: '#FFF8EC' }} />
-                <Typography sx={{ fontSize: 11.5, color: '#5C6B7A' }}>
-                  Tentativa · <strong style={{ color: '#8A6116' }}>Pendiente de seña</strong>
+                <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>
+                  Pendiente de seña
                 </Typography>
               </Stack>
             </Stack>
           </Box>
 
           {/* Eje vertical */}
-          <Box sx={{ position: 'absolute', left: GUTTER, top: HEADER_H, bottom: 0, width: 1, bgcolor: '#E9E6DF' }} />
+          <Box sx={{ position: 'absolute', left: GUTTER, top: HEADER_H, bottom: 0, width: '1px', bgcolor: '#E9E6DF' }} />
 
           {/* Líneas de hora */}
           {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) =>
             i === 0 ? null : (
               <Box
                 key={`hr-${i}`}
-                sx={{ position: 'absolute', left: GUTTER, right: 0, top: HEADER_H + i * ROW_H - 1, height: 1, bgcolor: '#F2EFE9' }}
+                sx={{ position: 'absolute', left: GUTTER, right: 0, top: HEADER_H + i * ROW_H - 1, height: '1px', bgcolor: '#F2EFE9' }}
               />
             ),
           )}
@@ -144,8 +144,8 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
                 top: HEADER_H + i * ROW_H,
                 width: GUTTER,
                 textAlign: 'center',
-                fontSize: 10.5,
-                color: '#6E7A87',
+                fontSize: 11,
+                color: '#64707C',
                 fontWeight: 600,
                 transform: 'translateY(-50%)',
                 zIndex: 4,
@@ -177,10 +177,10 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
                 aria-label={`${t.id} · ${t.client} · ${t.serviceRange.join(' a ')}`}
                 sx={{
                   position: 'absolute',
-                  left: `calc(${GUTTER}px + ${(lane / cols) * 100}% + ${GAP_X / 2}px)`,
+                  left: `calc(${GUTTER}px + (100% - ${GUTTER}px) * ${lane / cols} + ${GAP_X / 2}px)`,
                   top: HEADER_H + segTop + GAP_Y / 2,
                   height: Math.max(ROW_H * 0.6, segLen - GAP_Y),
-                  width: `calc(${100 / cols}% - ${GAP_X}px)`,
+                  width: `calc((100% - ${GUTTER}px) / ${cols} - ${GAP_X}px)`,
                   borderRadius: 2,
                   p: 1.4,
                   cursor: 'pointer',
@@ -196,18 +196,18 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
                 }}
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%' }}>
-                  <Typography sx={{ fontSize: 11.5, fontWeight: 800, color: brand.navy, whiteSpace: 'nowrap' }}>{t.id}</Typography>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: brand.navy, whiteSpace: 'nowrap' }}>{t.id}</Typography>
                   <Box sx={{ flexGrow: 1 }} />
                   <Box
                     sx={{
-                      fontSize: 8.5,
+                      fontSize: 11,
                       fontWeight: 800,
                       letterSpacing: '0.03em',
                       px: 0.8,
                       py: 0.3,
                       borderRadius: 999,
                       bgcolor: confirmed ? '#DCEFE4' : '#F6E3B8',
-                      color: confirmed ? '#2F7D55' : '#8A6116',
+                      color: confirmed ? '#26734B' : '#7A5713',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
                     }}
@@ -218,11 +218,11 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
                 <Typography sx={{ fontSize: 13, fontWeight: 700, mt: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {t.client}
                 </Typography>
-                <Typography sx={{ fontSize: 10.5, color: '#5C6B7A', mt: 0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <Typography sx={{ fontSize: 11, color: '#5C6B7A', mt: 0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {t.serviceRange.join(' – ')} · Llega {t.arrivalRange[0]}
                 </Typography>
                 {segLen >= 2 * ROW_H - GAP_Y && (
-                  <Typography sx={{ fontSize: 10.5, color: '#5C6B7A', mt: 0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Typography sx={{ fontSize: 11, color: '#5C6B7A', mt: 0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {t.origin.barrio} → {t.destination.barrio}
                   </Typography>
                 )}

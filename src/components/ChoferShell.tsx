@@ -63,7 +63,7 @@ export function ChoferShell({
       <Box sx={{ px: 1, mb: 3 }}>
         <Brand />
       </Box>
-      <Typography sx={{ px: 2, mb: 1, fontSize: 11, fontWeight: 700, color: '#9AA3AE', letterSpacing: '0.06em' }}>
+      <Typography sx={{ px: 2, mb: 1, fontSize: 11, fontWeight: 700, color: brand.muted, letterSpacing: '0.06em' }}>
         MI ÁREA
       </Typography>
       <Stack spacing={0.25}>
@@ -114,14 +114,14 @@ export function ChoferShell({
 
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#6E7A87' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64707C' }}>
           <LocalShipping sx={{ fontSize: 16 }} />
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
+      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
       <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#6E7A87', '&:hover': { color: brand.navy } }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#64707C', '&:hover': { color: brand.navy } }}>
           <Logout fontSize="small" />
           <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
         </Stack>
@@ -167,12 +167,12 @@ export function ChoferShell({
             <Stack direction="row" alignItems="center" spacing={0.6} sx={{ flexGrow: 1 }}>
               {breadcrumb.map((part, i) => (
                 <Stack key={part} direction="row" alignItems="center" spacing={0.6}>
-                  {i > 0 && <ChevronRight sx={{ fontSize: 15, color: '#B8C0C9' }} />}
+                  {i > 0 && <ChevronRight sx={{ fontSize: 15, color: '#8A929B' }} />}
                   <Typography
                     sx={{
                       fontSize: 12.5,
                       fontWeight: i === breadcrumb.length - 1 ? 700 : 500,
-                      color: i === breadcrumb.length - 1 ? brand.navy : '#6E7A87',
+                      color: i === breadcrumb.length - 1 ? brand.navy : '#64707C',
                     }}
                   >
                     {part}
@@ -185,8 +185,8 @@ export function ChoferShell({
                 <Box sx={{ width: 7, height: 7, borderRadius: 50, bgcolor: '#4E9A6C' }} />
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Turno activo</Typography>
               </Stack>
-              <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
-              <Avatar sx={{ width: 32, height: 32, bgcolor: '#F07855', fontSize: 12, fontWeight: 800 }}>JA</Avatar>
+              <Box sx={{ width: '1px', height: 20, bgcolor: '#EDEAE3' }} />
+              <Avatar sx={{ width: 32, height: 32, bgcolor: brand.orangeStrong, fontSize: 12, fontWeight: 800 }}>JA</Avatar>
             </Stack>
           </Box>
         )}
@@ -194,9 +194,9 @@ export function ChoferShell({
         {isMobile && (
           <AppBar position="fixed" elevation={0} sx={{ bgcolor: brand.navy, top: 0, left: 0, right: 0 }}>
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
-              <Brand />
+              <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
-              <Avatar sx={{ width: 30, height: 30, bgcolor: '#F07855', fontSize: 11, fontWeight: 800 }}>JA</Avatar>
+              <Avatar sx={{ width: 30, height: 30, bgcolor: brand.orangeStrong, fontSize: 11, fontWeight: 800 }}>JA</Avatar>
             </Toolbar>
           </AppBar>
         )}
@@ -206,7 +206,7 @@ export function ChoferShell({
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography
-                  sx={{ fontSize: 11, fontWeight: 800, color: brand.orange, letterSpacing: '0.14em', mb: 0.5 }}
+                  sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
                 >
                   MODO CHOFER
                 </Typography>

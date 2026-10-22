@@ -12,6 +12,8 @@ export const brand = {
   card: color.paper,
   orange: color.orange,
   orangeDark: color.orangeDark,
+  orangeInk: color.orangeInk,
+  orangeStrong: color.orangeStrong,
   border: color.border,
   muted: color.muted,
 }
@@ -26,7 +28,7 @@ export const theme = createTheme({
   palette: {
     mode: 'light',
     primary: { main: color.navy, dark: color.navyDeep, contrastText: color.paper },
-    secondary: { main: color.orange, dark: color.orangeDark, contrastText: color.paper },
+    secondary: { main: color.orangeStrong, dark: color.orangeInk, contrastText: color.paper },
     background: { default: color.cream, paper: color.paper },
     text: { primary: color.navy, secondary: color.ink, disabled: color.mutedSoft },
     success: { main: color.green, light: color.greenSoft, dark: '#286B50' },
@@ -59,9 +61,11 @@ export const theme = createTheme({
           color: color.navy,
           WebkitFontSmoothing: 'antialiased',
         },
+        // Avoid a single trailing word (widow) in narrow viewports.
+        'p, li': { textWrap: 'pretty' },
         // Visible, consistent keyboard focus across the app.
         ':focus-visible': {
-          outline: `2px solid ${color.orange}`,
+          outline: `2px solid ${color.orangeInk}`,
           outlineOffset: 2,
         },
       },
@@ -81,7 +85,7 @@ export const theme = createTheme({
           '&:hover': { backgroundColor: color.navyDeep, boxShadow: 'none' },
         },
         containedSecondary: {
-          '&:hover': { backgroundColor: color.orangeDark, boxShadow: 'none' },
+          '&:hover': { backgroundColor: color.orangeInk, boxShadow: 'none' },
         },
         outlined: { boxShadow: 'none' },
       },
@@ -195,13 +199,13 @@ export const STATUS_STYLES: Record<string, { bg: string; text: string; dot: stri
   'Pendiente de seña': { bg: color.amberSoft, text: '#98621B', dot: '#D89B34' },
   'Pendiente de revisión': { bg: color.blueSoft, text: '#526B8A', dot: '#6E86A7' },
   Tentativa: { bg: color.redSoft, text: '#9C493A', dot: '#BD6655' },
-  Cancelada: { bg: '#F1F2F4', text: '#6F7780', dot: '#8A929B' },
+  Cancelada: { bg: '#F1F2F4', text: '#5F6873', dot: '#8A929B' },
   Disponible: { bg: color.greenSoft, text: '#397A55', dot: '#4E9A6C' },
   Asignado: { bg: color.amberSoft, text: '#98621B', dot: '#D89B34' },
-  'En taller': { bg: '#F1F2F4', text: '#6F7780', dot: '#8A929B' },
+  'En taller': { bg: '#F1F2F4', text: '#5F6873', dot: '#8A929B' },
   Activo: { bg: '#E8F5ED', text: '#26734B', dot: '#3D8A5F' },
-  Inactivo: { bg: '#F1F2F4', text: '#6F7780', dot: '#8A929B' },
-  'Sin pagos': { bg: '#F1F2F4', text: '#6F7780', dot: '#8A929B' },
+  Inactivo: { bg: '#F1F2F4', text: '#5F6873', dot: '#8A929B' },
+  'Sin pagos': { bg: '#F1F2F4', text: '#5F6873', dot: '#8A929B' },
   Parcial: { bg: color.amberSoft, text: '#98621B', dot: '#D89B34' },
   Cobrado: { bg: color.greenSoft, text: '#397A55', dot: '#4E9A6C' },
   Guardada: { bg: color.greenSoft, text: '#397A55', dot: '#4E9A6C' },

@@ -90,8 +90,8 @@ export function PagosPage() {
             <TableRow key={r.id} hover>
               <TableCell>
                 <Typography sx={{ fontWeight: 800, color: brand.navy }}>{r.id}</Typography>
-                <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{r.client}</Typography>
-                <Typography sx={{ fontSize: 12, color: '#B8C0C9' }}>{fmtDate(r.date)}</Typography>
+                <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>{r.client}</Typography>
+                <Typography sx={{ fontSize: 12, color: '#64707C' }}>{fmtDate(r.date)}</Typography>
               </TableCell>
               <TableCell align="right">{ars(r.price)}</TableCell>
               <TableCell align="right">{ars(r.deposit)}</TableCell>
@@ -118,13 +118,13 @@ export function PagosPage() {
         <Box key={r.id} sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: 2 }}>
           <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
             <Stack direction="row" alignItems="center" spacing={1}>
-              <ReceiptLong sx={{ fontSize: 16, color: '#6E7A87' }} />
+              <ReceiptLong sx={{ fontSize: 16, color: '#64707C' }} />
               <Typography sx={{ fontWeight: 800, fontSize: 13.5, color: brand.navy }}>{r.id}</Typography>
             </Stack>
             <StatusChip label={r.state} />
           </Stack>
           <Typography sx={{ mt: 0.6, fontWeight: 700, fontSize: 14 }}>{r.client}</Typography>
-          <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{fmtDate(r.date)}</Typography>
+          <Typography sx={{ fontSize: 12, color: '#64707C' }}>{fmtDate(r.date)}</Typography>
           <Box sx={{ my: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#F8F6F1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2 }}>
             <Money label="Precio acordado" value={ars(r.price)} />
             <Money label="Seña recibida" value={ars(r.deposit)} />
@@ -148,7 +148,7 @@ export function PagosPage() {
         title="Pagos"
         description="Registro manual · transferencias y efectivo"
         action={
-          <Typography sx={{ fontSize: 12.5, color: '#6E7A87', fontWeight: 600 }}>
+          <Typography sx={{ fontSize: 12.5, color: '#64707C', fontWeight: 600 }}>
             {rows.length} registros · importes en ARS
           </Typography>
         }
@@ -180,7 +180,7 @@ export function PagosPage() {
             placeholder="Buscar por viaje o cliente"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#6E7A87', mr: 1 }} /> }}
+            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
           />
           <FormControl size="small">
             <InputLabel>Fecha</InputLabel>
@@ -219,8 +219,8 @@ export function PagosPage() {
         )}
 
         <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mt: 2.5 }}>
-          <InfoOutlined sx={{ fontSize: 15, color: '#6E7A87', mt: 0.2 }} />
-          <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
+          <InfoOutlined sx={{ fontSize: 15, color: '#64707C', mt: 0.2 }} />
+          <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
             El registro es manual: no se realiza verificación bancaria. Si el pago lo recibió el chofer, la rendición a la empresa se registra por separado.
           </Typography>
         </Stack>
@@ -243,7 +243,7 @@ export function PagosPage() {
 function Money({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <Box>
-      <Typography sx={{ fontSize: 11, color: '#6E7A87', fontWeight: strong ? 800 : 600 }}>{label.toUpperCase()}</Typography>
+      <Typography sx={{ fontSize: 11, color: '#64707C', fontWeight: strong ? 800 : 600 }}>{label.toUpperCase()}</Typography>
       <Typography sx={{ fontSize: 14, fontWeight: strong ? 800 : 700, color: strong ? brand.navy : '#33475F' }}>{value}</Typography>
     </Box>
   )
@@ -291,7 +291,7 @@ function PaymentDialog({
             <Paid sx={{ fontSize: 18 }} />
           </Box>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography sx={{ fontSize: 12, color: '#6E7A87', fontWeight: 700 }}>{trip.id} · {trip.client}</Typography>
+            <Typography sx={{ fontSize: 12, color: '#64707C', fontWeight: 700 }}>{trip.id} · {trip.client}</Typography>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Registrar pago</Typography>
           </Box>
           <IconButton onClick={onClose} size="small" aria-label="Cerrar">
@@ -347,7 +347,7 @@ function PaymentDialog({
           <TextField label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
         </Stack>
 
-        <Typography sx={{ mt: 1.5, fontSize: 11.5, color: '#6E7A87' }}>
+        <Typography sx={{ mt: 1.5, fontSize: 12.5, color: '#64707C' }}>
           Registro manual. No se realiza verificación bancaria.
         </Typography>
       </DialogContent>

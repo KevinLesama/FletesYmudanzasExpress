@@ -37,7 +37,7 @@ import type { ShiftRequest, TripIncident } from '../types'
 function InfoPill({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <Box sx={{ p: 1, px: 1.2, borderRadius: 999, bgcolor: '#F0F2F5', display: 'inline-flex', alignItems: 'center', gap: 0.8 }}>
-      <Box sx={{ color: '#6E7A87', display: 'flex' }}>{icon}</Box>
+      <Box sx={{ color: '#64707C', display: 'flex' }}>{icon}</Box>
       <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#33475F' }}>{text}</Typography>
     </Box>
   )
@@ -113,7 +113,7 @@ export function TripDetailModal({
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>{trip.id}</Typography>
               <StatusChip label={trip.status} />
             </Stack>
-            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
               {trip.client} · {trip.phone}
             </Typography>
           </Box>
@@ -127,16 +127,16 @@ export function TripDetailModal({
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
             <Box sx={{ p: 1.8, borderRadius: 2.5, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3', flexGrow: 1 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: '#6E7A87', letterSpacing: '0.08em' }}>ORIGEN · {trip.origin.label}</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C', letterSpacing: '0.08em' }}>ORIGEN · {trip.origin.label}</Typography>
               <Typography sx={{ fontWeight: 700, fontSize: 14, mt: 0.3 }}>{trip.origin.address}</Typography>
-              <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
+              <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
                 {trip.origin.barrio} · {trip.origin.floor} {trip.origin.elevator ? '· con ascensor' : ''}
               </Typography>
             </Box>
             <Box sx={{ p: 1.8, borderRadius: 2.5, bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', flexGrow: 1 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: brand.orange, letterSpacing: '0.08em' }}>DESTINO · {trip.destination.label}</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.08em' }}>DESTINO · {trip.destination.label}</Typography>
               <Typography sx={{ fontWeight: 700, fontSize: 14, mt: 0.3 }}>{trip.destination.address}</Typography>
-              <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
+              <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
                 {trip.destination.barrio} · {trip.destination.floor} {trip.destination.elevator ? '· con ascensor' : ''}
               </Typography>
             </Box>
@@ -177,9 +177,9 @@ export function TripDetailModal({
           {trip.cargo.notes && (
             <Box sx={{ p: 1.4, borderRadius: 2, bgcolor: '#F7F5F0', border: '1px solid #EDEAE3' }}>
               <Stack direction="row" spacing={1} alignItems="flex-start">
-                <Notes sx={{ fontSize: 15, color: '#6E7A87', mt: 0.2 }} />
+                <Notes sx={{ fontSize: 15, color: '#64707C', mt: 0.2 }} />
                 <Box>
-                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>NOTA DEL CLIENTE</Typography>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>NOTA DEL CLIENTE</Typography>
                   <Typography sx={{ fontSize: 13, mt: 0.3 }}>{trip.cargo.notes}</Typography>
                 </Box>
               </Stack>
@@ -291,7 +291,7 @@ export function TripDetailModal({
                 <ReceiptLong sx={{ fontSize: 16, color: brand.navy }} />
                 <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 14 }}>Cálculo del viaje</Typography>
                 <Box sx={{ flexGrow: 1 }} />
-                <Typography sx={{ fontSize: 11, color: '#6E7A87' }}>según mi configuración</Typography>
+                <Typography sx={{ fontSize: 11, color: '#64707C' }}>según mi configuración</Typography>
               </Stack>
               <Stack spacing={0.7}>
                 {earnings.lines.map((l) => (

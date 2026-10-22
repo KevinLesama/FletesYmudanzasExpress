@@ -35,21 +35,24 @@ Primitivas en `src/design/tokens.ts` (`color`), expuestas al tema MUI.
 | Rol | Token | Valor | Uso |
 |---|---|---|---|
 | Marca primaria | `navy` | `#132B4A` | Texto principal, botón primario, superficies oscuras |
-| Acento | `orange` | `#F07855` | Kickers, foco, indicador activo |
+| Acento decorativo | `orange` | `#F07855` | Puntos, líneas e indicadores; nunca texto |
+| Acento de texto | `orangeInk` | `#A94E2B` | Kickers, asteriscos y etiquetas sobre superficies claras (5.1:1) |
+| Acento interactivo | `orangeStrong` | `#B4562F` | Botones y superficies con texto blanco (4.9:1) |
 | Fondo de app | `cream` | `#F7F6F2` | `background.default` |
 | Superficie | `paper` | `#FFFFFF` | Cards, tablas, formularios |
 | Superficie alterna | `sand` | `#FBF9F6` | Encabezados de tabla, bloques suaves |
 | Línea | `border` / `borderSoft` | `#E9E6DF` / `#EDEAE3` | Bordes de 1px |
 | Texto secundario | `ink` | `#5C6B7A` | `text.secondary` |
-| Texto atenuado | `muted` | `#6E7A87` | Metadatos, captions, íconos secundarios |
+| Texto atenuado | `muted` | `#64707C` | Metadatos, captions, íconos secundarios |
 | Error | `red` | `#B24A3A` | Errores, estados destructivos |
 | Advertencia | `amber` | `#B9761F` | Conflictos, pendientes |
 | Éxito | `green` | `#2F7D55` | Confirmaciones |
 
 Reglas:
 
-- Texto atenuado nunca por debajo de `#6E7A87` sobre `cream`/`paper`: el gris
-  anterior (`#8A939E`) no alcanzaba contraste AA en tamaños chicos.
+- Texto atenuado nunca por debajo de `#64707C`: sobre `cream` da 4.68:1 y sobre
+  `paper` 5.06:1, así que cumple AA en tamaños chicos. Los grises anteriores
+  (`#8A939E`, `#6E7A87`) quedaban en 3.9–4.4:1 y no alcanzaban AA.
 - El estado nunca se comunica solo con color: siempre color + texto, y en los
   chips, además, punto + etiqueta (`StatusChip`).
 - Los estados de dominio viven en `STATUS_STYLES` (`src/theme.ts`). Si agregás
@@ -65,7 +68,7 @@ Escala (`src/design/tokens.ts` → `type`):
 
 | Token | px | Uso |
 |---|---|---|
-| `micro` | 11.5 | Kickers, etiquetas en mayúsculas |
+| `micro` | 12 | Kickers, etiquetas en mayúsculas |
 | `caption` | 12.5 | Metadatos, ayudas |
 | `body` | 14 | Texto general, celdas de tabla |
 | `lead` | 16 | Párrafos destacados |
@@ -162,13 +165,35 @@ contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
 
 ## Accesibilidad
 
-- Foco visible global: `2px solid orange` con `outline-offset: 2px` (`CssBaseline`).
+- Foco visible global: `2px solid orangeInk` con `outline-offset: 2px` (`CssBaseline`).
   No usar `outline: 0` en elementos interactivos.
 - Todo campo tiene etiqueta asociada (`label`/`htmlFor` o `TextField label`); el
   placeholder no es etiqueta.
 - Todo `Dialog` tiene `aria-labelledby` apuntando a su título.
 - Los objetivos táctiles del portal chofer no bajan de 44×44px.
 - Contraste mínimo: 4.5:1 para texto normal.
+- El coral `#F07855` no lleva texto encima: para texto usar `orangeInk` y para
+  superficies con etiqueta blanca, `orangeStrong`.
+
+### Estado del detector
+
+`impeccable detect` corre sobre las rutas principales a 1280×800 y 390×844.
+Resultado actual: cero hallazgos de contraste en escritorio y móvil. Quedan solo
+`nested-cards`, que son heurísticas sobre las filas con borde dentro de una
+tarjeta (choferes, precios): el borde de 1px y el fondo transparente son
+intencionales y no se "corrigen" cambiando el diseño.
+
+Dos falsos positivos que se dieron por buenos en una auditoría anterior **sí eran
+defectos reales** y quedaron corregidos:
+
+- "blanco sobre blanco": era el wordmark del `Brand` renderizado en el sidebar
+  claro con la tinta del tema oscuro. `Brand` ahora recibe `surface` y usa navy
+  sobre superficies claras (`src/components/Brand.tsx`).
+- "blanco sobre `#F07855`": era el badge de conteo de Solicitudes. Todo badge con
+  etiqueta blanca usa `orangeStrong` (4.87:1), nunca `orange`.
+
+`kicker-above-heading` está ignorado en `.impeccable/config.json`: los kickers son
+parte del sistema tipográfico (ver arriba).
 
 ## Copy
 

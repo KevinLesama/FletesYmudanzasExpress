@@ -26,11 +26,15 @@ export const color = {
   navySoft: '#172942',
   orange: '#F07855',
   orangeDark: '#DF6948',
+  // Text on light surfaces and filled surfaces with white labels must pass AA.
+  // Coral (orange) stays for dots, lines and non-text indicators only.
+  orangeInk: '#A94E2B',
+  orangeStrong: '#B4562F',
 
   // Text
   ink: '#5C6B7A',
   inkStrong: '#33475F',
-  muted: '#6E7A87',
+  muted: '#64707C',
   mutedSoft: '#9AA3AE',
 
   // Lines
@@ -69,7 +73,7 @@ export const space = {
 
 /** Type scale in pixels. Micro sizes below 12px hurt legibility at 100% zoom. */
 export const type = {
-  micro: 11.5,
+  micro: 12,
   caption: 12.5,
   body: 14,
   lead: 16,
