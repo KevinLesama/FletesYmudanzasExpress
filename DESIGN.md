@@ -175,19 +175,25 @@ contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
 - El coral `#F07855` no lleva texto encima: para texto usar `orangeInk` y para
   superficies con etiqueta blanca, `orangeStrong`.
 
-### Falsos positivos conocidos del detector
+### Estado del detector
 
-`impeccable detect` corre sobre las nueve rutas a 1280×800 y 390×844. Estos
-hallazgos no son defectos de la UI y no deben "corregirse" cambiando el diseño:
+`impeccable detect` corre sobre las rutas principales a 1280×800 y 390×844.
+Resultado actual: cero hallazgos de contraste en escritorio y móvil. Quedan solo
+`nested-cards`, que son heurísticas sobre las filas con borde dentro de una
+tarjeta (choferes, precios): el borde de 1px y el fondo transparente son
+intencionales y no se "corrigen" cambiando el diseño.
 
-- `low-contrast` blanco sobre blanco: no existe ningún texto así en el DOM
-  renderizado (verificado con CDP); el detector lo infiere de estilos de ancestros.
-- `low-contrast` blanco sobre `orange`: el detector atribuye el fondo de la barra
-  de 3px del ítem activo del nav al texto, que va blanco sobre navy.
-- `nested-cards` y `edge-flush-cards`: heurísticas sobre las tarjetas de la agenda;
-  la jerarquía, el inset y el corte en columnas son intencionales.
-- `kicker-above-heading` está ignorado en `.impeccable/config.json`: los kickers son
-  parte del sistema tipográfico (ver arriba).
+Dos falsos positivos que se dieron por buenos en una auditoría anterior **sí eran
+defectos reales** y quedaron corregidos:
+
+- "blanco sobre blanco": era el wordmark del `Brand` renderizado en el sidebar
+  claro con la tinta del tema oscuro. `Brand` ahora recibe `surface` y usa navy
+  sobre superficies claras (`src/components/Brand.tsx`).
+- "blanco sobre `#F07855`": era el badge de conteo de Solicitudes. Todo badge con
+  etiqueta blanca usa `orangeStrong` (4.87:1), nunca `orange`.
+
+`kicker-above-heading` está ignorado en `.impeccable/config.json`: los kickers son
+parte del sistema tipográfico (ver arriba).
 
 ## Copy
 
