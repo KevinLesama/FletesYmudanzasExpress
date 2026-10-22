@@ -177,10 +177,10 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
                 aria-label={`${t.id} · ${t.client} · ${t.serviceRange.join(' a ')}`}
                 sx={{
                   position: 'absolute',
-                  left: `calc(${GUTTER}px + ${(lane / cols) * 100}% + ${GAP_X / 2}px)`,
+                  left: `calc(${GUTTER}px + (100% - ${GUTTER}px) * ${lane / cols} + ${GAP_X / 2}px)`,
                   top: HEADER_H + segTop + GAP_Y / 2,
                   height: Math.max(ROW_H * 0.6, segLen - GAP_Y),
-                  width: `calc(${100 / cols}% - ${GAP_X}px)`,
+                  width: `calc((100% - ${GUTTER}px) / ${cols} - ${GAP_X}px)`,
                   borderRadius: 2,
                   p: 1.4,
                   cursor: 'pointer',
