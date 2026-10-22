@@ -109,27 +109,27 @@ export function AgendaGrid({ trips, onOpenTrip }: { trips: ShiftRequest[]; onOpe
               <Stack direction="row" alignItems="center" spacing={0.8}>
                 <Box sx={{ width: 14, height: 11, borderRadius: 0.8, border: '1.5px solid #C9E3D2', bgcolor: '#EFF8F2' }} />
                 <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>
-                  Confirmada · <strong style={{ color: '#397A55' }}>CONFIRMADA</strong>
+                  Confirmada
                 </Typography>
               </Stack>
               <Stack direction="row" alignItems="center" spacing={0.8}>
                 <Box sx={{ width: 14, height: 11, borderRadius: 0.8, border: '1.5px dashed #E0B45F', bgcolor: '#FFF8EC' }} />
                 <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>
-                  Tentativa · <strong style={{ color: '#8A6116' }}>Pendiente de seña</strong>
+                  Pendiente de seña
                 </Typography>
               </Stack>
             </Stack>
           </Box>
 
           {/* Eje vertical */}
-          <Box sx={{ position: 'absolute', left: GUTTER, top: HEADER_H, bottom: 0, width: 1, bgcolor: '#E9E6DF' }} />
+          <Box sx={{ position: 'absolute', left: GUTTER, top: HEADER_H, bottom: 0, width: '1px', bgcolor: '#E9E6DF' }} />
 
           {/* Líneas de hora */}
           {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) =>
             i === 0 ? null : (
               <Box
                 key={`hr-${i}`}
-                sx={{ position: 'absolute', left: GUTTER, right: 0, top: HEADER_H + i * ROW_H - 1, height: 1, bgcolor: '#F2EFE9' }}
+                sx={{ position: 'absolute', left: GUTTER, right: 0, top: HEADER_H + i * ROW_H - 1, height: '1px', bgcolor: '#F2EFE9' }}
               />
             ),
           )}
