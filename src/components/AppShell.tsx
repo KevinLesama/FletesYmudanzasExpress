@@ -93,7 +93,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
               bgcolor: brand.orange,
               color: '#fff',
               borderRadius: 999,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: 700,
               px: 0.9,
               py: 0.1,

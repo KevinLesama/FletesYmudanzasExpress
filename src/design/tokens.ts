@@ -69,7 +69,7 @@ export const space = {
 
 /** Type scale in pixels. Micro sizes below 12px hurt legibility at 100% zoom. */
 export const type = {
-  micro: 11.5,
+  micro: 12,
   caption: 12.5,
   body: 14,
   lead: 16,

@@ -66,7 +66,7 @@ Escala (`src/design/tokens.ts` → `type`):
 
 | Token | px | Uso |
 |---|---|---|
-| `micro` | 11.5 | Kickers, etiquetas en mayúsculas |
+| `micro` | 12 | Kickers, etiquetas en mayúsculas |
 | `caption` | 12.5 | Metadatos, ayudas |
 | `body` | 14 | Texto general, celdas de tabla |
 | `lead` | 16 | Párrafos destacados |

@@ -311,7 +311,7 @@ export function IngresoPage() {
             </Typography>
 
             <Divider sx={{ my: 2.5 }}>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#64707C', px: 1 }}>
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#64707C', px: 1 }}>
                 VISTA DE DEMOSTRACIÓN
               </Typography>
             </Divider>
@@ -337,7 +337,7 @@ export function IngresoPage() {
               </Button>
             </Stack>
 
-            <Typography sx={{ mt: 2, textAlign: 'center', fontSize: 11.5, color: '#64707C' }}>
+            <Typography sx={{ mt: 2, textAlign: 'center', fontSize: 12.5, color: '#64707C' }}>
               Accesos de muestra; no se inicia una sesión real.
             </Typography>
           </Box>

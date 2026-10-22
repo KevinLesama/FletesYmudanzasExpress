@@ -347,7 +347,7 @@ function PaymentDialog({
           <TextField label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
         </Stack>
 
-        <Typography sx={{ mt: 1.5, fontSize: 11.5, color: '#64707C' }}>
+        <Typography sx={{ mt: 1.5, fontSize: 12.5, color: '#64707C' }}>
           Registro manual. No se realiza verificación bancaria.
         </Typography>
       </DialogContent>

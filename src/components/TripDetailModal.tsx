@@ -127,14 +127,14 @@ export function TripDetailModal({
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
             <Box sx={{ p: 1.8, borderRadius: 2.5, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3', flexGrow: 1 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: '#64707C', letterSpacing: '0.08em' }}>ORIGEN · {trip.origin.label}</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C', letterSpacing: '0.08em' }}>ORIGEN · {trip.origin.label}</Typography>
               <Typography sx={{ fontWeight: 700, fontSize: 14, mt: 0.3 }}>{trip.origin.address}</Typography>
               <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
                 {trip.origin.barrio} · {trip.origin.floor} {trip.origin.elevator ? '· con ascensor' : ''}
               </Typography>
             </Box>
             <Box sx={{ p: 1.8, borderRadius: 2.5, bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', flexGrow: 1 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: brand.orange, letterSpacing: '0.08em' }}>DESTINO · {trip.destination.label}</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: brand.orange, letterSpacing: '0.08em' }}>DESTINO · {trip.destination.label}</Typography>
               <Typography sx={{ fontWeight: 700, fontSize: 14, mt: 0.3 }}>{trip.destination.address}</Typography>
               <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
                 {trip.destination.barrio} · {trip.destination.floor} {trip.destination.elevator ? '· con ascensor' : ''}

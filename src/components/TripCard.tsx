@@ -103,7 +103,7 @@ export function TripCard({ trip, driver, vehicle, selected, onSelect, conflictNo
               <Box sx={{ width: 3, height: 3, borderRadius: 50, bgcolor: '#C4C9CE' }} />
               <Typography
                 sx={{
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   fontWeight: 700,
                   color: brand.navy,
                   bgcolor: '#F0F2F5',

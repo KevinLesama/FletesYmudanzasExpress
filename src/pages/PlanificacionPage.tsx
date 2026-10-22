@@ -590,7 +590,7 @@ export function PlanificacionPage() {
                 Confirmar viaje
               </Button>
             </Stack>
-            <Typography sx={{ fontSize: 11.5, color: '#64707C', mt: 0.5 }}>
+            <Typography sx={{ fontSize: 12.5, color: '#64707C', mt: 0.5 }}>
               Guardar la planificación no confirma el viaje. La seña se registra por separado.
             </Typography>
           </Stack>

@@ -50,7 +50,7 @@ export function MiniCalendar({
 
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.4 }}>
         {LABELS.map((l) => (
-          <Typography key={l} sx={{ textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: brand.muted }}>
+          <Typography key={l} sx={{ textAlign: 'center', fontSize: 11, fontWeight: 800, color: brand.muted }}>
             {l}
           </Typography>
         ))}
@@ -78,7 +78,7 @@ export function MiniCalendar({
                 textAlign: 'center',
                 py: 0.65,
                 borderRadius: 2,
-                fontSize: 11.5,
+                fontSize: 12.5,
                 fontWeight: isSelected ? 800 : 600,
                 color: isSelected ? '#FFFFFF' : isToday || hasTrips ? brand.navy : '#5C6B7A',
                 bgcolor: isSelected ? brand.navy : 'transparent',
