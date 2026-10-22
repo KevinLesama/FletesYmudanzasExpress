@@ -21,6 +21,38 @@ const MIN_ZOOM = 1
 const MAX_ZOOM = 2.5
 const ZOOM_STEP = 0.5
 
+const GRID_COLS = 8
+const GRID_ROWS = 10
+const GRID_CELL = 48
+const BLOCK_SIZE = 42
+
+/** Rounded blocks, drawn as subpaths of one compound path instead of 80 nodes. */
+function blockSubpath(x: number, y: number, size: number) {
+  return `M${x} ${y}h${size}v${size}h${-size}Z`
+}
+
+function buildCityBlocks() {
+  const blocks: string[] = []
+  const gardens: string[] = []
+  for (let row = 0; row < GRID_ROWS; row += 1) {
+    for (let col = 0; col < GRID_COLS; col += 1) {
+      // Two low blocks leave room for the diagonal avenue and a small plaza.
+      if ((row === 4 && col === 4) || (row === 5 && col === 3)) continue
+      const x = 8 + col * GRID_CELL
+      const y = 8 + row * GRID_CELL
+      const jitter = (row * 3 + col * 5) % 3
+      const size = BLOCK_SIZE - jitter
+      const isGarden = (row === 2 && col === 2) || (row === 2 && col === 3) || (row === 7 && col === 5)
+      const subpath = blockSubpath(x, y, size)
+      if (isGarden) gardens.push(subpath)
+      else blocks.push(subpath)
+    }
+  }
+  return { blocks: blocks.join(''), gardens: gardens.join('') }
+}
+
+const CITY = buildCityBlocks()
+
 function roundZoom(value: number) {
   return Math.round(value * 10) / 10
 }
@@ -93,31 +125,9 @@ function MapCanvas({ zoom, label }: { zoom: number; label: string }) {
             fill={color.blueSoft}
           />
 
-          {/* Manzanas */}
-          <g fill={color.borderSoft}>
-            {Array.from({ length: 10 }, (_, row) =>
-              Array.from({ length: 8 }, (_, col) => {
-                const x = 8 + col * 48
-                const y = 8 + row * 48
-                const isPark = (row === 2 && col === 2) || (row === 2 && col === 3)
-                const isPlaza = row === 7 && col === 5
-                if (isPark || isPlaza) {
-                  return (
-                    <rect
-                      key={`${row}-${col}`}
-                      x={x}
-                      y={y}
-                      width={42}
-                      height={42}
-                      rx={2.5}
-                      fill={color.greenSoft}
-                    />
-                  )
-                }
-                return <rect key={`${row}-${col}`} x={x} y={y} width={42} height={42} rx={2} />
-              }),
-            )}
-          </g>
+          {/* Manzanas y espacios verdes */}
+          <path d={CITY.blocks} fill={color.borderSoft} />
+          <path d={CITY.gardens} fill={color.greenSoft} />
 
           {/* Avenidas */}
           <path d="M-20 400 L420 260" stroke={color.paper} strokeWidth="12" />
