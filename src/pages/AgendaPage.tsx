@@ -44,7 +44,7 @@ export function AgendaPage() {
 
   const requestsState = useAsync(() => api.listRequests(), [])
   const catalogState = useAsync(async () => {
-    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
+    const [drivers, vehicles] = await Promise.all([api.listUsers('chofer'), api.listVehicles()])
     return { drivers, vehicles }
   }, [])
   const allRequests = requestsState.data ?? []

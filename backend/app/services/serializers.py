@@ -7,39 +7,34 @@ deriva de la tabla de pagos en lugar de guardarse duplicada).
 
 from __future__ import annotations
 
-from app.models import Request
+from app.models import Request, User, Vehicle
 from app.schemas import (
     CargoItemOut,
-    ClientOut,
-    DriverOut,
     FactorOut,
-    IncidentOut,
     PaymentOut,
     RequestOut,
+    UserOut,
     VehicleOut,
 )
-from app.models import Client, Driver, Vehicle
 
 
 def deposit_received(request: Request) -> float:
     return float(sum(p.amount for p in request.payments if p.concept == "Seña"))
 
 
-def serialize_client(client: Client) -> ClientOut:
-    return ClientOut.model_validate(client)
-
-
-def serialize_driver(driver: Driver) -> DriverOut:
-    return DriverOut(
-        id=driver.id,
-        initials=driver.initials,
-        name=driver.name,
-        phone=driver.phone,
-        status=driver.status,  # type: ignore[arg-type]
-        base_rate=float(driver.base_rate),
-        rate_per_km=float(driver.rate_per_km),
-        rate_per_hour=float(driver.rate_per_hour),
-        factors=[FactorOut(label=f.label, amount=float(f.amount)) for f in driver.factors],
+def serialize_user(user: User) -> UserOut:
+    return UserOut(
+        id=user.id,
+        role=user.role,  # type: ignore[arg-type]
+        name=user.name,
+        phone=user.phone,
+        email=user.email,
+        initials=user.initials,
+        status=user.status,  # type: ignore[arg-type]
+        base_rate=float(user.base_rate),
+        rate_per_km=float(user.rate_per_km),
+        rate_per_hour=float(user.rate_per_hour),
+        factors=[FactorOut(label=f.label, amount=float(f.amount)) for f in user.factors],
     )
 
 
@@ -78,17 +73,8 @@ def serialize_request(request: Request) -> RequestOut:
         price=float(request.price),
         deposit_required=float(request.deposit_required),
         deposit_received=deposit_received(request),
-        confirmed=request.confirmed,
         estimated_km=request.estimated_km,
         estimated_hours=request.estimated_hours,
-        arrived_at=request.arrived_at,
-        finished_at=request.finished_at,
-        remito_name=request.remito_name,
-        remito_data_url=request.remito_data_url,
-        incidents=[
-            IncidentOut(id=i.id, type=i.type, description=i.description, time=i.time)
-            for i in request.incidents
-        ],
         payments=[
             PaymentOut(
                 id=p.id,
@@ -98,6 +84,8 @@ def serialize_request(request: Request) -> RequestOut:
                 amount=float(p.amount),
                 date=p.date,
                 notes=p.notes,
+                remito_name=p.remito_name,
+                remito_data_url=p.remito_data_url,
             )
             for p in request.payments
         ],

@@ -59,6 +59,37 @@ def test_confirm_after_deposit_succeeds(client: TestClient, seeded: dict) -> Non
     assert confirmed.json()["status"] == "Confirmada"
 
 
+def test_payment_accepts_cuenta_corriente(client: TestClient, seeded: dict) -> None:
+    request = _create(client, seeded)
+    paid = client.post(
+        f"/api/requests/{request['id']}/payments",
+        json={
+            "concept": "Saldo",
+            "method": "Cuenta corriente",
+            "received_by": "Administración",
+            "amount": 10000,
+            "date": "2026-09-22",
+        },
+    )
+    assert paid.status_code == 201, paid.text
+    assert paid.json()["payments"][0]["method"] == "Cuenta corriente"
+
+
+def test_payment_rejects_unknown_method(client: TestClient, seeded: dict) -> None:
+    request = _create(client, seeded)
+    bad = client.post(
+        f"/api/requests/{request['id']}/payments",
+        json={
+            "concept": "Saldo",
+            "method": "Dólares",
+            "received_by": "Administración",
+            "amount": 10000,
+            "date": "2026-09-22",
+        },
+    )
+    assert bad.status_code == 422
+
+
 def test_driver_conflict_blocks_confirmation(client: TestClient, seeded: dict) -> None:
     first = _create(client, seeded)
     client.post(

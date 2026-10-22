@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
-  Divider,
   IconButton,
   InputAdornment,
   Stack,
@@ -16,7 +16,6 @@ import {
   LocalShipping,
   Lock,
   MailOutline,
-  Person,
   Shield,
   Visibility,
   VisibilityOff,
@@ -27,16 +26,59 @@ import {
 import { R } from '../routes'
 import { Brand } from '../components/Brand'
 import { brand } from '../theme'
+import { api } from '../api'
+import { supabase } from '../supabase'
 
 export function IngresoPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const go = (href: string) => {
     window.location.href = href
+  }
+
+  // Si ya hay una sesion abierta, no se muestra el formulario.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data } = await supabase().auth.getSession()
+        if (cancelled || !data.session) return
+        const me = await api.me()
+        go(me.role === 'chofer' ? R.chofer : R.agenda)
+      } catch {
+        /* sin sesion o cuenta sin vincular: se muestra el formulario */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      const { error: authError } = await supabase().auth.signInWithPassword({ email, password })
+      if (authError) {
+        // No se muestra el mensaje de GoTrue para no filtrar si el email existe.
+        setError('No pudimos iniciar sesión. Revisá el email y la contraseña.')
+        setSubmitting(false)
+        return
+      }
+      // El rol sale de la API: el admin entra al panel, el chofer a su portal.
+      const me = await api.me()
+      go(me.role === 'chofer' ? R.chofer : R.agenda)
+    } catch {
+      setError('No pudimos iniciar sesión. Revisá el email y la contraseña, o pedile a la administración que habilite tu cuenta.')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -226,10 +268,7 @@ export function IngresoPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box
             component="form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              go(R.agenda)
-            }}
+            onSubmit={signIn}
             sx={{
               width: '100%',
               maxWidth: 420,
@@ -253,6 +292,9 @@ export function IngresoPage() {
             <TextField
               fullWidth
               label="Correo electrónico"
+              type="email"
+              required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               margin="normal"
@@ -270,6 +312,8 @@ export function IngresoPage() {
             <TextField
               fullWidth
               label="Contraseña"
+              required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
@@ -296,49 +340,26 @@ export function IngresoPage() {
               }}
             />
 
+
+            {error && (
+              <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+                {error}
+              </Alert>
+            )}
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
               size="large"
+              disabled={submitting}
               sx={{ mt: 2.5, py: 1.3 }}
               endIcon={<ArrowForward />}
             >
-              Ingresar
+              {submitting ? 'Ingresando…' : 'Ingresar'}
             </Button>
             <Typography sx={{ mt: 1.5, textAlign: 'center', fontSize: 12.5, color: brand.navy, fontWeight: 600 }}>
               Recuperar contraseña
-            </Typography>
-
-            <Divider sx={{ my: 2.5 }}>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#8A939E', px: 1 }}>
-                VISTA DE DEMOSTRACIÓN
-              </Typography>
-            </Divider>
-
-            <Stack spacing={1.2}>
-              <Button
-                variant="outlined"
-                fullWidth
-                sx={{ justifyContent: 'flex-start', py: 1.2, color: brand.navy, borderColor: '#D9D4C9' }}
-                startIcon={<Person />}
-                onClick={() => go(R.agenda)}
-              >
-                Entrar como administrador
-              </Button>
-              <Button
-                variant="outlined"
-                fullWidth
-                sx={{ justifyContent: 'flex-start', py: 1.2, color: brand.navy, borderColor: '#D9D4C9' }}
-                startIcon={<Person />}
-                onClick={() => go(R.chofer)}
-              >
-                Entrar como chofer
-              </Button>
-            </Stack>
-
-            <Typography sx={{ mt: 2, textAlign: 'center', fontSize: 11.5, color: '#8A939E' }}>
-              Accesos de muestra; no se inicia una sesión real.
             </Typography>
           </Box>
         </Box>

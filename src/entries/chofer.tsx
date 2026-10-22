@@ -1,4 +1,4 @@
-import { renderPage } from '../render'
+﻿import { mountWithAuth } from '../guard'
 import { ChoferPage } from '../pages/ChoferPage'
 
-renderPage(<ChoferPage />)
+mountWithAuth(['chofer'], <ChoferPage />)

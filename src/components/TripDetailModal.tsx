@@ -15,24 +15,22 @@ import {
 } from '@mui/material'
 import {
   ArrowForward,
-  Check,
   Close,
   Flag,
   ImageOutlined,
   LocalShipping,
   Map,
-  MyLocation,
   Notes,
+  Paid,
   PhotoCamera,
   ReceiptLong,
   Schedule,
-  WarningAmber,
 } from '@mui/icons-material'
 import { StatusChip } from './StatusChip'
 import { ars, fmtDateEs, waLink } from '../format'
 import { WhatsAppIcon } from './WhatsAppIcon'
 import { brand } from '../theme'
-import type { ShiftRequest, TripIncident } from '../types'
+import type { ShiftRequest } from '../types'
 
 function InfoPill({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
@@ -40,22 +38,6 @@ function InfoPill({ icon, text }: { icon: React.ReactNode; text: string }) {
       <Box sx={{ color: '#8A939E', display: 'flex' }}>{icon}</Box>
       <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#33475F' }}>{text}</Typography>
     </Box>
-  )
-}
-
-function tren(t: ShiftRequest, onMarkLlegada: () => void, onMarkFin: () => void) {
-  if (t.finishedAt) return null
-  if (t.arrivedAt) {
-    return (
-      <Button variant="contained" startIcon={<Check />} onClick={onMarkFin}>
-        Marcar fin de viaje
-      </Button>
-    )
-  }
-  return (
-    <Button variant="contained" startIcon={<MyLocation />} onClick={onMarkLlegada}>
-      Marcar llegada al destino
-    </Button>
   )
 }
 
@@ -67,12 +49,9 @@ export function TripDetailModal({
   onClose,
   onOpenPlan,
   earnings,
-  onMarkLlegada,
-  onMarkFin,
-  onAddIncident,
-  onRemito,
-  onRemoveRemito,
-  onReport,
+  onAddPayment,
+  onAttachRemito,
+  onDetachRemito,
 }: {
   trip: ShiftRequest
   driverName?: string
@@ -81,16 +60,14 @@ export function TripDetailModal({
   onClose: () => void
   onOpenPlan?: () => void
   earnings?: { lines: { label: string; value: number }[]; total: number }
-  onMarkLlegada?: () => void
-  onMarkFin?: () => void
-  onAddIncident?: (inc: TripIncident) => void
-  onRemito?: (file: File) => void
-  onRemoveRemito?: () => void
-  onReport?: () => void
+  onAddPayment?: () => void
+  onAttachRemito?: (paymentId: number, file: File) => void
+  onDetachRemito?: (paymentId: number) => void
 }) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const fileRef = useRef<HTMLInputElement>(null)
+  const paymentIdRef = useRef<number | null>(null)
 
   const gmaps = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
     `${trip.origin.address}, ${trip.origin.barrio}`,
@@ -100,6 +77,8 @@ export function TripDetailModal({
     trip.phone,
     `Hola ${trip.client}, te escribimos por tu viaje ${trip.id} del ${fmtDateEs(trip.date)} · servicio ${trip.serviceRange.join(' a ')}.`,
   )
+
+  const payments = trip.payments ?? []
 
   return (
     <Dialog open onClose={onClose} fullScreen={isMobile} maxWidth="md" fullWidth>
@@ -186,104 +165,81 @@ export function TripDetailModal({
             </Box>
           )}
 
-          {role === 'chofer' && (
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#5C6B7A', mb: 1 }}>ESTADO DEL SERVICIO</Typography>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                {!trip.finishedAt && !trip.arrivedAt && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<MyLocation />}
-                    onClick={onMarkLlegada}
-                    sx={{ py: 1 }}
-                  >
-                    Marcar llegada al destino
-                  </Button>
-                )}
-                {trip.arrivedAt && !trip.finishedAt && (
-                  <Button variant="contained" size="small" startIcon={<Check />} onClick={onMarkFin} sx={{ py: 1 }}>
-                    Marcar fin de viaje
-                  </Button>
-                )}
-                {trip.finishedAt && (
-                  <InfoPill icon={<Check sx={{ fontSize: 14, color: '#4E9A6C' }} />} text={`Viaje finalizado · ${trip.finishedAt.slice(11)}`} />
-                )}
-              </Stack>
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
-                {trip.remitoPhoto ? (
-                  <Box sx={{ p: 1.4, borderRadius: 2.5, border: '1px solid #E9E6DF', bgcolor: '#FFFFFF', width: '100%', maxWidth: { sm: 260 } }}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PhotoCamera sx={{ fontSize: 15, color: '#4E9A6C' }} />
-                      <Typography sx={{ fontSize: 12.5, fontWeight: 700, flexGrow: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {trip.remitoPhoto.name}
-                      </Typography>
-                      <Button size="small" sx={{ color: '#9C493A', minWidth: 0 }} onClick={onRemoveRemito}>
-                        Quitar
-                      </Button>
-                    </Stack>
-                    <Box
-                      component="img"
-                      src={trip.remitoPhoto.dataUrl}
-                      alt="Foto del remito"
-                      sx={{ width: '100%', borderRadius: 2, border: '1px solid #EDEAE3', maxHeight: 200, objectFit: 'contain', bgcolor: '#fff' }}
-                    />
-                  </Box>
-                ) : (
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ImageOutlined />}
-                    onClick={() => fileRef.current?.click()}
-                    sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1 }}
-                  >
-                    Subir foto del remito
-                  </Button>
-                )}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<WarningAmber />}
-                  onClick={onReport}
-                  sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1 }}
-                >
-                  Reportar incidente
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#5C6B7A' }}>COBROS</Typography>
+              <Box sx={{ flexGrow: 1 }} />
+              {role === 'chofer' && onAddPayment && (
+                <Button size="small" variant="contained" startIcon={<Paid />} onClick={onAddPayment} sx={{ py: 0.8 }}>
+                  Registrar cobro
                 </Button>
-              </Stack>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) {
-                    onRemito?.(f)
-                    e.target.value = ''
-                  }
-                }}
-              />
-            </Box>
-          )}
+              )}
+            </Stack>
 
-          {role === 'chofer' && (trip.incidents?.length ?? 0) > 0 && (
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#5C6B7A', mb: 1 }}>INCIDENTES</Typography>
+            {payments.length === 0 ? (
+              <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>Todavía no hay cobros registrados para este viaje.</Typography>
+            ) : (
               <Stack spacing={1}>
-                {(trip.incidents ?? []).map((inc) => (
-                  <Box key={inc.id} sx={{ p: 1.3, borderRadius: 2, bgcolor: '#FFF3EF', border: '1px solid #F3DAD2' }}>
+                {payments.map((p) => (
+                  <Box key={p.id} sx={{ p: 1.4, borderRadius: 2.5, bgcolor: '#FFFFFF', border: '1px solid #E9E6DF' }}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#9C493A' }}>{inc.type}</Typography>
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: brand.navy }}>{p.concept}</Typography>
+                      <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{p.method}</Typography>
                       <Box sx={{ flexGrow: 1 }} />
-                      <Typography sx={{ fontSize: 11, color: '#9C493A' }}>{inc.time.slice(11)}</Typography>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: brand.navy }}>{ars(p.amount)}</Typography>
                     </Stack>
-                    <Typography sx={{ fontSize: 12.5, color: '#33475F', mt: 0.3 }}>{inc.description}</Typography>
+                    <Typography sx={{ fontSize: 11.5, color: '#8A939E', mt: 0.3 }}>
+                      {fmtDateEs(p.date)} · recibido por {p.receivedBy}
+                      {p.notes ? ` · ${p.notes}` : ''}
+                    </Typography>
+
+                    {p.remito ? (
+                      <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+                        <PhotoCamera sx={{ fontSize: 15, color: '#4E9A6C' }} />
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, flexGrow: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.remito.name}
+                        </Typography>
+                        {role === 'chofer' && onDetachRemito && p.id !== undefined && (
+                          <Button size="small" sx={{ color: '#9C493A', minWidth: 0 }} onClick={() => onDetachRemito(p.id!)}>
+                            Quitar
+                          </Button>
+                        )}
+                      </Stack>
+                    ) : role === 'chofer' && onAttachRemito && p.id !== undefined ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<ImageOutlined />}
+                        onClick={() => {
+                          paymentIdRef.current = p.id!
+                          fileRef.current?.click()
+                        }}
+                        sx={{ mt: 1, color: brand.navy, borderColor: '#D9D4C9', py: 0.8 }}
+                      >
+                        Adjuntar foto del remito
+                      </Button>
+                    ) : null}
                   </Box>
                 ))}
               </Stack>
-            </Box>
-          )}
+            )}
+
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                const paymentId = paymentIdRef.current
+                if (f && paymentId !== null) {
+                  onAttachRemito?.(paymentId, f)
+                }
+                paymentIdRef.current = null
+                e.target.value = ''
+              }}
+            />
+          </Box>
 
           {role === 'chofer' && earnings && (
             <Box sx={{ p: 1.8, borderRadius: 2.5, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
@@ -315,15 +271,11 @@ export function TripDetailModal({
         <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>
           Cerrar
         </Button>
-        {role === 'chofer' ? (
-          !isMobile && onMarkLlegada && onMarkFin ? (
-            tren(trip, onMarkLlegada, onMarkFin)
-          ) : null
-        ) : onOpenPlan ? (
+        {role !== 'chofer' && onOpenPlan && (
           <Button variant="contained" endIcon={<ArrowForward />} onClick={onOpenPlan}>
             Abrir planificación
           </Button>
-        ) : null}
+        )}
       </DialogActions>
     </Dialog>
   )

@@ -1,4 +1,4 @@
-import { renderPage } from '../render'
+﻿import { STAFF_ROLES, mountWithAuth } from '../guard'
 import { AgendaPage } from '../pages/AgendaPage'
 
-renderPage(<AgendaPage />)
+mountWithAuth(STAFF_ROLES, <AgendaPage />)

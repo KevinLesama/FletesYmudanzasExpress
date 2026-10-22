@@ -52,7 +52,7 @@ import { R, useQuery } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
-import type { Availability, Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
+import type { Availability, PaymentMethod, ReceivedBy, ShiftRequest, User, Vehicle } from '../types'
 import { brand } from '../theme'
 
 interface SectionCardProps {
@@ -114,11 +114,11 @@ export function PlanificacionPage() {
 
   const requestState = useAsync(() => api.getRequest(id), [id])
   const catalogState = useAsync(async () => {
-    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
+    const [drivers, vehicles] = await Promise.all([api.listUsers('chofer'), api.listVehicles()])
     return { drivers, vehicles }
   }, [])
   const request = requestState.data
-  const drivers: Driver[] = catalogState.data?.drivers ?? []
+  const drivers: User[] = catalogState.data?.drivers ?? []
   const vehicles: Vehicle[] = catalogState.data?.vehicles ?? []
 
   const [driverId, setDriverId] = useState('')
@@ -187,7 +187,7 @@ export function PlanificacionPage() {
     }
   }, [request, driverId, vehicleId, start, end])
 
-  const driverOption = (d: Driver) => (
+  const driverOption = (d: User) => (
     <MenuItem value={d.id} key={d.id}>
       <Stack direction="row" alignItems="center" spacing={1}>
         <Person sx={{ fontSize: 16, color: '#8A939E' }} />
@@ -533,7 +533,7 @@ export function PlanificacionPage() {
                 onClick={() => {
                   if (cancelledFlag) {
                     runAction(
-                      () => api.updateRequest(request.id, { status: 'Pendiente de seña', confirmed: false }),
+                      () => api.updateRequest(request.id, { status: 'Pendiente de seña' }),
                       'Viaje reactivado · ' + requestId,
                     )
                   } else {
@@ -559,7 +559,6 @@ export function PlanificacionPage() {
                         price: Number(price || 0),
                         deposit_required: Number(depositRequired || 0),
                         status: 'Confirmada',
-                        confirmed: true,
                       }),
                     'Viaje confirmado · ' + requestId,
                   )
@@ -699,12 +698,12 @@ function DepositDialog({
   depositRequired: number
   price: number
   received: number
-  onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: 'Transferencia' | 'Efectivo', receivedBy: ReceivedBy, notes?: string) => void
+  onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: PaymentMethod, receivedBy: ReceivedBy, notes?: string) => void
 }) {
   const [amount, setAmount] = useState(String(depositRequired || ''))
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [concept, setConcept] = useState<'Seña' | 'Saldo'>('Seña')
-  const [method, setMethod] = useState<'Transferencia' | 'Efectivo'>('Transferencia')
+  const [method, setMethod] = useState<PaymentMethod>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -768,8 +767,9 @@ function DepositDialog({
             </FormControl>
             <FormControl size="small" fullWidth>
               <InputLabel>Medio</InputLabel>
-              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as 'Transferencia' | 'Efectivo')}>
+              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
                 <MenuItem value="Transferencia">Transferencia</MenuItem>
+                <MenuItem value="Cuenta corriente">Cuenta corriente</MenuItem>
                 <MenuItem value="Efectivo">Efectivo</MenuItem>
               </Select>
             </FormControl>

@@ -13,12 +13,17 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    """Campos de auditoria comunes a todas las tablas."""
+    """Campos de auditoria comunes a todas las tablas.
+
+    La base esta en espanol: las columnas son `creado_en` / `actualizado_en`.
+    El atributo de Python queda en ingles para no tocar el resto del codigo.
+    """
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        "creado_en", DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
+        "actualizado_en",
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),

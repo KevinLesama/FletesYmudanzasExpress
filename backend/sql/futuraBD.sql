@@ -1,0 +1,184 @@
+-- ===========================================================================
+-- Fletes Express - futuraBD.sql
+-- ---------------------------------------------------------------------------
+-- QUÉ ES ESTE ARCHIVO
+--   No se ejecuta: es la PROPUESTA de base de datos para lo que todavía hay
+--   que definir con el equipo. Reúne dos temas:
+--
+--     A) AUTENTICACIÓN  -> qué queda decidido y qué falta decidir.
+--     B) LANDING DE CLIENTES -> portal público para que cada cliente cargue
+--        su solicitud y llegue al panel de administración.
+--
+--   Todo el DDL de la sección B está comentado a propósito: se activa recién
+--   cuando el equipo lo aprueba.
+--
+--   Lo que YA está aplicado en la base va en:
+--     backend/sql/schema.sql   -> esquema de negocio (usuarios, solicitudes,
+--                                  pagos, vehiculos, factores_tarifa, items_carga)
+--     backend/sql/auth.sql     -> vínculo con Supabase Auth (usuarios.auth_user_id)
+--     backend/sql/seed.sql     -> datos de ejemplo
+--     backend/sql/install.sql  -> instalador único (schema + auth)
+--
+--   La base está en español: en este archivo los nombres de tablas, columnas,
+--   índices y restricciones van en el mismo idioma.
+-- ===========================================================================
+
+
+-- ===========================================================================
+-- A) AUTENTICACIÓN
+-- ===========================================================================
+--
+-- CÓMO FUNCIONA HOY (ya implementado)
+--   1. El navegador inicia sesión con Supabase (email + contraseña).
+--   2. Supabase devuelve un JWT; el frontend lo manda en cada request como
+--      `Authorization: Bearer <token>`.
+--   3. El backend valida la firma contra el JWKS del proyecto y resuelve el
+--      usuario de la app: primero por `usuarios.auth_user_id`, y si no está
+--      vinculado, por email (primer ingreso) y completa el vínculo solo.
+--   4. El ROL sale de `usuarios.rol`, no del token ni del app_metadata de
+--      Supabase. Así, habilitar o cambiar permisos se hace desde el panel.
+--
+-- DECIDIDO EN ESTA RONDA (falta confirmación del equipo)
+--   * Roles de la app: 'admin' | 'chofer' | 'cliente'.
+--     Se descartó el rol 'coordinator' que traía la rama de auth original:
+--     no existe esa figura en el equipo hoy.
+--   * La contraseña NO está en la base: vive en Supabase Auth. Por eso la
+--     tabla `usuarios` no tiene la columna `password_hash`.
+--   * Los clientes ('cliente') no se loguean: son contactos de la empresa.
+--   * Las cuentas de login las crea el equipo a mano en Supabase
+--     (Authentication > Users) usando el MIS email que se cargó en el panel.
+--     La feature de mails de registro queda para más adelante.
+--   * Permisos por endpoint:
+--       admin  -> todo (usuarios, vehículos, solicitudes, pagos, remitos)
+--       chofer -> sus propios viajes, sus cobros y sus tarifas
+--       cliente-> sin acceso a la API
+--   * El chofer también puede LEER la flota (para ver el vehículo de su viaje)
+--     y su propio perfil y sus propias tarifas. Los cambios de flota y de otros
+--     usuarios quedan reservados al admin.
+--
+-- DDL YA APLICADO (está en backend/sql/auth.sql, no hace falta repetirlo)
+--   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS auth_user_id uuid;
+--   CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_auth_user_id ON usuarios (auth_user_id);
+--   -- + FK a auth.users, solo si el esquema auth existe (Supabase)
+--
+-- QUÉ FALTA DECIDIR CON EL EQUIPO
+--   [ ] ¿El alta de choferes desde el panel crea la cuenta de Supabase sola
+--       (requiere SUPABASE_SERVICE_ROLE_KEY en el backend) o sigue siendo
+--       manual? Hoy es manual: el panel guarda el usuario y la cuenta de
+--       login se crea aparte.
+--   [ ] Mails de registro (invitación): ¿el backend manda un invite de
+--       Supabase cuando se crea un chofer? Si sí, hay que definir la tabla
+--       de invitaciones y el template del mail (feature declarada, no
+--       implementada).
+--   [ ] ¿Se necesita un rol de coordinación más adelante? Si aparece, la
+--       decisión es si es un 4º valor de `usuarios.rol` o un permiso aparte
+--       (más simple de auditar).
+--   [ ] ¿Los choferes pueden cambiar su propia tarifa? Hoy sí (pantalla
+--       "Mi configuración"): el backend lo permite, pero el admin no la ve
+--       hasta que el viaje se confirma.
+--
+-- SI SE APRUEBA EL ALTA AUTOMATICA (opción 1 de la lista anterior)
+--   El backend usaría la admin API de Supabase:
+--       POST {SUPABASE_URL}/auth/v1/admin/users
+--       con apikey: SUPABASE_SERVICE_ROLE_KEY
+--       body: { "email": ..., "password": ..., "user_metadata": {...} }
+--   Eso requiere guardar SUPABASE_SERVICE_ROLE_KEY en el backend (nunca en el
+--   frontend) y una tabla de invitaciones para el caso "el chofer define su
+--   propia contraseña":
+--
+--   -- PROPUESTA (no aplicar sin acuerdo)
+--   -- CREATE TABLE IF NOT EXISTS invitaciones (
+--   --     id           uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
+--   --     usuario_id   text         NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+--   --     email        text         NOT NULL,
+--   --     token        text         NOT NULL UNIQUE,
+--   --     estado       text         NOT NULL DEFAULT 'pendiente',
+--   --     expira_en    timestamptz  NOT NULL,
+--   --     creado_en    timestamptz  NOT NULL DEFAULT now(),
+--   --     CONSTRAINT ck_invitaciones_estado
+--   --         CHECK (estado IN ('pendiente', 'aceptada', 'expirada'))
+--   -- );
+--   -- CREATE INDEX IF NOT EXISTS ix_invitaciones_usuario_id ON invitaciones (usuario_id);
+
+
+-- ===========================================================================
+-- B) LANDING DE CLIENTES (portal público de solicitudes)
+-- ===========================================================================
+--
+-- OBJETIVO
+--   Que un cliente cargue su solicitud desde la web (sin usuario ni
+--   contraseña) y que esa solicitud aparezca en el panel de administración
+--   para aceptarla o rechazarla.
+--
+-- QUÉ YA SIRVE DEL MODELO ACTUAL
+--   * `solicitudes.estado` ya tiene 'Pendiente de revisión': es exactamente el
+--     estado de "la tengo que revisar antes de confirmar".
+--   * El panel ya lista esas solicitudes y las acepta (Confirmada, con chofer y
+--     vehículo asignados) o las rechaza (Cancelada).
+--   * `solicitudes.cliente_id` apunta a un usuario con rol 'cliente'; el alta
+--     desde la landing reutiliza el mismo par nombre + teléfono.
+--   * O sea: el flujo no necesita una tabla nueva, necesita una puerta de
+--     entrada y un par de columnas para poder distinguir y dar seguimiento.
+--
+-- LO QUE FALTA (propuesta)
+--
+--   B.1 Origen de la solicitud
+--       Hoy no se distingue una solicitud tomada por teléfono de una que
+--       llega de la web. Se propone una columna:
+--
+--       -- PROPUESTA (no aplicar sin acuerdo)
+--       -- ALTER TABLE solicitudes
+--       --     ADD COLUMN IF NOT EXISTS origen text NOT NULL DEFAULT 'telefono';
+--       -- ALTER TABLE solicitudes
+--       --     ADD CONSTRAINT ck_solicitudes_origen
+--       --     CHECK (origen IN ('telefono', 'web'));
+--       -- CREATE INDEX IF NOT EXISTS ix_solicitudes_origen ON solicitudes (origen);
+--
+--   B.2 Seguimiento sin cuenta
+--       Para que el cliente consulte el estado de su solicitud sin loguearse,
+--       se propone un token público por solicitud (el mismo patrón de los
+--       enlaces de seguimiento de correos):
+--
+--       -- PROPUESTA (no aplicar sin acuerdo)
+--       -- ALTER TABLE solicitudes
+--       --     ADD COLUMN IF NOT EXISTS token_publico text UNIQUE;
+--       -- CREATE INDEX IF NOT EXISTS ix_solicitudes_token_publico ON solicitudes (token_publico);
+--
+--   B.3 Endpoint público de alta
+--       POST /api/public/solicitudes  (sin sesión, con límites)
+--       - crea o reutiliza el cliente (nombre + teléfono)
+--       - crea la solicitud con estado = 'Pendiente de revisión' y origen = 'web'
+--       - devuelve el token_publico para el seguimiento
+--       - necesita: rate limiting por IP, captcha o honeypot y moderación
+--         previa si queremos filtrar spam antes de que llegue al panel
+--
+--   B.4 Bandeja de nuevas
+--       En el panel, un filtro o una pestaña "Nuevas (web)" para separar lo que
+--       viene del portal de lo que entra por teléfono.
+--
+--   B.5 Avisos al cliente
+--       Cuando el admin acepta o rechaza, avisar por email o WhatsApp.
+--       Requiere un proveedor (Supabase Auth email, o una API de WhatsApp
+--       Business). El motivo de rechazo es un dato que hay que guardar:
+--
+--       -- PROPUESTA (no aplicar sin acuerdo)
+--       -- ALTER TABLE solicitudes
+--       --     ADD COLUMN IF NOT EXISTS motivo_rechazo text;
+--
+--   B.6 Archivos adjuntos
+--       Fotos de lo que hay que mudar o un PDF con el presupuesto. Hoy los
+--       remitos se guardan como data URL en `pagos.remito_datos_url`; para
+--       la landing conviene Supabase Storage con una tabla de adjuntos.
+--
+--   B.7 Datos del cliente
+--       La landing pide menos datos que el panel (nombre, teléfono, origen,
+--       destino, fecha y ventanas). El resto se completa al confirmar.
+--
+-- DECISIONES PENDIENTES
+--   [ ] ¿La solicitud web entra directo a la bandeja del admin o pasa por
+--       una moderación previa?
+--   [ ] ¿El cliente se identifica con el mismo nombre + teléfono que ya usa
+--       el panel, o se pide email?
+--   [ ] ¿Aviso por email, por WhatsApp, o los dos?
+--   [ ] ¿Hace falta que el cliente pueda cancelar su solicitud?
+--   [ ] ¿Se acceptan fotos desde la landing o solo texto?

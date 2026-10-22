@@ -1,4 +1,4 @@
-import type { Driver } from './types'
+import type { User } from './types'
 import { DRIVERS } from './mockData'
 
 export interface ChoferConfig {
@@ -13,7 +13,7 @@ const KEY = (id: string) => 'fex_chofer_config_' + id
 const num = (v: unknown, fallback: number): number => (typeof v === 'number' && isFinite(v) ? v : fallback)
 
 export function loadChoferConfig(id: string): ChoferConfig {
-  const base = DRIVERS.find((d) => d.id === id) as Driver
+  const base = DRIVERS.find((d) => d.id === id) as User
   if (typeof localStorage === 'undefined') {
     return { baseRate: base.baseRate, ratePerKm: base.ratePerKm, ratePerHour: base.ratePerHour, factors: [...base.factors] }
   }

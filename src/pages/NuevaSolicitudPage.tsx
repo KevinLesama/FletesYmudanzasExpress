@@ -24,7 +24,7 @@ import { StatusChip } from '../components/StatusChip'
 import { R } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import type { Client } from '../types'
+import type { User } from '../types'
 import { brand } from '../theme'
 
 export function NuevaSolicitudPage() {
@@ -32,8 +32,8 @@ export function NuevaSolicitudPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [step, setStep] = useState(0)
 
-  const clientsState = useAsync(() => api.listClients(), [])
-  const clients: Client[] = clientsState.data ?? []
+  const clientsState = useAsync(() => api.listUsers('cliente'), [])
+  const clients: User[] = clientsState.data ?? []
 
   // client
   const [clientMode, setClientMode] = useState<'existente' | 'nuevo'>('existente')
@@ -66,7 +66,7 @@ export function NuevaSolicitudPage() {
 
   useEffect(() => {
     if (clientMode === 'existente' && !selectedClientId && clients.length > 0) {
-      setSelectedClientId(String(clients[0].id))
+      setSelectedClientId(clients[0].id)
     }
   }, [clientMode, selectedClientId, clients])
 
@@ -88,25 +88,13 @@ export function NuevaSolicitudPage() {
   const save = async () => {
     setSaving(true)
     try {
-      let clientId: number | null = null
-      let clientName = ''
-      let phone = ''
-      if (clientMode === 'existente') {
-        clientId = Number(selectedClientId)
-        const c = clients.find((x) => String(x.id) === selectedClientId)
-        clientName = c?.name ?? ''
-        phone = c?.phone ?? ''
-      } else {
-        const created = await api.createClient({ name: newName.trim(), phone: newPhone.trim() })
-        clientId = created.id
-        clientName = created.name
-        phone = created.phone
-      }
+      const clientPayload =
+        clientMode === 'existente'
+          ? { client_id: selectedClientId }
+          : { client_name: newName.trim(), phone: newPhone.trim() }
 
       const created = await api.createRequest({
-        client_id: clientId,
-        client_name: clientName,
-        phone,
+        ...clientPayload,
         date,
         arrival_from: arriveFrom,
         arrival_to: arriveTo,
@@ -194,7 +182,7 @@ export function NuevaSolicitudPage() {
                     {label('Seleccionar cliente', true)}
                     <Select size="small" value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} sx={{ bgcolor: '#fff' }}>
                       {clients.map((c) => (
-                        <MenuItem key={c.id} value={String(c.id)}>
+                        <MenuItem key={c.id} value={c.id}>
                           {c.name} · {c.phone}
                         </MenuItem>
                       ))}

@@ -1,8 +1,9 @@
-import type { Driver, RemitoPhoto, ShiftRequest, Vehicle } from './types'
+import type { RemitoPhoto, ShiftRequest, User, Vehicle } from './types'
 
-export const DRIVERS: Driver[] = [
+export const DRIVERS: User[] = [
   {
     id: 'MR',
+    role: 'chofer',
     initials: 'MR',
     name: 'Marcelo Rodríguez',
     phone: '11 5551-9001',
@@ -17,6 +18,7 @@ export const DRIVERS: Driver[] = [
   },
   {
     id: 'HP',
+    role: 'chofer',
     initials: 'HP',
     name: 'Hernán Pérez',
     phone: '11 5558-1230',
@@ -31,6 +33,7 @@ export const DRIVERS: Driver[] = [
   },
   {
     id: 'JA',
+    role: 'chofer',
     initials: 'JA',
     name: 'Jorge Almada',
     phone: '11 5550-6612',
@@ -83,6 +86,7 @@ export const CLIENTS = [
 export const REQUESTS: ShiftRequest[] = [
   {
     id: 'FEX-1048',
+    clientId: 'CLI-004',
     client: 'Kevin',
     phone: '11 3291-5140',
     status: 'Pendiente de seña',
@@ -108,19 +112,10 @@ export const REQUESTS: ShiftRequest[] = [
     depositReceived: 0,
     estimatedKm: 18,
     estimatedHours: 2,
-    arrivedAt: '2026-09-24T11:02',
-    incidents: [
-      {
-        id: 'INC-1001',
-        type: 'Demora',
-        description: 'El cliente retiraba las llaves en administración; esperé unos minutos.',
-        time: '2026-09-24T11:12',
-      },
-    ],
-    remitoPhoto: REMITO_SAMPLE,
   },
   {
     id: 'FEX-1047',
+    clientId: 'CLI-003',
     client: 'Estudio Sur',
     phone: '11 4811-5560',
     status: 'Confirmada',
@@ -140,10 +135,10 @@ export const REQUESTS: ShiftRequest[] = [
     price: 325000,
     depositRequired: 162500,
     depositReceived: 162500,
-    confirmed: true,
   },
   {
     id: 'FEX-1046',
+    clientId: 'CLI-005',
     client: 'Marta Ríos',
     phone: '11 6112-7789',
     status: 'Confirmada',
@@ -163,10 +158,10 @@ export const REQUESTS: ShiftRequest[] = [
     price: 240000,
     depositRequired: 120000,
     depositReceived: 120000,
-    confirmed: true,
   },
   {
     id: 'FEX-1049',
+    clientId: 'CLI-006',
     client: 'Tomás Vidal',
     phone: '11 6103-4422',
     status: 'Pendiente de revisión',
@@ -187,6 +182,7 @@ export const REQUESTS: ShiftRequest[] = [
   },
   {
     id: 'FEX-1044',
+    clientId: 'CLI-007',
     client: 'Paula Sosa',
     phone: '11 5120-9913',
     status: 'Cancelada',
@@ -213,14 +209,14 @@ export function getRequest(id: string): ShiftRequest {
   return REQUESTS.find((r) => r.id.toLowerCase() === id.toLowerCase()) ?? REQUESTS[0]
 }
 
-export const driverById = (id?: string): Driver | undefined => DRIVERS.find((d) => d.id === id)
+export const driverById = (id?: string): User | undefined => DRIVERS.find((d) => d.id === id)
 export const vehicleById = (id?: string): Vehicle | undefined => VEHICLES.find((v) => v.id === id)
 
 export function hasConflict(driverId?: string, serviceRange?: [string, string], excludeId?: string): boolean {
   if (!driverId || !serviceRange) return false
   const [start, end] = serviceRange
   return REQUESTS.some((r) => {
-    if (r.id === excludeId || !r.confirmed) return false
+    if (r.id === excludeId || r.status !== 'Confirmada') return false
     if (r.driverId !== driverId) return false
     const [s2, e2] = r.serviceRange
     return start < e2 && s2 < end
@@ -232,7 +228,7 @@ export interface EarningsLine {
   value: number
 }
 
-export function tripEarnings(d: Driver, km = 0, hours = 0): { lines: EarningsLine[]; total: number } {
+export function tripEarnings(d: User, km = 0, hours = 0): { lines: EarningsLine[]; total: number } {
   const lines: EarningsLine[] = [
     { label: 'Tarifa base por viaje', value: d.baseRate },
     { label: `Recorrido · ${km} km`, value: km * d.ratePerKm },

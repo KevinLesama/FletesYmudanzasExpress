@@ -1,11 +1,13 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 SQLAlchemy==2.0.36
-psycopg[binary]==3.2.3
+psycopg[binary]
 pydantic==2.10.4
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
+# Validacion de los JWT de Supabase Auth (requiere cryptography para ES256)
+PyJWT[crypto]==2.10.1
+httpx==0.28.1
 
 # Pruebas (base de datos SQLite en memoria)
 pytest==8.3.4
-httpx==0.28.1

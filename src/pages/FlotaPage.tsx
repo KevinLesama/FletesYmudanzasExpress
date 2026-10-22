@@ -36,10 +36,10 @@ import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars } from '../format'
 import { brand } from '../theme'
-import type { Driver, DriverStatus, Vehicle, VehicleStatus } from '../types'
+import type { User, UserStatus, Vehicle, VehicleStatus } from '../types'
 
 type DialogState =
-  | { mode: 'driver'; data: Driver | null }
+  | { mode: 'driver'; data: User | null }
   | { mode: 'vehicle'; data: Vehicle | null }
   | null
 
@@ -48,10 +48,10 @@ export function FlotaPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [tab, setTab] = useState(0)
   const fleet = useAsync(async () => {
-    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
+    const [drivers, vehicles] = await Promise.all([api.listUsers('chofer'), api.listVehicles()])
     return { drivers, vehicles }
   }, [])
-  const drivers: Driver[] = fleet.data?.drivers ?? []
+  const drivers: User[] = fleet.data?.drivers ?? []
   const vehicles: Vehicle[] = fleet.data?.vehicles ?? []
   const [dialog, setDialog] = useState<DialogState>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -62,7 +62,7 @@ export function FlotaPage() {
   const activeDrivers = drivers.filter((d) => d.status === 'Activo').length
 
   const openAdd = () => setDialog({ mode: tab === 0 ? 'driver' : 'vehicle', data: null })
-  const openEdit = (mode: 'driver' | 'vehicle', data: Driver | Vehicle) => setDialog({ mode, data: data as any })
+  const openEdit = (mode: 'driver' | 'vehicle', data: User | Vehicle) => setDialog({ mode, data: data as any })
 
   if (fleet.loading) {
     return (
@@ -283,15 +283,16 @@ function RecordDialog({
   onSaved: (message: string) => void
 }) {
   const isDriver = state.mode === 'driver'
-  const initialD = (state.data as Driver) ?? null
+  const initialD = (state.data as User) ?? null
   const initialV = (state.data as Vehicle) ?? null
 
   const [id, setId] = useState(initialD ? initialD.id : initialV ? initialV.id : '')
   const [name, setName] = useState(initialD?.name ?? '')
   const [phone, setPhone] = useState(initialD?.phone ?? '')
+  const [email, setEmail] = useState(initialD?.email ?? '')
   const [type, setType] = useState(initialV?.type ?? '')
   const [capacity, setCapacity] = useState(initialV ? String(initialV.capacityKg) : '')
-  const [driverStatus, setDriverStatus] = useState<DriverStatus>(initialD?.status ?? 'Activo')
+  const [driverStatus, setDriverStatus] = useState<UserStatus>(initialD?.status ?? 'Activo')
   const [vehicleStatus, setVehicleStatus] = useState<VehicleStatus>(initialV?.status ?? 'Disponible')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -305,9 +306,15 @@ function RecordDialog({
     try {
       if (isDriver) {
         if (editing) {
-          await api.updateDriver(initialD!.id, { name, phone, status: driverStatus })
+          await api.updateUser(initialD!.id, { name, phone, email: email || null, status: driverStatus })
         } else {
-          await api.createDriver({ name, phone, status: driverStatus })
+          await api.createUser({
+            role: 'chofer',
+            name,
+            phone,
+            email: email || null,
+            status: driverStatus,
+          })
         }
         onSaved('Cambios guardados')
       } else {
@@ -367,9 +374,18 @@ function RecordDialog({
           <Stack spacing={2}>
             <TextField label="Nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" placeholder="Nombre completo" />
             <TextField label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth size="small" placeholder="11 5555-0000" />
-            <FormControl size="small" fullWidth>
+            <TextField
+              label="Correo (login)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              fullWidth
+              size="small"
+              placeholder="chofer@fletesexpress.com"
+              helperText="Login del chofer: la cuenta se crea en Supabase con este correo."
+            />
+                        <FormControl size="small" fullWidth>
               <InputLabel>Estado</InputLabel>
-              <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}>
+              <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as UserStatus)}>
                 <MenuItem value="Activo">Activo</MenuItem>
                 <MenuItem value="Inactivo">Inactivo</MenuItem>
               </Select>

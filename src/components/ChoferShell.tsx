@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { currentUser, roleLabel, signOut } from '../supabase'
 import { Brand } from './Brand'
 import { brand } from '../theme'
 
@@ -120,12 +121,30 @@ export function ChoferShell({
         </Stack>
       </Box>
       <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
-      <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#8A939E', '&:hover': { color: brand.navy } }}>
-          <Logout fontSize="small" />
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
-        </Stack>
-      </a>
+      <Box
+        component="button"
+        type="button"
+        title="Cerrar sesión"
+        aria-label="Cerrar sesión"
+        onClick={() => void signOut()}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 1,
+          border: 0,
+          borderRadius: 1,
+          bgcolor: 'transparent',
+          cursor: 'pointer',
+          color: '#8A939E',
+          font: 'inherit',
+          '&:hover': { color: brand.navy },
+        }}
+      >
+        <Logout fontSize="small" />
+        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
+      </Box>
     </Box>
   )
 
@@ -186,7 +205,7 @@ export function ChoferShell({
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Turno activo</Typography>
               </Stack>
               <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
-              <Avatar sx={{ width: 32, height: 32, bgcolor: '#F07855', fontSize: 12, fontWeight: 800 }}>JA</Avatar>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: '#F07855', fontSize: 12, fontWeight: 800 }}>{(currentUser()?.initials ?? currentUser()?.name ?? 'CH').slice(0, 2).toUpperCase()}</Avatar>
             </Stack>
           </Box>
         )}
@@ -196,7 +215,7 @@ export function ChoferShell({
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
               <Brand />
               <Box sx={{ flexGrow: 1 }} />
-              <Avatar sx={{ width: 30, height: 30, bgcolor: '#F07855', fontSize: 11, fontWeight: 800 }}>JA</Avatar>
+              <Avatar sx={{ width: 30, height: 30, bgcolor: '#F07855', fontSize: 11, fontWeight: 800 }}>{(currentUser()?.initials ?? currentUser()?.name ?? 'CH').slice(0, 2).toUpperCase()}</Avatar>
             </Toolbar>
           </AppBar>
         )}

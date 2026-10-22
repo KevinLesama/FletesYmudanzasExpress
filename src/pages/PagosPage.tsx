@@ -338,6 +338,7 @@ function PaymentDialog({
               <InputLabel>Medio</InputLabel>
               <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
                 <MenuItem value="Transferencia">Transferencia</MenuItem>
+                <MenuItem value="Cuenta corriente">Cuenta corriente</MenuItem>
                 <MenuItem value="Efectivo">Efectivo</MenuItem>
               </Select>
             </FormControl>

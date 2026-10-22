@@ -19,9 +19,9 @@ import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars } from '../format'
 import { brand } from '../theme'
-import type { Driver, Factor } from '../types'
+import type { Factor, User } from '../types'
 
-const DEMO_DRIVER_ID = 'JA'
+
 const SAMPLE_KM = 18
 const SAMPLE_HOURS = 2
 
@@ -32,7 +32,7 @@ interface ChoferConfig {
   factors: Factor[]
 }
 
-function toConfig(driver: Driver): ChoferConfig {
+function toConfig(driver: User): ChoferConfig {
   return {
     baseRate: driver.baseRate,
     ratePerKm: driver.ratePerKm,
@@ -42,9 +42,12 @@ function toConfig(driver: Driver): ChoferConfig {
 }
 
 export function ChoferConfigPage() {
-  const driverState = useAsync(() => api.listDrivers(), [])
-  const drivers: Driver[] = driverState.data ?? []
-  const driver = drivers.find((d) => d.id === DEMO_DRIVER_ID)
+  // Perfil propio (el backend permite leer y modificar las tarifas propias).
+  const driverState = useAsync(async () => {
+    const me = await api.me()
+    return api.getUser(me.id)
+  }, [])
+  const driver = driverState.data
 
   const [config, setConfig] = useState<ChoferConfig | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -68,7 +71,7 @@ export function ChoferConfigPage() {
     return (
       <ChoferShell active="config" breadcrumb={['Chofer', 'Mi configuración']} title="Mi configuración">
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
-          <ErrorState message={driverState.error ?? 'No encontramos el chofer de demostración.'} onRetry={driverState.reload} />
+          <ErrorState message={driverState.error ?? 'No pudimos cargar tu perfil de chofer.'} onRetry={driverState.reload} />
         </Box>
       </ChoferShell>
     )
@@ -92,7 +95,7 @@ export function ChoferConfigPage() {
   const save = async () => {
     setSaving(true)
     try {
-      await api.updateDriverRates(DEMO_DRIVER_ID, {
+      await api.updateUserRates(driver.id, {
         base_rate: config.baseRate,
         rate_per_km: config.ratePerKm,
         rate_per_hour: config.ratePerHour,
@@ -128,7 +131,7 @@ export function ChoferConfigPage() {
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <InfoOutlined sx={{ fontSize: 16, mt: 0.2 }} />
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-              Estos valores los usan tus viajes para mostrar el cálculo. Los toca la administración solo en la vista de flota.
+              Estos valores los usás en tus viajes para mostrar el cálculo. Los definís vos mismo y la administración los toma como referencia.
             </Typography>
           </Stack>
         </Box>

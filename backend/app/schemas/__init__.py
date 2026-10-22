@@ -9,31 +9,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 RequestStatus = Literal["Pendiente de revisión", "Pendiente de seña", "Confirmada", "Cancelada"]
-DriverStatus = Literal["Activo", "Inactivo"]
+UserRole = Literal["admin", "chofer", "cliente"]
+UserStatus = Literal["Activo", "Inactivo"]
 VehicleStatus = Literal["Disponible", "Asignado", "En taller"]
 PaymentConcept = Literal["Seña", "Saldo"]
-PaymentMethod = Literal["Transferencia", "Efectivo"]
+PaymentMethod = Literal["Transferencia", "Cuenta corriente", "Efectivo"]
 ReceivedBy = Literal["Administración", "Chofer"]
 
 
 # --------------------------------------------------------------------------- #
-# Clientes
-# --------------------------------------------------------------------------- #
-class ClientIn(BaseModel):
-    name: str = Field(min_length=1)
-    phone: str = Field(min_length=1)
-
-
-class ClientOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    phone: str
-
-
-# --------------------------------------------------------------------------- #
-# Choferes
+# Usuarios (administradores, choferes y clientes)
 # --------------------------------------------------------------------------- #
 class FactorIn(BaseModel):
     label: str = ""
@@ -44,19 +29,29 @@ class FactorOut(FactorIn):
     pass
 
 
-class DriverIn(BaseModel):
-    id: str | None = Field(default=None, min_length=1, max_length=8)
-    initials: str | None = Field(default=None, max_length=4)
+class UserIn(BaseModel):
+    id: str | None = Field(default=None, min_length=1, max_length=16)
+    role: UserRole = "cliente"
     name: str = Field(min_length=1)
     phone: str = Field(min_length=1)
-    status: DriverStatus = "Activo"
+    email: str | None = None
+    initials: str | None = Field(default=None, max_length=4)
+    status: UserStatus = "Activo"
     base_rate: float = 0
     rate_per_km: float = 0
     rate_per_hour: float = 0
 
 
-class DriverFactorsIn(BaseModel):
-    """Usado por la pantalla de configuracion del chofer."""
+class UserUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    phone: str | None = Field(default=None, min_length=1)
+    email: str | None = None
+    initials: str | None = Field(default=None, max_length=4)
+    status: UserStatus | None = None
+
+
+class UserRatesIn(BaseModel):
+    """Usado por la pantalla 'Mi configuración' del chofer."""
 
     base_rate: float = 0
     rate_per_km: float = 0
@@ -64,14 +59,16 @@ class DriverFactorsIn(BaseModel):
     factors: list[FactorIn] = Field(default_factory=list)
 
 
-class DriverOut(BaseModel):
+class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    initials: str
+    role: UserRole
     name: str
     phone: str
-    status: DriverStatus
+    email: str | None = None
+    initials: str | None = None
+    status: UserStatus
     base_rate: float
     rate_per_km: float
     rate_per_hour: float
@@ -130,7 +127,7 @@ class CargoIn(BaseModel):
 
 
 class RequestIn(BaseModel):
-    client_id: int | None = None
+    client_id: str | None = None
     client_name: str | None = None
     phone: str | None = None
     date: DateType
@@ -158,24 +155,9 @@ class RequestUpdate(BaseModel):
     estimated_km: int | None = Field(default=None, ge=0)
     estimated_hours: int | None = Field(default=None, ge=0)
     status: RequestStatus | None = None
-    confirmed: bool | None = None
     cargo_notes: str | None = None
     cargo_fragile: bool | None = None
     cargo_approx_units: int | None = Field(default=None, ge=0)
-
-
-class ArrivedIn(BaseModel):
-    arrived_at: str
-
-
-class FinishedIn(BaseModel):
-    finished_at: str
-
-
-class IncidentIn(BaseModel):
-    type: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    time: str
 
 
 class RemitoIn(BaseModel):
@@ -190,6 +172,8 @@ class PaymentIn(BaseModel):
     amount: float = Field(gt=0)
     date: DateType
     notes: str | None = None
+    remito_name: str | None = None
+    remito_data_url: str | None = None
 
 
 # -------------------------------- salidas ---------------------------------- #
@@ -199,15 +183,6 @@ class CargoItemOut(BaseModel):
     name: str
     units: int
     note: str | None = None
-
-
-class IncidentOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    type: str
-    description: str
-    time: str
 
 
 class PaymentOut(BaseModel):
@@ -220,13 +195,15 @@ class PaymentOut(BaseModel):
     amount: float
     date: DateType
     notes: str | None = None
+    remito_name: str | None = None
+    remito_data_url: str | None = None
 
 
 class RequestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    client_id: int
+    client_id: str
     client_name: str
     phone: str
     status: RequestStatus
@@ -252,14 +229,8 @@ class RequestOut(BaseModel):
     price: float
     deposit_required: float
     deposit_received: float = 0
-    confirmed: bool
     estimated_km: int | None = None
     estimated_hours: int | None = None
-    arrived_at: str | None = None
-    finished_at: str | None = None
-    remito_name: str | None = None
-    remito_data_url: str | None = None
-    incidents: list[IncidentOut] = Field(default_factory=list)
     payments: list[PaymentOut] = Field(default_factory=list)
 
 
@@ -278,3 +249,14 @@ class AvailabilityOut(BaseModel):
     driver_available: bool
     vehicle_available: bool
     conflicts: list[str] = Field(default_factory=list)
+
+
+class SessionOut(BaseModel):
+    """Sesion del usuario: es lo que devuelve GET /api/auth/me."""
+
+    id: str
+    name: str
+    email: str | None = None
+    role: UserRole
+    initials: str | None = None
+    status: UserStatus

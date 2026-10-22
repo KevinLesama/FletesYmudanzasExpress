@@ -2,12 +2,12 @@ import { Box, Stack, Typography, useTheme, useMediaQuery } from '@mui/material'
 import { AccessTime, CalendarMonth, Person, ArrowForward, MyLocation, LocationOn, WarningAmber } from '@mui/icons-material'
 import type { ShiftRequest } from '../types'
 import { StatusChip } from './StatusChip'
-import type { Driver, Vehicle } from '../types'
+import type { User, Vehicle } from '../types'
 import { brand } from '../theme'
 
 interface TripCardProps {
   trip: ShiftRequest
-  driver?: Driver
+  driver?: User
   vehicle?: Vehicle
   selected?: boolean
   onSelect?: () => void
