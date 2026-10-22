@@ -148,7 +148,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
       </Box>
       <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
-        <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
+        <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>María Rodríguez</Typography>
           <Typography sx={{ fontSize: 12, color: '#64707C' }}>Administradora</Typography>
@@ -216,15 +216,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               ))}
             </Stack>
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Stack direction="row" alignItems="center" spacing={0.7}>
-                <Box sx={{ width: 7, height: 7, borderRadius: 50, bgcolor: '#4E9A6C' }} />
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Cuenta activa</Typography>
-              </Stack>
-              <Box sx={{ width: '1px', height: 20, bgcolor: '#EDEAE3' }} />
               <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar sx={{ width: 32, height: 32, bgcolor: '#526B8A', fontSize: 12, fontWeight: 800 }}>MR</Avatar>
+              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 32, height: 32, bgcolor: '#526B8A', fontSize: 12, fontWeight: 800 }}>MR</Avatar>
             </Stack>
           </Box>
         )}
@@ -237,7 +232,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar sx={{ width: 30, height: 30, bgcolor: '#4E6B8E', fontSize: 11, fontWeight: 800 }}>MR</Avatar>
+              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 30, height: 30, bgcolor: '#4E6B8E', fontSize: 11, fontWeight: 800 }}>MR</Avatar>
             </Toolbar>
           </AppBar>
         )}
