@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { currentUser, roleLabel, signOut } from '../supabase'
 import { Brand } from './Brand'
 import { brand } from '../theme'
 
@@ -120,12 +121,26 @@ export function ChoferShell({
         </Stack>
       </Box>
       <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
-      <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#8A939E', '&:hover': { color: brand.navy } }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
+        <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>
+          {(currentUser()?.email ?? 'CH').slice(0, 2).toUpperCase()}
+        </Avatar>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography noWrap sx={{ fontSize: 13, fontWeight: 700, color: brand.navy }}>
+            {currentUser()?.email ?? 'Sesión'}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{roleLabel(currentUser()?.role)}</Typography>
+        </Box>
+        <IconButton
+          size="small"
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
+          onClick={() => void signOut()}
+          sx={{ color: '#8A939E' }}
+        >
           <Logout fontSize="small" />
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
-        </Stack>
-      </a>
+        </IconButton>
+      </Stack>
     </Box>
   )
 
