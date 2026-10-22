@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { Brand } from './Brand'
+import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
 
 export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos'
@@ -136,7 +137,9 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           <NavLink key={item.key} item={item} active={item.key === active} />
         ))}
       </Stack>
-      <Box sx={{ flexGrow: 1 }} />
+      <Box sx={{ flexGrow: 1, minHeight: 180, my: 2, display: 'flex' }}>
+        <MapPreview />
+      </Box>
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64707C' }}>
           <LocationOn sx={{ fontSize: 16 }} />
