@@ -277,7 +277,7 @@ export function PlanificacionPage() {
 
   const planning = (
     <>
-      <Stack direction="row" alignItems="center" spacing={1.5}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1.5}>
         <SectionCard title="Precio acordado">
           <TextField
             size="small"
