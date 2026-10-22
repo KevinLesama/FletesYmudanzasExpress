@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   Dialog,
@@ -12,7 +11,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -29,6 +27,7 @@ import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search, WarningAmber } fro
 import { AppShell } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate } from '../format'
@@ -42,7 +41,7 @@ export function PagosPage() {
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
   const [dialogTrip, setDialogTrip] = useState<PaymentSummary | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
 
   const summaryState = useAsync(() => api.paymentsSummary(), [])
@@ -63,10 +62,10 @@ export function PagosPage() {
     try {
       await api.addPayment(trip.id, payment)
       setDialogTrip(null)
-      setToast(`Pago registrado · ${trip.id} · ${ars(payment.amount)}`)
+      setToast({ message: `Pago registrado · ${trip.id} · ${ars(payment.amount)}`, tone: 'success' })
       summaryState.reload()
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos registrar el pago.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos registrar el pago.', tone: 'error' })
     } finally {
       setBusy(false)
     }
@@ -91,7 +90,7 @@ export function PagosPage() {
             <TableRow key={r.id} hover>
               <TableCell>
                 <Typography sx={{ fontWeight: 800, color: brand.navy }}>{r.id}</Typography>
-                <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{r.client}</Typography>
+                <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{r.client}</Typography>
                 <Typography sx={{ fontSize: 12, color: '#B8C0C9' }}>{fmtDate(r.date)}</Typography>
               </TableCell>
               <TableCell align="right">{ars(r.price)}</TableCell>
@@ -119,13 +118,13 @@ export function PagosPage() {
         <Box key={r.id} sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: 2 }}>
           <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
             <Stack direction="row" alignItems="center" spacing={1}>
-              <ReceiptLong sx={{ fontSize: 16, color: '#8A939E' }} />
+              <ReceiptLong sx={{ fontSize: 16, color: '#6E7A87' }} />
               <Typography sx={{ fontWeight: 800, fontSize: 13.5, color: brand.navy }}>{r.id}</Typography>
             </Stack>
             <StatusChip label={r.state} />
           </Stack>
           <Typography sx={{ mt: 0.6, fontWeight: 700, fontSize: 14 }}>{r.client}</Typography>
-          <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{fmtDate(r.date)}</Typography>
+          <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{fmtDate(r.date)}</Typography>
           <Box sx={{ my: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#F8F6F1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2 }}>
             <Money label="Precio acordado" value={ars(r.price)} />
             <Money label="Seña recibida" value={ars(r.deposit)} />
@@ -149,7 +148,7 @@ export function PagosPage() {
         title="Pagos"
         description="Registro manual · transferencias y efectivo"
         action={
-          <Typography sx={{ fontSize: 12.5, color: '#8A939E', fontWeight: 600 }}>
+          <Typography sx={{ fontSize: 12.5, color: '#6E7A87', fontWeight: 600 }}>
             {rows.length} registros · importes en ARS
           </Typography>
         }
@@ -181,7 +180,7 @@ export function PagosPage() {
             placeholder="Buscar por viaje o cliente"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#8A939E', mr: 1 }} /> }}
+            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#6E7A87', mr: 1 }} /> }}
           />
           <FormControl size="small">
             <InputLabel>Fecha</InputLabel>
@@ -220,8 +219,8 @@ export function PagosPage() {
         )}
 
         <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mt: 2.5 }}>
-          <InfoOutlined sx={{ fontSize: 15, color: '#8A939E', mt: 0.2 }} />
-          <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+          <InfoOutlined sx={{ fontSize: 15, color: '#6E7A87', mt: 0.2 }} />
+          <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
             El registro es manual: no se realiza verificación bancaria. Si el pago lo recibió el chofer, la rendición a la empresa se registra por separado.
           </Typography>
         </Stack>
@@ -236,11 +235,7 @@ export function PagosPage() {
         />
       )}
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }
@@ -248,7 +243,7 @@ export function PagosPage() {
 function Money({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <Box>
-      <Typography sx={{ fontSize: 11, color: '#8A939E', fontWeight: strong ? 800 : 600 }}>{label.toUpperCase()}</Typography>
+      <Typography sx={{ fontSize: 11, color: '#6E7A87', fontWeight: strong ? 800 : 600 }}>{label.toUpperCase()}</Typography>
       <Typography sx={{ fontSize: 14, fontWeight: strong ? 800 : 700, color: strong ? brand.navy : '#33475F' }}>{value}</Typography>
     </Box>
   )
@@ -296,7 +291,7 @@ function PaymentDialog({
             <Paid sx={{ fontSize: 18 }} />
           </Box>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography sx={{ fontSize: 12, color: '#8A939E', fontWeight: 700 }}>{trip.id} · {trip.client}</Typography>
+            <Typography sx={{ fontSize: 12, color: '#6E7A87', fontWeight: 700 }}>{trip.id} · {trip.client}</Typography>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Registrar pago</Typography>
           </Box>
           <IconButton onClick={onClose} size="small" aria-label="Cerrar">
@@ -352,7 +347,7 @@ function PaymentDialog({
           <TextField label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
         </Stack>
 
-        <Typography sx={{ mt: 1.5, fontSize: 11.5, color: '#8A939E' }}>
+        <Typography sx={{ mt: 1.5, fontSize: 11.5, color: '#6E7A87' }}>
           Registro manual. No se realiza verificación bancaria.
         </Typography>
       </DialogContent>
