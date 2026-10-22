@@ -101,7 +101,7 @@ export function FlotaPage() {
             variant="contained"
             startIcon={<Add />}
             onClick={openAdd}
-            sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
           >
             {tab === 0 ? 'Agregar chofer' : 'Agregar vehículo'}
           </Button>

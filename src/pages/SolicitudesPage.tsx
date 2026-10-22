@@ -89,7 +89,7 @@ export function SolicitudesPage() {
         <Button
           variant="contained"
           startIcon={<Add />}
-          sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+          sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
           href={R.nuevaSolicitud}
         >
           Nueva solicitud

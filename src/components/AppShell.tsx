@@ -245,7 +245,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <Box sx={{ flexGrow: 1 }}>
                 {kicker && (
                   <Typography
-                    sx={{ fontSize: 11, fontWeight: 800, color: brand.orange, letterSpacing: '0.14em', mb: 0.5 }}
+                    sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
                   >
                     {kicker.toUpperCase()}
                   </Typography>

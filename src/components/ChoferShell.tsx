@@ -186,7 +186,7 @@ export function ChoferShell({
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Turno activo</Typography>
               </Stack>
               <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
-              <Avatar sx={{ width: 32, height: 32, bgcolor: '#F07855', fontSize: 12, fontWeight: 800 }}>JA</Avatar>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: brand.orangeStrong, fontSize: 12, fontWeight: 800 }}>JA</Avatar>
             </Stack>
           </Box>
         )}
@@ -196,7 +196,7 @@ export function ChoferShell({
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
               <Brand />
               <Box sx={{ flexGrow: 1 }} />
-              <Avatar sx={{ width: 30, height: 30, bgcolor: '#F07855', fontSize: 11, fontWeight: 800 }}>JA</Avatar>
+              <Avatar sx={{ width: 30, height: 30, bgcolor: brand.orangeStrong, fontSize: 11, fontWeight: 800 }}>JA</Avatar>
             </Toolbar>
           </AppBar>
         )}
@@ -206,7 +206,7 @@ export function ChoferShell({
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography
-                  sx={{ fontSize: 11, fontWeight: 800, color: brand.orange, letterSpacing: '0.14em', mb: 0.5 }}
+                  sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
                 >
                   MODO CHOFER
                 </Typography>

@@ -94,7 +94,7 @@ export function IngresoPage() {
                   fontSize: 12,
                   fontWeight: 800,
                   letterSpacing: '0.16em',
-                  color: brand.orange,
+                  color: brand.orangeInk,
                 }}
               >
                 ORGANIZACIÓN PARA TODO EL EQUIPO
@@ -240,7 +240,7 @@ export function IngresoPage() {
               boxShadow: '0 2px 6px rgba(19,43,74,0.03)',
             }}
           >
-            <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orange }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orangeInk }}>
               BIENVENIDO
             </Typography>
             <Typography sx={{ mt: 0.5, fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 24 }}>

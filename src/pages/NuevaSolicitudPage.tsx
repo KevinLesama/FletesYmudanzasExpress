@@ -80,7 +80,7 @@ export function NuevaSolicitudPage() {
 
   const label = (txt: string, required: boolean) => (
     <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.7 }}>
-      {txt} {required && <Box component="span" sx={{ color: brand.orange }}>*</Box>}
+      {txt} {required && <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>}
     </Typography>
   )
 
@@ -332,7 +332,7 @@ export function NuevaSolicitudPage() {
                   startIcon={<Check />}
                   disabled={!cargoReady || saving}
                   onClick={save}
-                  sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+                  sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
                 >
                   {saving ? 'Guardando...' : 'Guardar solicitud'}
                 </Button>
@@ -384,7 +384,7 @@ function StepLocation({
 }) {
   const label = (txt: string, required: boolean) => (
     <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.7 }}>
-      {txt} {required && <Box component="span" sx={{ color: '#F07855' }}>*</Box>}
+      {txt} {required && <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>}
     </Typography>
   )
   return (
@@ -401,7 +401,7 @@ function StepLocation({
           <Box sx={{ width: { xs: '100%', md: 260 } }}>
             <Box sx={{ mb: 0.7 }}>
               <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
-                ¿Hay ascensor? <Box component="span" sx={{ color: '#F07855' }}>*</Box>
+                ¿Hay ascensor? <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>
               </Typography>
             </Box>
             <ToggleButtonGroup value={elevator} exclusive onChange={(_, v) => v && onElevator(v)} size="small" fullWidth>

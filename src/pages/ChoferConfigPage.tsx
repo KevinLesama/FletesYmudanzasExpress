@@ -118,7 +118,7 @@ export function ChoferConfigPage() {
         title="Mi configuración"
         description="Definí tu tarifa base y los adicionales de cada viaje."
         action={
-          <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving} sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}>
+          <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving} sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}>
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
         }

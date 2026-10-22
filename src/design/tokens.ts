@@ -26,6 +26,10 @@ export const color = {
   navySoft: '#172942',
   orange: '#F07855',
   orangeDark: '#DF6948',
+  // Text on light surfaces and filled surfaces with white labels must pass AA.
+  // Coral (orange) stays for dots, lines and non-text indicators only.
+  orangeInk: '#A94E2B',
+  orangeStrong: '#B4562F',
 
   // Text
   ink: '#5C6B7A',

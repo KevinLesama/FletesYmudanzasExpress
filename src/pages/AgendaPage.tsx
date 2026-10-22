@@ -120,7 +120,7 @@ export function AgendaPage() {
             variant="contained"
             size="large"
             startIcon={<Add />}
-            sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
             href={R.nuevaSolicitud}
           >
             + Nueva solicitud
@@ -166,7 +166,7 @@ export function AgendaPage() {
           fullWidth
           variant="contained"
           startIcon={<Add />}
-          sx={{ mb: 2.5, py: 1.2, bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+          sx={{ mb: 2.5, py: 1.2, bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
           href={R.nuevaSolicitud}
         >
           + Nueva solicitud

@@ -12,6 +12,8 @@ export const brand = {
   card: color.paper,
   orange: color.orange,
   orangeDark: color.orangeDark,
+  orangeInk: color.orangeInk,
+  orangeStrong: color.orangeStrong,
   border: color.border,
   muted: color.muted,
 }
@@ -26,7 +28,7 @@ export const theme = createTheme({
   palette: {
     mode: 'light',
     primary: { main: color.navy, dark: color.navyDeep, contrastText: color.paper },
-    secondary: { main: color.orange, dark: color.orangeDark, contrastText: color.paper },
+    secondary: { main: color.orangeStrong, dark: color.orangeInk, contrastText: color.paper },
     background: { default: color.cream, paper: color.paper },
     text: { primary: color.navy, secondary: color.ink, disabled: color.mutedSoft },
     success: { main: color.green, light: color.greenSoft, dark: '#286B50' },
@@ -61,7 +63,7 @@ export const theme = createTheme({
         },
         // Visible, consistent keyboard focus across the app.
         ':focus-visible': {
-          outline: `2px solid ${color.orange}`,
+          outline: `2px solid ${color.orangeInk}`,
           outlineOffset: 2,
         },
       },
@@ -81,7 +83,7 @@ export const theme = createTheme({
           '&:hover': { backgroundColor: color.navyDeep, boxShadow: 'none' },
         },
         containedSecondary: {
-          '&:hover': { backgroundColor: color.orangeDark, boxShadow: 'none' },
+          '&:hover': { backgroundColor: color.orangeInk, boxShadow: 'none' },
         },
         outlined: { boxShadow: 'none' },
       },
