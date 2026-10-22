@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # (por ejemplo para ver /docs). Si esta vacio, los endpoints devuelven 503.
     database_url: str = ""
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
+    # Supabase Auth: la URL y la anon key se usan para validar los JWT.
+    # La service_role_key queda reservada al backend (nunca al bundle).
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -31,6 +36,14 @@ class Settings(BaseSettings):
     @property
     def database_configured(self) -> bool:
         return bool(self.database_url.strip())
+
+    @property
+    def auth_configured(self) -> bool:
+        return bool(self.supabase_url.strip() and self.supabase_anon_key.strip())
+
+    @property
+    def service_role_configured(self) -> bool:
+        return bool(self.supabase_service_role_key.strip())
 
 
 @lru_cache

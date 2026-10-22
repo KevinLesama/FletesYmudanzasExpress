@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_user, require_role
 from app.db.session import get_db
 from app.models import Client, DriverFactor, Driver, Payment, Request, Vehicle
 from app.models import Incident, RequestCargoItem
@@ -49,7 +50,11 @@ def health() -> dict[str, str]:
 # --------------------------------------------------------------------------- #
 # Clientes
 # --------------------------------------------------------------------------- #
-clients_router = APIRouter(prefix="/clients", tags=["clients"])
+clients_router = APIRouter(
+    prefix="/clients",
+    tags=["clients"],
+    dependencies=[Depends(get_current_user), Depends(require_role("admin", "coordinator"))],
+)
 
 
 @clients_router.get("", response_model=list[ClientOut])
@@ -75,7 +80,9 @@ def create_client(payload: ClientIn, db: Session = Depends(get_db)) -> ClientOut
 # --------------------------------------------------------------------------- #
 # Choferes
 # --------------------------------------------------------------------------- #
-drivers_router = APIRouter(prefix="/drivers", tags=["drivers"])
+drivers_router = APIRouter(
+    prefix="/drivers", tags=["drivers"], dependencies=[Depends(get_current_user)]
+)
 
 
 def _initials_from_name(name: str) -> str:
@@ -98,7 +105,12 @@ def list_drivers(db: Session = Depends(get_db)) -> list[DriverOut]:
     return [serializers.serialize_driver(d) for d in drivers]
 
 
-@drivers_router.post("", response_model=DriverOut, status_code=201)
+@drivers_router.post(
+    "",
+    response_model=DriverOut,
+    status_code=201,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def create_driver(payload: DriverIn, db: Session = Depends(get_db)) -> DriverOut:
     initials = (payload.initials or _initials_from_name(payload.name)).upper()[:4]
     driver_id = payload.id or _generate_driver_id(db, initials)
@@ -128,7 +140,11 @@ def get_driver(driver_id: str, db: Session = Depends(get_db)) -> DriverOut:
     return serializers.serialize_driver(driver)
 
 
-@drivers_router.patch("/{driver_id}", response_model=DriverOut)
+@drivers_router.patch(
+    "/{driver_id}",
+    response_model=DriverOut,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def update_driver(driver_id: str, payload: DriverIn, db: Session = Depends(get_db)) -> DriverOut:
     driver = db.get(Driver, driver_id)
     if driver is None:
@@ -143,7 +159,11 @@ def update_driver(driver_id: str, payload: DriverIn, db: Session = Depends(get_d
     return serializers.serialize_driver(driver)
 
 
-@drivers_router.put("/{driver_id}/rates", response_model=DriverOut)
+@drivers_router.put(
+    "/{driver_id}/rates",
+    response_model=DriverOut,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def update_driver_rates(
     driver_id: str, payload: DriverFactorsIn, db: Session = Depends(get_db)
 ) -> DriverOut:
@@ -166,7 +186,9 @@ def update_driver_rates(
 # --------------------------------------------------------------------------- #
 # Vehiculos
 # --------------------------------------------------------------------------- #
-vehicles_router = APIRouter(prefix="/vehicles", tags=["vehicles"])
+vehicles_router = APIRouter(
+    prefix="/vehicles", tags=["vehicles"], dependencies=[Depends(get_current_user)]
+)
 
 
 @vehicles_router.get("", response_model=list[VehicleOut])
@@ -175,7 +197,12 @@ def list_vehicles(db: Session = Depends(get_db)) -> list[VehicleOut]:
     return [serializers.serialize_vehicle(v) for v in vehicles]
 
 
-@vehicles_router.post("", response_model=VehicleOut, status_code=201)
+@vehicles_router.post(
+    "",
+    response_model=VehicleOut,
+    status_code=201,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def create_vehicle(payload: VehicleIn, db: Session = Depends(get_db)) -> VehicleOut:
     if db.get(Vehicle, payload.id) is not None:
         raise HTTPException(status_code=409, detail=f"Ya existe un vehículo {payload.id}.")
@@ -200,7 +227,11 @@ def get_vehicle(vehicle_id: str, db: Session = Depends(get_db)) -> VehicleOut:
     return serializers.serialize_vehicle(vehicle)
 
 
-@vehicles_router.patch("/{vehicle_id}", response_model=VehicleOut)
+@vehicles_router.patch(
+    "/{vehicle_id}",
+    response_model=VehicleOut,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def update_vehicle(vehicle_id: str, payload: VehicleIn, db: Session = Depends(get_db)) -> VehicleOut:
     vehicle = db.get(Vehicle, vehicle_id)
     if vehicle is None:
@@ -217,7 +248,9 @@ def update_vehicle(vehicle_id: str, payload: VehicleIn, db: Session = Depends(ge
 # --------------------------------------------------------------------------- #
 # Solicitudes / viajes
 # --------------------------------------------------------------------------- #
-requests_router = APIRouter(prefix="/requests", tags=["requests"])
+requests_router = APIRouter(
+    prefix="/requests", tags=["requests"], dependencies=[Depends(get_current_user)]
+)
 
 
 def _get_request_or_404(db: Session, request_id: str) -> Request:
@@ -252,7 +285,12 @@ def list_requests(
     return [serializers.serialize_request(r) for r in db.scalars(stmt).all()]
 
 
-@requests_router.post("", response_model=RequestOut, status_code=201)
+@requests_router.post(
+    "",
+    response_model=RequestOut,
+    status_code=201,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def create_request(payload: RequestIn, db: Session = Depends(get_db)) -> RequestOut:
     if not payload.client_id and not (payload.client_name and payload.phone):
         raise HTTPException(
@@ -315,7 +353,11 @@ def get_request(request_id: str, db: Session = Depends(get_db)) -> RequestOut:
     return serializers.serialize_request(_get_request_or_404(db, request_id))
 
 
-@requests_router.patch("/{request_id}", response_model=RequestOut)
+@requests_router.patch(
+    "/{request_id}",
+    response_model=RequestOut,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def update_request(
     request_id: str, payload: RequestUpdate, db: Session = Depends(get_db)
 ) -> RequestOut:
@@ -467,7 +509,12 @@ def list_payments(request_id: str, db: Session = Depends(get_db)) -> list[Paymen
     return serializers.serialize_request(request).payments
 
 
-@requests_router.post("/{request_id}/payments", response_model=RequestOut, status_code=201)
+@requests_router.post(
+    "/{request_id}/payments",
+    response_model=RequestOut,
+    status_code=201,
+    dependencies=[Depends(require_role("admin", "coordinator"))],
+)
 def add_payment(
     request_id: str, payload: PaymentIn, db: Session = Depends(get_db)
 ) -> RequestOut:
@@ -490,7 +537,11 @@ def add_payment(
 # --------------------------------------------------------------------------- #
 # Pagos (resumen por viaje)
 # --------------------------------------------------------------------------- #
-payments_router = APIRouter(prefix="/payments", tags=["payments"])
+payments_router = APIRouter(
+    prefix="/payments",
+    tags=["payments"],
+    dependencies=[Depends(get_current_user), Depends(require_role("admin", "coordinator"))],
+)
 
 
 @payments_router.get("/summary", response_model=list[PaymentSummaryRow])
@@ -534,7 +585,7 @@ def payments_summary(
 # --------------------------------------------------------------------------- #
 # Disponibilidad
 # --------------------------------------------------------------------------- #
-availability_router = APIRouter(tags=["availability"])
+availability_router = APIRouter(tags=["availability"], dependencies=[Depends(get_current_user)])
 
 
 @availability_router.get("/availability", response_model=AvailabilityOut)
