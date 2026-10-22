@@ -5,6 +5,8 @@
 // desarrollo, Vite hace proxy de /api hacia el backend; en Docker, nginx hace
 // lo mismo. Asi el navegador siempre usa una ruta relativa.
 
+import { R } from './routes'
+import { supabase } from './supabase'
 import type {
   Availability,
   Client,
@@ -29,14 +31,22 @@ export class ApiError extends Error {
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const headers = new Headers(init?.headers)
+  headers.set('Content-Type', 'application/json')
+  if (session) headers.set('Authorization', `Bearer ${session.access_token}`)
+
   let response: Response
   try {
-    response = await fetch(`${API_BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
-      ...init,
-    })
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers })
   } catch {
     throw new ApiError(0, 'No pudimos conectar con el servidor. Verificá que el backend esté en ejecución.')
+  }
+  if (response.status === 401) {
+    await supabase.auth.signOut()
+    window.location.href = R.ingreso
   }
   if (!response.ok) {
     let detail = `Error ${response.status}`

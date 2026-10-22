@@ -23,6 +23,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { currentUser, roleLabel, signOut } from '../supabase'
 import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
@@ -148,16 +149,26 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
       </Box>
       <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
-        <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
+        <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>
+          {(currentUser()?.email ?? 'FE').slice(0, 2).toUpperCase()}
+        </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>María Rodríguez</Typography>
-          <Typography sx={{ fontSize: 12, color: '#64707C' }}>Administradora</Typography>
+          <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>
+            {currentUser()?.email ?? 'Sesión'}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: brand.muted }}>
+            {roleLabel(currentUser()?.role)}
+          </Typography>
         </Box>
-        <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none', color: '#64707C' }}>
-          <IconButton size="small" sx={{ color: '#64707C' }}>
-            <Logout fontSize="small" />
-          </IconButton>
-        </a>
+        <IconButton
+          size="small"
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
+          onClick={() => void signOut()}
+          sx={{ color: brand.muted }}
+        >
+          <Logout fontSize="small" />
+        </IconButton>
       </Stack>
     </Box>
   )
