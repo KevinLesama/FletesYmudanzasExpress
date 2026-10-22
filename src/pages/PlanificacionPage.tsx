@@ -111,7 +111,10 @@ export function PlanificacionPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
-  const requestState = useAsync(() => api.getRequest(id), [id])
+  const requestState = useAsync(
+    () => (id ? api.getRequest(id) : Promise.reject(new Error('Abrí esta pantalla desde una solicitud para ver su planificación.'))),
+    [id],
+  )
   const catalogState = useAsync(async () => {
     const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
     return { drivers, vehicles }
