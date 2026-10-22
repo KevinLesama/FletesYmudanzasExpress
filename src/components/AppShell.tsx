@@ -143,7 +143,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Buenos Aires, Argentina</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
+      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
         <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
@@ -217,7 +217,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
                 <Box sx={{ width: 7, height: 7, borderRadius: 50, bgcolor: '#4E9A6C' }} />
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Cuenta activa</Typography>
               </Stack>
-              <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
+              <Box sx={{ width: '1px', height: 20, bgcolor: '#EDEAE3' }} />
               <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>

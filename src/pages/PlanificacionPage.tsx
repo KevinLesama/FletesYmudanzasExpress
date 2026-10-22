@@ -454,7 +454,7 @@ export function PlanificacionPage() {
 
             <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: '#64707C' }}>Buenos Aires</Typography>}>
               {requestOrigin && <RouteStop place={requestOrigin} kind="origin" color="#132B4A" />}
-              <Box sx={{ my: 1.4, ml: 0.85, width: 1, height: 18, borderLeft: '2px dashed #D8D3C8' }} />
+              <Box sx={{ my: 1.4, ml: 0.85, width: '1px', height: 18, borderLeft: '2px dashed #D8D3C8' }} />
               {requestDestination && <RouteStop place={requestDestination} kind="destination" color="#F07855" />}
             </SectionCard>
 

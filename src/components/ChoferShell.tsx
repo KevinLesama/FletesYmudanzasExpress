@@ -119,7 +119,7 @@ export function ChoferShell({
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
+      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
       <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#64707C', '&:hover': { color: brand.navy } }}>
           <Logout fontSize="small" />
@@ -185,7 +185,7 @@ export function ChoferShell({
                 <Box sx={{ width: 7, height: 7, borderRadius: 50, bgcolor: '#4E9A6C' }} />
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Turno activo</Typography>
               </Stack>
-              <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
+              <Box sx={{ width: '1px', height: 20, bgcolor: '#EDEAE3' }} />
               <Avatar sx={{ width: 32, height: 32, bgcolor: brand.orangeStrong, fontSize: 12, fontWeight: 800 }}>JA</Avatar>
             </Stack>
           </Box>
