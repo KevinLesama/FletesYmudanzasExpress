@@ -35,7 +35,9 @@ Primitivas en `src/design/tokens.ts` (`color`), expuestas al tema MUI.
 | Rol | Token | Valor | Uso |
 |---|---|---|---|
 | Marca primaria | `navy` | `#132B4A` | Texto principal, botón primario, superficies oscuras |
-| Acento | `orange` | `#F07855` | Kickers, foco, indicador activo |
+| Acento decorativo | `orange` | `#F07855` | Puntos, líneas e indicadores; nunca texto |
+| Acento de texto | `orangeInk` | `#A94E2B` | Kickers, asteriscos y etiquetas sobre superficies claras (5.1:1) |
+| Acento interactivo | `orangeStrong` | `#B4562F` | Botones y superficies con texto blanco (4.9:1) |
 | Fondo de app | `cream` | `#F7F6F2` | `background.default` |
 | Superficie | `paper` | `#FFFFFF` | Cards, tablas, formularios |
 | Superficie alterna | `sand` | `#FBF9F6` | Encabezados de tabla, bloques suaves |
@@ -163,13 +165,29 @@ contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
 
 ## Accesibilidad
 
-- Foco visible global: `2px solid orange` con `outline-offset: 2px` (`CssBaseline`).
+- Foco visible global: `2px solid orangeInk` con `outline-offset: 2px` (`CssBaseline`).
   No usar `outline: 0` en elementos interactivos.
 - Todo campo tiene etiqueta asociada (`label`/`htmlFor` o `TextField label`); el
   placeholder no es etiqueta.
 - Todo `Dialog` tiene `aria-labelledby` apuntando a su título.
 - Los objetivos táctiles del portal chofer no bajan de 44×44px.
 - Contraste mínimo: 4.5:1 para texto normal.
+- El coral `#F07855` no lleva texto encima: para texto usar `orangeInk` y para
+  superficies con etiqueta blanca, `orangeStrong`.
+
+### Falsos positivos conocidos del detector
+
+`impeccable detect` corre sobre las nueve rutas a 1280×800 y 390×844. Estos
+hallazgos no son defectos de la UI y no deben "corregirse" cambiando el diseño:
+
+- `low-contrast` blanco sobre blanco: no existe ningún texto así en el DOM
+  renderizado (verificado con CDP); el detector lo infiere de estilos de ancestros.
+- `low-contrast` blanco sobre `orange`: el detector atribuye el fondo de la barra
+  de 3px del ítem activo del nav al texto, que va blanco sobre navy.
+- `nested-cards` y `edge-flush-cards`: heurísticas sobre las tarjetas de la agenda;
+  la jerarquía, el inset y el corte en columnas son intencionales.
+- `kicker-above-heading` está ignorado en `.impeccable/config.json`: los kickers son
+  parte del sistema tipográfico (ver arriba).
 
 ## Copy
 
