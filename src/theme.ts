@@ -61,6 +61,8 @@ export const theme = createTheme({
           color: color.navy,
           WebkitFontSmoothing: 'antialiased',
         },
+        // Avoid a single trailing word (widow) in narrow viewports.
+        'p, li': { textWrap: 'pretty' },
         // Visible, consistent keyboard focus across the app.
         ':focus-visible': {
           outline: `2px solid ${color.orangeInk}`,
