@@ -90,13 +90,13 @@ function RouteStop({
         <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, border: kind === 'destination' ? '2px solid #fff' : 'none', boxShadow: kind === 'destination' ? `0 0 0 2px ${color}` : 'none' }} />
       </Box>
       <Box>
-        <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87', letterSpacing: '0.08em' }}>{place.label.toUpperCase()}</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C', letterSpacing: '0.08em' }}>{place.label.toUpperCase()}</Typography>
         <Typography sx={{ fontWeight: 700, fontSize: 13.5, mt: 0.3 }}>{place.address}</Typography>
         <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>{place.barrio}</Typography>
         <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.3 }}>
-          <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{place.floor}</Typography>
+          <Typography sx={{ fontSize: 12, color: '#64707C' }}>{place.floor}</Typography>
           <Box sx={{ width: 3, height: 3, borderRadius: 50, bgcolor: '#C4C9CE' }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: place.elevator ? '#2F7D55' : '#6E7A87' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: place.elevator ? '#2F7D55' : '#64707C' }}>
             {place.elevator ? 'Con ascensor' : 'Sin ascensor'}
           </Typography>
         </Stack>
@@ -201,7 +201,7 @@ export function PlanificacionPage() {
   const driverOption = (d: Driver) => (
     <MenuItem value={d.id} key={d.id}>
       <Stack direction="row" alignItems="center" spacing={1}>
-        <Person sx={{ fontSize: 16, color: '#6E7A87' }} />
+        <Person sx={{ fontSize: 16, color: '#64707C' }} />
         <span>{d.name}</span>
         {d.status !== 'Activo' && <span style={{ fontSize: 12, color: '#9C493A' }}>· {d.status}</span>}
       </Stack>
@@ -214,7 +214,7 @@ export function PlanificacionPage() {
     return (
       <MenuItem value={v.id} disabled={disabled} key={v.id}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: '#6E7A87' }} />
+          <LocalShipping sx={{ fontSize: 16, color: '#64707C' }} />
           <span>
             {v.id} · {v.type}
           </span>
@@ -303,7 +303,7 @@ export function PlanificacionPage() {
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <Schedule sx={{ fontSize: 17, color: '#6E7A87' }} />
+          <Schedule sx={{ fontSize: 17, color: '#64707C' }} />
         </Stack>
         <TextField size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} />
         <TextField size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} />
@@ -344,7 +344,7 @@ export function PlanificacionPage() {
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#5C6B7A', mb: 1 }}>Conflictos detectados</Typography>
           <Stack spacing={0.8}>
             {availability.conflicts.map((c) => (
-              <Typography key={c} sx={{ fontSize: 12.5, color: '#6E7A87' }}>
+              <Typography key={c} sx={{ fontSize: 12.5, color: '#64707C' }}>
                 <WarningAmber sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#B9761F' }} />
                 {c}
               </Typography>
@@ -423,7 +423,7 @@ export function PlanificacionPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '0.95fr 1.05fr' }, gap: 2.5, alignItems: 'start' }}>
           <Stack spacing={2.5}>
             {request && (
-              <SectionCard title="Cliente" icon={<Person sx={{ fontSize: 17 }} />} right={<Phone sx={{ fontSize: 16, color: '#6E7A87' }} />}>
+              <SectionCard title="Cliente" icon={<Person sx={{ fontSize: 17 }} />} right={<Phone sx={{ fontSize: 16, color: '#64707C' }} />}>
                 <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{request.client}</Typography>
                 <Typography sx={{ fontSize: 13, color: '#5C6B7A' }}>{request.phone}</Typography>
                 <Button
@@ -441,18 +441,18 @@ export function PlanificacionPage() {
                 <Divider sx={{ my: 1.5, borderColor: '#EDEAE3' }} />
                 <Stack direction="row" spacing={3}>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>SOLICITADA</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>SOLICITADA</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{fmtDate(request.date)}</Typography>
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>LLEGADA ACORDADA</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>LLEGADA ACORDADA</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{request.arrivalRange.join(' – ')}</Typography>
                   </Box>
                 </Stack>
               </SectionCard>
             )}
 
-            <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: '#6E7A87' }}>Buenos Aires</Typography>}>
+            <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: '#64707C' }}>Buenos Aires</Typography>}>
               {requestOrigin && <RouteStop place={requestOrigin} kind="origin" color="#132B4A" />}
               <Box sx={{ my: 1.4, ml: 0.85, width: 1, height: 18, borderLeft: '2px dashed #D8D3C8' }} />
               {requestDestination && <RouteStop place={requestDestination} kind="destination" color="#F07855" />}
@@ -472,7 +472,7 @@ export function PlanificacionPage() {
                   </Typography>
                 </Stack>
                 <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#F7F5F0', border: '1px solid #EDEAE3' }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>NOTA DEL CLIENTE</Typography>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>NOTA DEL CLIENTE</Typography>
                   <Typography sx={{ fontSize: 13, mt: 0.4 }}>{request.cargo.notes}</Typography>
                 </Box>
               </SectionCard>
@@ -481,7 +481,7 @@ export function PlanificacionPage() {
 
           <Stack spacing={2.5}>
             <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={saved ? 'Guardada' : 'Sin guardar'} />}>
-              <Typography sx={{ fontSize: 12.5, color: '#6E7A87', mb: 1.5 }}>
+              <Typography sx={{ fontSize: 12.5, color: '#64707C', mb: 1.5 }}>
                 Acordá precio, horario y asignación.
               </Typography>
               {planning}
@@ -490,7 +490,7 @@ export function PlanificacionPage() {
             {summary}
 
             {cancelled ? (
-              <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#F1F2F4', border: '1px solid #E0E0E0', color: '#6F7780' }}>
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#F1F2F4', border: '1px solid #E0E0E0', color: '#5F6873' }}>
                 <Stack direction="row" spacing={1} alignItems="flex-start">
                   <Block sx={{ fontSize: 16, mt: 0.2 }} />
                   <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
@@ -590,7 +590,7 @@ export function PlanificacionPage() {
                 Confirmar viaje
               </Button>
             </Stack>
-            <Typography sx={{ fontSize: 11.5, color: '#6E7A87', mt: 0.5 }}>
+            <Typography sx={{ fontSize: 11.5, color: '#64707C', mt: 0.5 }}>
               Guardar la planificación no confirma el viaje. La seña se registra por separado.
             </Typography>
           </Stack>
@@ -670,7 +670,7 @@ function CancelDialog({
           </Box>
           <Box>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Cancelar viaje</Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{requestId}</Typography>
+            <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>{requestId}</Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />
           <IconButton onClick={onClose} aria-label="Cerrar">
@@ -742,7 +742,7 @@ function DepositDialog({
             <Paid sx={{ fontSize: 18 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 12, color: '#6E7A87', fontWeight: 700 }}>{requestId} · {client}</Typography>
+            <Typography sx={{ fontSize: 12, color: '#64707C', fontWeight: 700 }}>{requestId} · {client}</Typography>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Registrar seña</Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />

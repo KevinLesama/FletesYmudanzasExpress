@@ -63,7 +63,7 @@ export function ChoferShell({
       <Box sx={{ px: 1, mb: 3 }}>
         <Brand />
       </Box>
-      <Typography sx={{ px: 2, mb: 1, fontSize: 11, fontWeight: 700, color: '#9AA3AE', letterSpacing: '0.06em' }}>
+      <Typography sx={{ px: 2, mb: 1, fontSize: 11, fontWeight: 700, color: brand.muted, letterSpacing: '0.06em' }}>
         MI ÁREA
       </Typography>
       <Stack spacing={0.25}>
@@ -114,14 +114,14 @@ export function ChoferShell({
 
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#6E7A87' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64707C' }}>
           <LocalShipping sx={{ fontSize: 16 }} />
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
         </Stack>
       </Box>
       <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
       <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#6E7A87', '&:hover': { color: brand.navy } }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#64707C', '&:hover': { color: brand.navy } }}>
           <Logout fontSize="small" />
           <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
         </Stack>
@@ -167,12 +167,12 @@ export function ChoferShell({
             <Stack direction="row" alignItems="center" spacing={0.6} sx={{ flexGrow: 1 }}>
               {breadcrumb.map((part, i) => (
                 <Stack key={part} direction="row" alignItems="center" spacing={0.6}>
-                  {i > 0 && <ChevronRight sx={{ fontSize: 15, color: '#B8C0C9' }} />}
+                  {i > 0 && <ChevronRight sx={{ fontSize: 15, color: '#8A929B' }} />}
                   <Typography
                     sx={{
                       fontSize: 12.5,
                       fontWeight: i === breadcrumb.length - 1 ? 700 : 500,
-                      color: i === breadcrumb.length - 1 ? brand.navy : '#6E7A87',
+                      color: i === breadcrumb.length - 1 ? brand.navy : '#64707C',
                     }}
                   >
                     {part}

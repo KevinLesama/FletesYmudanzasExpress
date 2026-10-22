@@ -30,7 +30,7 @@ export const color = {
   // Text
   ink: '#5C6B7A',
   inkStrong: '#33475F',
-  muted: '#6E7A87',
+  muted: '#64707C',
   mutedSoft: '#9AA3AE',
 
   // Lines

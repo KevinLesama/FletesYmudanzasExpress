@@ -41,15 +41,16 @@ Primitivas en `src/design/tokens.ts` (`color`), expuestas al tema MUI.
 | Superficie alterna | `sand` | `#FBF9F6` | Encabezados de tabla, bloques suaves |
 | Línea | `border` / `borderSoft` | `#E9E6DF` / `#EDEAE3` | Bordes de 1px |
 | Texto secundario | `ink` | `#5C6B7A` | `text.secondary` |
-| Texto atenuado | `muted` | `#6E7A87` | Metadatos, captions, íconos secundarios |
+| Texto atenuado | `muted` | `#64707C` | Metadatos, captions, íconos secundarios |
 | Error | `red` | `#B24A3A` | Errores, estados destructivos |
 | Advertencia | `amber` | `#B9761F` | Conflictos, pendientes |
 | Éxito | `green` | `#2F7D55` | Confirmaciones |
 
 Reglas:
 
-- Texto atenuado nunca por debajo de `#6E7A87` sobre `cream`/`paper`: el gris
-  anterior (`#8A939E`) no alcanzaba contraste AA en tamaños chicos.
+- Texto atenuado nunca por debajo de `#64707C`: sobre `cream` da 4.68:1 y sobre
+  `paper` 5.06:1, así que cumple AA en tamaños chicos. Los grises anteriores
+  (`#8A939E`, `#6E7A87`) quedaban en 3.9–4.4:1 y no alcanzaban AA.
 - El estado nunca se comunica solo con color: siempre color + texto, y en los
   chips, además, punto + etiqueta (`StatusChip`).
 - Los estados de dominio viven en `STATUS_STYLES` (`src/theme.ts`). Si agregás

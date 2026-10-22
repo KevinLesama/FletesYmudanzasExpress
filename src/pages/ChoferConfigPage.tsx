@@ -180,7 +180,7 @@ export function ChoferConfigPage() {
             </Stack>
             <Stack spacing={1.2}>
               {config.factors.length === 0 && (
-                <Typography sx={{ fontSize: 13, color: '#6E7A87' }}>Sin factores extras. Agregá uno si aplica.</Typography>
+                <Typography sx={{ fontSize: 13, color: '#64707C' }}>Sin factores extras. Agregá uno si aplica.</Typography>
               )}
               {config.factors.map((f, idx) => (
                 <Stack key={idx} direction="row" spacing={1.2} alignItems="center">
@@ -210,7 +210,7 @@ export function ChoferConfigPage() {
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>Ejemplo de cálculo</Typography>
               <Box sx={{ flexGrow: 1 }} />
-              <Typography sx={{ fontSize: 11, color: '#6E7A87' }}>FEX-1048 · {SAMPLE_KM} km · {SAMPLE_HOURS} h</Typography>
+              <Typography sx={{ fontSize: 11, color: '#64707C' }}>FEX-1048 · {SAMPLE_KM} km · {SAMPLE_HOURS} h</Typography>
             </Stack>
             <Stack spacing={0.7}>
               {preview.lines.map((l) => (

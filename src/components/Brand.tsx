@@ -45,7 +45,7 @@ export function Brand({ subtitle = 'Administración', variant = 'dark' }: { subt
           sx={{
             fontSize: 12,
             fontWeight: 600,
-            color: dark ? 'rgba(255,255,255,0.6)' : '#6E7A87',
+            color: dark ? 'rgba(255,255,255,0.6)' : '#64707C',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
