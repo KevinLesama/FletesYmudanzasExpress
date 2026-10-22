@@ -91,7 +91,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
         {item.badge ? (
           <Box
             sx={{
-              bgcolor: brand.orange,
+              bgcolor: brand.orangeStrong,
               color: '#fff',
               borderRadius: 999,
               fontSize: 11,
@@ -227,7 +227,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         {isMobile && (
           <AppBar position="fixed" elevation={0} sx={{ bgcolor: brand.navy, top: 0, left: 0, right: 0 }}>
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
-              <Brand />
+              <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
               <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />

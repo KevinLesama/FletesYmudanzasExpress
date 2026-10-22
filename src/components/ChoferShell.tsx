@@ -194,7 +194,7 @@ export function ChoferShell({
         {isMobile && (
           <AppBar position="fixed" elevation={0} sx={{ bgcolor: brand.navy, top: 0, left: 0, right: 0 }}>
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
-              <Brand />
+              <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
               <Avatar sx={{ width: 30, height: 30, bgcolor: brand.orangeStrong, fontSize: 11, fontWeight: 800 }}>JA</Avatar>
             </Toolbar>

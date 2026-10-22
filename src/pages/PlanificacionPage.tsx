@@ -53,6 +53,7 @@ import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
 import type { Availability, Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
+import { color } from '../design/tokens'
 
 interface SectionCardProps {
   title: string
@@ -434,7 +435,7 @@ export function PlanificacionPage() {
                   variant="outlined"
                   startIcon={<WhatsAppIcon />}
                   fullWidth
-                  sx={{ mt: 1.4, color: '#1EBE5A', borderColor: '#7AE3A7', '&:hover': { borderColor: '#1EBE5A', bgcolor: '#F2FCF6' } }}
+                  sx={{ mt: 1.4, color: color.green, borderColor: '#7AE3A7', '&:hover': { borderColor: color.green, bgcolor: color.greenSoft } }}
                 >
                   Contactar por WhatsApp
                 </Button>
