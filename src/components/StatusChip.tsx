@@ -13,7 +13,7 @@ export function StatusChip({ label, dot = true, active }: { label: string; dot?:
         borderRadius: 999,
         px: 1.25,
         py: 0.5,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 700,
         lineHeight: 1.2,
         whiteSpace: 'nowrap',
