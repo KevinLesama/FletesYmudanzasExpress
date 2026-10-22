@@ -1,6 +1,6 @@
 """Reglas de negocio del dominio (extraidas de la logica del frontend).
 
-- Generacion de identificadores FEX-#### y de ids de usuario (CLI-###).
+- Generacion de identificadores FEX-#### e INC-####.
 - Deteccion de conflictos de chofer/vehiculo (solo viajes Confirmada cuentan,
   igual que la funcion hasConflict del mock original).
 - Sugerencia de reserva de vehiculo ("Asignado") y liberacion al cancelar.
@@ -14,10 +14,9 @@ from datetime import date, time
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Request, User, Vehicle
+from app.models import Driver, Request, Vehicle
 
 FEX_PATTERN = re.compile(r"^FEX-(\d+)$", re.IGNORECASE)
-CLI_PATTERN = re.compile(r"^CLI-(\d+)$", re.IGNORECASE)
 
 
 def next_request_id(db: Session) -> str:
@@ -31,15 +30,16 @@ def next_request_id(db: Session) -> str:
     return f"FEX-{max_num + 1:04d}"
 
 
-def next_client_id(db: Session) -> str:
-    """Devuelve el proximo id de cliente (CLI-###)."""
-    ids = db.scalars(select(User.id).where(User.role == "cliente")).all()
+def next_incident_id(db: Session) -> str:
+    from app.models import Incident
+
+    ids = db.scalars(select(Incident.id)).all()
     max_num = 0
-    for uid in ids:
-        match = CLI_PATTERN.match(uid or "")
+    for iid in ids:
+        match = re.match(r"^INC-(\d+)$", iid or "")
         if match:
             max_num = max(max_num, int(match.group(1)))
-    return f"CLI-{max_num + 1:03d}"
+    return f"INC-{max_num + 1:04d}"
 
 
 def _overlaps(
@@ -101,7 +101,7 @@ def vehicle_is_assignable(db: Session, vehicle: Vehicle) -> bool:
 def refresh_vehicle_status(db: Session, vehicle: Vehicle, exclude_id: str | None = None) -> None:
     """Recalcula el estado del vehiculo segun su uso en viajes Confirmada.
 
-    En taller: se respeta. Si tiene viajes confirmados que lo usa queda
+    En taller: se respeta. Si tiene viajes confirmados que lo usan queda
     Asignado; si no, Disponible. La nota de asignacion se arma con el proximo
     viaje confirmado.
     """
@@ -127,8 +127,8 @@ def refresh_vehicle_status(db: Session, vehicle: Vehicle, exclude_id: str | None
         vehicle.assigned_note = None
 
 
-def user_exists(db: Session, user_id: str) -> User | None:
-    return db.get(User, user_id)
+def driver_exists(db: Session, driver_id: str) -> Driver | None:
+    return db.get(Driver, driver_id)
 
 
 def count_requests_for_driver(db: Session, driver_id: str) -> int:

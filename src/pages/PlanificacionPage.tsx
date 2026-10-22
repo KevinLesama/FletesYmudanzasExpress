@@ -13,8 +13,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
-  Alert,
   Stack,
   TextField,
   Typography,
@@ -46,13 +44,14 @@ import {
 } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { Toast, type ToastState } from '../components/Toast'
 import { StatusChip } from '../components/StatusChip'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { R, useQuery } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
-import type { Availability, PaymentMethod, ReceivedBy, ShiftRequest, User, Vehicle } from '../types'
+import type { Availability, Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
 
 interface SectionCardProps {
@@ -91,13 +90,13 @@ function RouteStop({
         <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, border: kind === 'destination' ? '2px solid #fff' : 'none', boxShadow: kind === 'destination' ? `0 0 0 2px ${color}` : 'none' }} />
       </Box>
       <Box>
-        <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#8A939E', letterSpacing: '0.08em' }}>{place.label.toUpperCase()}</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87', letterSpacing: '0.08em' }}>{place.label.toUpperCase()}</Typography>
         <Typography sx={{ fontWeight: 700, fontSize: 13.5, mt: 0.3 }}>{place.address}</Typography>
         <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>{place.barrio}</Typography>
         <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.3 }}>
-          <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{place.floor}</Typography>
+          <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{place.floor}</Typography>
           <Box sx={{ width: 3, height: 3, borderRadius: 50, bgcolor: '#C4C9CE' }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: place.elevator ? '#2F7D55' : '#8A939E' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: place.elevator ? '#2F7D55' : '#6E7A87' }}>
             {place.elevator ? 'Con ascensor' : 'Sin ascensor'}
           </Typography>
         </Stack>
@@ -114,11 +113,11 @@ export function PlanificacionPage() {
 
   const requestState = useAsync(() => api.getRequest(id), [id])
   const catalogState = useAsync(async () => {
-    const [drivers, vehicles] = await Promise.all([api.listUsers('chofer'), api.listVehicles()])
+    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
     return { drivers, vehicles }
   }, [])
   const request = requestState.data
-  const drivers: User[] = catalogState.data?.drivers ?? []
+  const drivers: Driver[] = catalogState.data?.drivers ?? []
   const vehicles: Vehicle[] = catalogState.data?.vehicles ?? []
 
   const [driverId, setDriverId] = useState('')
@@ -131,9 +130,10 @@ export function PlanificacionPage() {
   const [cancelled, setCancelled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
   const [availability, setAvailability] = useState<Availability | null>(null)
+  const [availabilityError, setAvailabilityError] = useState(false)
 
   // Sincroniza el formulario cuando llega la solicitud.
   useEffect(() => {
@@ -158,12 +158,14 @@ export function PlanificacionPage() {
 
   const conflict = !!availability && !availability.driverAvailable
   const vehicleBusy = !!availability && !availability.vehicleAvailable
-  const canConfirm = depositOk && !conflict && !vehicleBusy && !!driverId && !!vehicleId
+  // A failed availability check must never read as "available".
+  const canConfirm = depositOk && !conflict && !vehicleBusy && !availabilityError && !!driverId && !!vehicleId
 
   // Consulta de disponibilidad real cada vez que cambian los valores relevantes.
   useEffect(() => {
     if (!request || !driverId || !vehicleId) {
       setAvailability(null)
+      setAvailabilityError(false)
       return
     }
     let active = true
@@ -177,20 +179,26 @@ export function PlanificacionPage() {
         exclude: request.id,
       })
       .then((result) => {
-        if (active) setAvailability(result)
+        if (active) {
+          setAvailability(result)
+          setAvailabilityError(false)
+        }
       })
       .catch(() => {
-        if (active) setAvailability(null)
+        if (active) {
+          setAvailability(null)
+          setAvailabilityError(true)
+        }
       })
     return () => {
       active = false
     }
   }, [request, driverId, vehicleId, start, end])
 
-  const driverOption = (d: User) => (
+  const driverOption = (d: Driver) => (
     <MenuItem value={d.id} key={d.id}>
       <Stack direction="row" alignItems="center" spacing={1}>
-        <Person sx={{ fontSize: 16, color: '#8A939E' }} />
+        <Person sx={{ fontSize: 16, color: '#6E7A87' }} />
         <span>{d.name}</span>
         {d.status !== 'Activo' && <span style={{ fontSize: 12, color: '#9C493A' }}>· {d.status}</span>}
       </Stack>
@@ -203,7 +211,7 @@ export function PlanificacionPage() {
     return (
       <MenuItem value={v.id} disabled={disabled} key={v.id}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: '#8A939E' }} />
+          <LocalShipping sx={{ fontSize: 16, color: '#6E7A87' }} />
           <span>
             {v.id} · {v.type}
           </span>
@@ -231,9 +239,9 @@ export function PlanificacionPage() {
     try {
       await fn()
       await requestState.reload()
-      setToast(successMessage)
+      setToast({ message: successMessage, tone: 'success' })
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos completar la operación.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos completar la operación.', tone: 'error' })
     } finally {
       setBusy(false)
     }
@@ -292,7 +300,7 @@ export function PlanificacionPage() {
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <Schedule sx={{ fontSize: 17, color: '#8A939E' }} />
+          <Schedule sx={{ fontSize: 17, color: '#6E7A87' }} />
         </Stack>
         <TextField size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} />
         <TextField size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} />
@@ -315,15 +323,15 @@ export function PlanificacionPage() {
 
       <Stack spacing={1} sx={{ mt: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <CheckCircle sx={{ fontSize: 16, color: conflict ? '#B9761F' : '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: conflict ? '#B9761F' : '#2F7D55' }}>
-            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — {conflict ? 'no disponible para este horario' : 'disponible para este horario'}
+          <CheckCircle sx={{ fontSize: 16, color: availabilityError || conflict ? '#B9761F' : '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: availabilityError || conflict ? '#B9761F' : '#2F7D55' }}>
+            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — {availabilityError ? 'disponibilidad sin verificar' : conflict ? 'no disponible para este horario' : 'disponible para este horario'}
           </Typography>
         </Stack>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: vehicleBusy ? '#B9761F' : '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: vehicleBusy ? '#B9761F' : '#2F7D55' }}>
-            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — {vehicleBusy ? 'no disponible' : 'disponible'}
+          <LocalShipping sx={{ fontSize: 16, color: availabilityError || vehicleBusy ? '#B9761F' : '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: availabilityError || vehicleBusy ? '#B9761F' : '#2F7D55' }}>
+            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — {availabilityError ? 'disponibilidad sin verificar' : vehicleBusy ? 'no disponible' : 'disponible'}
           </Typography>
         </Stack>
       </Stack>
@@ -333,11 +341,22 @@ export function PlanificacionPage() {
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#5C6B7A', mb: 1 }}>Conflictos detectados</Typography>
           <Stack spacing={0.8}>
             {availability.conflicts.map((c) => (
-              <Typography key={c} sx={{ fontSize: 12.5, color: '#8A939E' }}>
+              <Typography key={c} sx={{ fontSize: 12.5, color: '#6E7A87' }}>
                 <WarningAmber sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#B9761F' }} />
                 {c}
               </Typography>
             ))}
+          </Stack>
+        </Box>
+      )}
+
+      {availabilityError && (
+        <Box sx={{ mt: 2, p: 1.4, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #EBD3AE', color: '#98621B' }}>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <InfoOutlined sx={{ fontSize: 16, mt: 0.2 }} />
+            <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
+              No pudimos verificar la disponibilidad. La confirmación queda bloqueada hasta poder comprobarla.
+            </Typography>
           </Stack>
         </Box>
       )}
@@ -401,7 +420,7 @@ export function PlanificacionPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '0.95fr 1.05fr' }, gap: 2.5, alignItems: 'start' }}>
           <Stack spacing={2.5}>
             {request && (
-              <SectionCard title="Cliente" icon={<Person sx={{ fontSize: 17 }} />} right={<Phone sx={{ fontSize: 16, color: '#8A939E' }} />}>
+              <SectionCard title="Cliente" icon={<Person sx={{ fontSize: 17 }} />} right={<Phone sx={{ fontSize: 16, color: '#6E7A87' }} />}>
                 <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{request.client}</Typography>
                 <Typography sx={{ fontSize: 13, color: '#5C6B7A' }}>{request.phone}</Typography>
                 <Button
@@ -419,18 +438,18 @@ export function PlanificacionPage() {
                 <Divider sx={{ my: 1.5, borderColor: '#EDEAE3' }} />
                 <Stack direction="row" spacing={3}>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#8A939E' }}>SOLICITADA</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>SOLICITADA</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{fmtDate(request.date)}</Typography>
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#8A939E' }}>LLEGADA ACORDADA</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>LLEGADA ACORDADA</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{request.arrivalRange.join(' – ')}</Typography>
                   </Box>
                 </Stack>
               </SectionCard>
             )}
 
-            <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: '#8A939E' }}>Buenos Aires</Typography>}>
+            <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: '#6E7A87' }}>Buenos Aires</Typography>}>
               {requestOrigin && <RouteStop place={requestOrigin} kind="origin" color="#132B4A" />}
               <Box sx={{ my: 1.4, ml: 0.85, width: 1, height: 18, borderLeft: '2px dashed #D8D3C8' }} />
               {requestDestination && <RouteStop place={requestDestination} kind="destination" color="#F07855" />}
@@ -450,7 +469,7 @@ export function PlanificacionPage() {
                   </Typography>
                 </Stack>
                 <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#F7F5F0', border: '1px solid #EDEAE3' }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#8A939E' }}>NOTA DEL CLIENTE</Typography>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6E7A87' }}>NOTA DEL CLIENTE</Typography>
                   <Typography sx={{ fontSize: 13, mt: 0.4 }}>{request.cargo.notes}</Typography>
                 </Box>
               </SectionCard>
@@ -459,7 +478,7 @@ export function PlanificacionPage() {
 
           <Stack spacing={2.5}>
             <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={saved ? 'Guardada' : 'Sin guardar'} />}>
-              <Typography sx={{ fontSize: 12.5, color: '#8A939E', mb: 1.5 }}>
+              <Typography sx={{ fontSize: 12.5, color: '#6E7A87', mb: 1.5 }}>
                 Acordá precio, horario y asignación.
               </Typography>
               {planning}
@@ -533,7 +552,7 @@ export function PlanificacionPage() {
                 onClick={() => {
                   if (cancelledFlag) {
                     runAction(
-                      () => api.updateRequest(request.id, { status: 'Pendiente de seña' }),
+                      () => api.updateRequest(request.id, { status: 'Pendiente de seña', confirmed: false }),
                       'Viaje reactivado · ' + requestId,
                     )
                   } else {
@@ -559,6 +578,7 @@ export function PlanificacionPage() {
                         price: Number(price || 0),
                         deposit_required: Number(depositRequired || 0),
                         status: 'Confirmada',
+                        confirmed: true,
                       }),
                     'Viaje confirmado · ' + requestId,
                   )
@@ -567,7 +587,7 @@ export function PlanificacionPage() {
                 Confirmar viaje
               </Button>
             </Stack>
-            <Typography sx={{ fontSize: 11.5, color: '#8A939E', mt: 0.5 }}>
+            <Typography sx={{ fontSize: 11.5, color: '#6E7A87', mt: 0.5 }}>
               Guardar la planificación no confirma el viaje. La seña se registra por separado.
             </Typography>
           </Stack>
@@ -609,16 +629,7 @@ export function PlanificacionPage() {
         requestId={requestId}
       />
 
-      <Snackbar
-        open={!!toast}
-        autoHideDuration={3500}
-        onClose={() => setToast(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled" onClose={() => setToast(null)} sx={{ bgcolor: brand.navy }}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }
@@ -656,7 +667,7 @@ function CancelDialog({
           </Box>
           <Box>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Cancelar viaje</Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{requestId}</Typography>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{requestId}</Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />
           <IconButton onClick={onClose} aria-label="Cerrar">
@@ -698,12 +709,12 @@ function DepositDialog({
   depositRequired: number
   price: number
   received: number
-  onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: PaymentMethod, receivedBy: ReceivedBy, notes?: string) => void
+  onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: 'Transferencia' | 'Efectivo', receivedBy: ReceivedBy, notes?: string) => void
 }) {
   const [amount, setAmount] = useState(String(depositRequired || ''))
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [concept, setConcept] = useState<'Seña' | 'Saldo'>('Seña')
-  const [method, setMethod] = useState<PaymentMethod>('Transferencia')
+  const [method, setMethod] = useState<'Transferencia' | 'Efectivo'>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -728,7 +739,7 @@ function DepositDialog({
             <Paid sx={{ fontSize: 18 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 12, color: '#8A939E', fontWeight: 700 }}>{requestId} · {client}</Typography>
+            <Typography sx={{ fontSize: 12, color: '#6E7A87', fontWeight: 700 }}>{requestId} · {client}</Typography>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Registrar seña</Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />
@@ -767,9 +778,8 @@ function DepositDialog({
             </FormControl>
             <FormControl size="small" fullWidth>
               <InputLabel>Medio</InputLabel>
-              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as 'Transferencia' | 'Efectivo')}>
                 <MenuItem value="Transferencia">Transferencia</MenuItem>
-                <MenuItem value="Cuenta corriente">Cuenta corriente</MenuItem>
                 <MenuItem value="Efectivo">Efectivo</MenuItem>
               </Select>
             </FormControl>

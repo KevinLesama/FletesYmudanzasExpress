@@ -1,4 +1,4 @@
-import type { RequestStatus, TripStatus, VehicleStatus, UserStatus } from './types'
+import type { RequestStatus, TripStatus, VehicleStatus, DriverStatus } from './types'
 
 export function ars(value: number): string {
   if (!value) return '$ 0'
@@ -51,7 +51,7 @@ export function normalizeStatus(status: string): string {
   return status
 }
 
-export type AnyStatus = RequestStatus | TripStatus | VehicleStatus | UserStatus | string
+export type AnyStatus = RequestStatus | TripStatus | VehicleStatus | DriverStatus | string
 
 export function statusLabel(s: any): string {
   if (s === 'Confirmada') return 'Confirmada'

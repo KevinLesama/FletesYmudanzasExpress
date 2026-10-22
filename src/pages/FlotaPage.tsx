@@ -13,7 +13,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   Tab,
   Tabs,
@@ -32,14 +31,15 @@ import { Add, Check, Close, Edit, InfoOutlined, LocalShipping, Person } from '@m
 import { AppShell } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars } from '../format'
 import { brand } from '../theme'
-import type { User, UserStatus, Vehicle, VehicleStatus } from '../types'
+import type { Driver, DriverStatus, Vehicle, VehicleStatus } from '../types'
 
 type DialogState =
-  | { mode: 'driver'; data: User | null }
+  | { mode: 'driver'; data: Driver | null }
   | { mode: 'vehicle'; data: Vehicle | null }
   | null
 
@@ -48,13 +48,13 @@ export function FlotaPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [tab, setTab] = useState(0)
   const fleet = useAsync(async () => {
-    const [drivers, vehicles] = await Promise.all([api.listUsers('chofer'), api.listVehicles()])
+    const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
     return { drivers, vehicles }
   }, [])
-  const drivers: User[] = fleet.data?.drivers ?? []
+  const drivers: Driver[] = fleet.data?.drivers ?? []
   const vehicles: Vehicle[] = fleet.data?.vehicles ?? []
   const [dialog, setDialog] = useState<DialogState>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
 
   const activeVehicles = vehicles.filter((v) => v.status === 'Disponible').length
   const assignedVehicles = vehicles.filter((v) => v.status === 'Asignado').length
@@ -62,7 +62,7 @@ export function FlotaPage() {
   const activeDrivers = drivers.filter((d) => d.status === 'Activo').length
 
   const openAdd = () => setDialog({ mode: tab === 0 ? 'driver' : 'vehicle', data: null })
-  const openEdit = (mode: 'driver' | 'vehicle', data: User | Vehicle) => setDialog({ mode, data: data as any })
+  const openEdit = (mode: 'driver' | 'vehicle', data: Driver | Vehicle) => setDialog({ mode, data: data as any })
 
   if (fleet.loading) {
     return (
@@ -137,7 +137,7 @@ export function FlotaPage() {
                       </Avatar>
                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{d.name}</Typography>
-                        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{d.phone}</Typography>
+                        <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{d.phone}</Typography>
                         <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: brand.navy, mt: 0.25 }}>
                           Tarifa base · {ars(d.baseRate)} / viaje
                         </Typography>
@@ -175,7 +175,7 @@ export function FlotaPage() {
                       <TableCell>{d.phone}</TableCell>
                       <TableCell>
                         <Typography sx={{ fontWeight: 800, color: brand.navy }}>{ars(d.baseRate)}</Typography>
-                        <Typography sx={{ fontSize: 12, color: '#8A939E' }}>por viaje</Typography>
+                        <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>por viaje</Typography>
                       </TableCell>
                       <TableCell><StatusChip label={d.status} /></TableCell>
                       <TableCell align="right">
@@ -201,9 +201,9 @@ export function FlotaPage() {
                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{v.id}</Typography>
-                          <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{v.type}</Typography>
+                          <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{v.type}</Typography>
                         </Stack>
-                        <Typography sx={{ fontSize: 12, color: '#8A939E' }}>Capacidad registrada · {v.capacityKg} kg</Typography>
+                        <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>Capacidad registrada · {v.capacityKg} kg</Typography>
                       </Box>
                       <StatusChip label={v.status} />
                     </Stack>
@@ -236,7 +236,7 @@ export function FlotaPage() {
                       <TableCell>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <StatusChip label={v.status} />
-                          {v.status === 'Asignado' && <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{v.assignedNote}</Typography>}
+                          {v.status === 'Asignado' && <Typography sx={{ fontSize: 12, color: '#6E7A87' }}>{v.assignedNote}</Typography>}
                         </Stack>
                       </TableCell>
                       <TableCell align="right">
@@ -258,17 +258,13 @@ export function FlotaPage() {
           onClose={() => setDialog(null)}
           onSaved={(message) => {
             setDialog(null)
-            setToast(message)
+            setToast({ message, tone: 'success' })
             fleet.reload()
           }}
         />
       )}
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }
@@ -283,16 +279,15 @@ function RecordDialog({
   onSaved: (message: string) => void
 }) {
   const isDriver = state.mode === 'driver'
-  const initialD = (state.data as User) ?? null
+  const initialD = (state.data as Driver) ?? null
   const initialV = (state.data as Vehicle) ?? null
 
   const [id, setId] = useState(initialD ? initialD.id : initialV ? initialV.id : '')
   const [name, setName] = useState(initialD?.name ?? '')
   const [phone, setPhone] = useState(initialD?.phone ?? '')
-  const [email, setEmail] = useState(initialD?.email ?? '')
   const [type, setType] = useState(initialV?.type ?? '')
   const [capacity, setCapacity] = useState(initialV ? String(initialV.capacityKg) : '')
-  const [driverStatus, setDriverStatus] = useState<UserStatus>(initialD?.status ?? 'Activo')
+  const [driverStatus, setDriverStatus] = useState<DriverStatus>(initialD?.status ?? 'Activo')
   const [vehicleStatus, setVehicleStatus] = useState<VehicleStatus>(initialV?.status ?? 'Disponible')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -306,15 +301,9 @@ function RecordDialog({
     try {
       if (isDriver) {
         if (editing) {
-          await api.updateUser(initialD!.id, { name, phone, email: email || null, status: driverStatus })
+          await api.updateDriver(initialD!.id, { name, phone, status: driverStatus })
         } else {
-          await api.createUser({
-            role: 'chofer',
-            name,
-            phone,
-            email: email || null,
-            status: driverStatus,
-          })
+          await api.createDriver({ name, phone, status: driverStatus })
         }
         onSaved('Cambios guardados')
       } else {
@@ -355,7 +344,7 @@ function RecordDialog({
             <Typography sx={{ fontSize: 17, fontFamily: "'Manrope', sans-serif", fontWeight: 800 }}>
               {editing ? 'Editar' : isDriver ? 'Agregar chofer' : 'Agregar vehículo'}
             </Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
               {isDriver ? 'Completá los datos del chofer.' : 'Completá los datos del vehículo.'}
             </Typography>
           </Box>
@@ -374,18 +363,9 @@ function RecordDialog({
           <Stack spacing={2}>
             <TextField label="Nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" placeholder="Nombre completo" />
             <TextField label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth size="small" placeholder="11 5555-0000" />
-            <TextField
-              label="Correo (login)"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              fullWidth
-              size="small"
-              placeholder="chofer@fletesexpress.com"
-              helperText="Login del chofer: la cuenta se crea en Supabase con este correo."
-            />
-                        <FormControl size="small" fullWidth>
+            <FormControl size="small" fullWidth>
               <InputLabel>Estado</InputLabel>
-              <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as UserStatus)}>
+              <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}>
                 <MenuItem value="Activo">Activo</MenuItem>
                 <MenuItem value="Inactivo">Inactivo</MenuItem>
               </Select>

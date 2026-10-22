@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   Divider,
   IconButton,
   InputAdornment,
-  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -14,14 +12,15 @@ import {
 import { Add, Close, InfoOutlined, Paid, RestartAlt, Save, Tune } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { Toast, type ToastState } from '../components/Toast'
 import { tripEarnings } from '../mockData'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars } from '../format'
 import { brand } from '../theme'
-import type { Factor, User } from '../types'
+import type { Driver, Factor } from '../types'
 
-
+const DEMO_DRIVER_ID = 'JA'
 const SAMPLE_KM = 18
 const SAMPLE_HOURS = 2
 
@@ -32,7 +31,7 @@ interface ChoferConfig {
   factors: Factor[]
 }
 
-function toConfig(driver: User): ChoferConfig {
+function toConfig(driver: Driver): ChoferConfig {
   return {
     baseRate: driver.baseRate,
     ratePerKm: driver.ratePerKm,
@@ -42,15 +41,12 @@ function toConfig(driver: User): ChoferConfig {
 }
 
 export function ChoferConfigPage() {
-  // Perfil propio (el backend permite leer y modificar las tarifas propias).
-  const driverState = useAsync(async () => {
-    const me = await api.me()
-    return api.getUser(me.id)
-  }, [])
-  const driver = driverState.data
+  const driverState = useAsync(() => api.listDrivers(), [])
+  const drivers: Driver[] = driverState.data ?? []
+  const driver = drivers.find((d) => d.id === DEMO_DRIVER_ID)
 
   const [config, setConfig] = useState<ChoferConfig | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -71,7 +67,7 @@ export function ChoferConfigPage() {
     return (
       <ChoferShell active="config" breadcrumb={['Chofer', 'Mi configuración']} title="Mi configuración">
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
-          <ErrorState message={driverState.error ?? 'No pudimos cargar tu perfil de chofer.'} onRetry={driverState.reload} />
+          <ErrorState message={driverState.error ?? 'No encontramos el chofer de demostración.'} onRetry={driverState.reload} />
         </Box>
       </ChoferShell>
     )
@@ -95,15 +91,15 @@ export function ChoferConfigPage() {
   const save = async () => {
     setSaving(true)
     try {
-      await api.updateUserRates(driver.id, {
+      await api.updateDriverRates(DEMO_DRIVER_ID, {
         base_rate: config.baseRate,
         rate_per_km: config.ratePerKm,
         rate_per_hour: config.ratePerHour,
         factors: config.factors,
       })
-      setToast('Configuración guardada')
+      setToast({ message: 'Configuración guardada', tone: 'success' })
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos guardar la configuración.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos guardar la configuración.', tone: 'error' })
     } finally {
       setSaving(false)
     }
@@ -111,7 +107,7 @@ export function ChoferConfigPage() {
 
   const reset = () => {
     setConfig(toConfig(driver))
-    setToast('Restauramos los valores del servidor')
+    setToast({ message: 'Restauramos los valores del servidor', tone: 'success' })
   }
 
   return (
@@ -131,7 +127,7 @@ export function ChoferConfigPage() {
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <InfoOutlined sx={{ fontSize: 16, mt: 0.2 }} />
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-              Estos valores los usás en tus viajes para mostrar el cálculo. Los definís vos mismo y la administración los toma como referencia.
+              Estos valores los usan tus viajes para mostrar el cálculo. Los toca la administración solo en la vista de flota.
             </Typography>
           </Stack>
         </Box>
@@ -184,7 +180,7 @@ export function ChoferConfigPage() {
             </Stack>
             <Stack spacing={1.2}>
               {config.factors.length === 0 && (
-                <Typography sx={{ fontSize: 13, color: '#8A939E' }}>Sin factores extras. Agregá uno si aplica.</Typography>
+                <Typography sx={{ fontSize: 13, color: '#6E7A87' }}>Sin factores extras. Agregá uno si aplica.</Typography>
               )}
               {config.factors.map((f, idx) => (
                 <Stack key={idx} direction="row" spacing={1.2} alignItems="center">
@@ -214,7 +210,7 @@ export function ChoferConfigPage() {
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>Ejemplo de cálculo</Typography>
               <Box sx={{ flexGrow: 1 }} />
-              <Typography sx={{ fontSize: 11, color: '#8A939E' }}>FEX-1048 · {SAMPLE_KM} km · {SAMPLE_HOURS} h</Typography>
+              <Typography sx={{ fontSize: 11, color: '#6E7A87' }}>FEX-1048 · {SAMPLE_KM} km · {SAMPLE_HOURS} h</Typography>
             </Stack>
             <Stack spacing={0.7}>
               {preview.lines.map((l) => (
@@ -242,11 +238,7 @@ export function ChoferConfigPage() {
         </Stack>
       </ChoferShell>
 
-      <Snackbar open={!!toast} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>
-          {toast}
-        </Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }

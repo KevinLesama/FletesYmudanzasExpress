@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   InputAdornment,
@@ -14,17 +13,17 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
-  Snackbar,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
 import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import type { User } from '../types'
+import type { Client } from '../types'
 import { brand } from '../theme'
 
 export function NuevaSolicitudPage() {
@@ -32,8 +31,8 @@ export function NuevaSolicitudPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [step, setStep] = useState(0)
 
-  const clientsState = useAsync(() => api.listUsers('cliente'), [])
-  const clients: User[] = clientsState.data ?? []
+  const clientsState = useAsync(() => api.listClients(), [])
+  const clients: Client[] = clientsState.data ?? []
 
   // client
   const [clientMode, setClientMode] = useState<'existente' | 'nuevo'>('existente')
@@ -62,11 +61,11 @@ export function NuevaSolicitudPage() {
 
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
 
   useEffect(() => {
     if (clientMode === 'existente' && !selectedClientId && clients.length > 0) {
-      setSelectedClientId(clients[0].id)
+      setSelectedClientId(String(clients[0].id))
     }
   }, [clientMode, selectedClientId, clients])
 
@@ -88,13 +87,25 @@ export function NuevaSolicitudPage() {
   const save = async () => {
     setSaving(true)
     try {
-      const clientPayload =
-        clientMode === 'existente'
-          ? { client_id: selectedClientId }
-          : { client_name: newName.trim(), phone: newPhone.trim() }
+      let clientId: number | null = null
+      let clientName = ''
+      let phone = ''
+      if (clientMode === 'existente') {
+        clientId = Number(selectedClientId)
+        const c = clients.find((x) => String(x.id) === selectedClientId)
+        clientName = c?.name ?? ''
+        phone = c?.phone ?? ''
+      } else {
+        const created = await api.createClient({ name: newName.trim(), phone: newPhone.trim() })
+        clientId = created.id
+        clientName = created.name
+        phone = created.phone
+      }
 
       const created = await api.createRequest({
-        ...clientPayload,
+        client_id: clientId,
+        client_name: clientName,
+        phone,
         date,
         arrival_from: arriveFrom,
         arrival_to: arriveTo,
@@ -121,12 +132,12 @@ export function NuevaSolicitudPage() {
       })
 
       setSaved(true)
-      setToast(`Solicitud guardada · ${created.id}`)
+      setToast({ message: `Solicitud guardada · ${created.id}`, tone: 'success' })
       setTimeout(() => {
         window.location.href = R.planificacion(created.id)
       }, 1400)
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos guardar la solicitud.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos guardar la solicitud.', tone: 'error' })
     } finally {
       setSaving(false)
     }
@@ -182,12 +193,12 @@ export function NuevaSolicitudPage() {
                     {label('Seleccionar cliente', true)}
                     <Select size="small" value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} sx={{ bgcolor: '#fff' }}>
                       {clients.map((c) => (
-                        <MenuItem key={c.id} value={c.id}>
+                        <MenuItem key={c.id} value={String(c.id)}>
                           {c.name} · {c.phone}
                         </MenuItem>
                       ))}
                     </Select>
-                    <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+                    <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
                       Usamos estos datos para coordinar el servicio con el cliente.
                     </Typography>
                   </Stack>
@@ -215,7 +226,7 @@ export function NuevaSolicitudPage() {
                 <StepHeading n="02" title="Servicio" subtitle="Fecha solicitada, horario aproximado y recorrido." />
                 <Stack spacing={2.5}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#8A939E', letterSpacing: '0.06em' }}>
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#6E7A87', letterSpacing: '0.06em' }}>
                       Fecha y horario
                     </Typography>
                     <TextField label="Fecha solicitada" type="date" value={date} onChange={(e) => setDate(e.target.value)} size="small" fullWidth sx={{ maxWidth: 260 }} />
@@ -256,7 +267,7 @@ export function NuevaSolicitudPage() {
                 <StepHeading n="03" title="Carga" subtitle="Contanos qué hay que trasladar para elegir el vehículo adecuado." />
                 <Stack spacing={2.5}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#8A939E', letterSpacing: '0.06em' }}>
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#6E7A87', letterSpacing: '0.06em' }}>
                       Detalles de la carga
                     </Typography>
                     <TextField
@@ -297,7 +308,7 @@ export function NuevaSolicitudPage() {
           </Box>
 
           <Stack direction={{ xs: 'column-reverse', md: 'row' }} spacing={1.5} sx={{ mt: 2.5, justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>
               {step === 2 ? 'Revisá los datos antes de guardar.' : 'Los campos con * son obligatorios.'}
             </Typography>
             <Stack direction="row" spacing={1.5}>
@@ -331,9 +342,7 @@ export function NuevaSolicitudPage() {
         </Box>
       </AppShell>
 
-      <Snackbar open={!!toast} autoHideDuration={2500} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>{toast}</Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }
@@ -346,7 +355,7 @@ function StepHeading({ n, title, subtitle }: { n: string; title: string; subtitl
       </Box>
       <Box>
         <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 16 }}>{title}</Typography>
-        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{subtitle}</Typography>
+        <Typography sx={{ fontSize: 12.5, color: '#6E7A87' }}>{subtitle}</Typography>
       </Box>
     </Stack>
   )

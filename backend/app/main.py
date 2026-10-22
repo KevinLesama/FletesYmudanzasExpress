@@ -15,12 +15,12 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.db.session import DatabaseNotConfiguredError
 from app.routers.api import (
-    auth_router,
     availability_router,
+    clients_router,
+    drivers_router,
     health_router,
     payments_router,
     requests_router,
-    users_router,
     vehicles_router,
 )
 
@@ -55,8 +55,8 @@ async def database_not_configured_handler(
 
 api_prefix = "/api"
 for router in (
-    auth_router,
-    users_router,
+    clients_router,
+    drivers_router,
     vehicles_router,
     requests_router,
     payments_router,

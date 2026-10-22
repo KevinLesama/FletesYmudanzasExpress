@@ -1,4 +1,4 @@
-"""Routers: health, auth, users, vehicles, requests, payments."""
+"""Routers: health, clients, drivers, vehicles, requests, payments."""
 
 from __future__ import annotations
 
@@ -9,11 +9,20 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import CurrentUser, get_current_user, require_role
 from app.db.session import get_db
-from app.models import Payment, Request, RequestCargoItem, User, UserFactor, Vehicle
+from app.models import Client, DriverFactor, Driver, Payment, Request, Vehicle
+from app.models import Incident, RequestCargoItem
 from app.schemas import (
+    ArrivedIn,
     AvailabilityOut,
+    ClientIn,
+    ClientOut,
+    DriverFactorsIn,
+    DriverIn,
+    DriverOut,
+    FinishedIn,
+    IncidentIn,
+    IncidentOut,
     PaymentIn,
     PaymentOut,
     PaymentSummaryRow,
@@ -21,11 +30,6 @@ from app.schemas import (
     RequestIn,
     RequestOut,
     RequestUpdate,
-    SessionOut,
-    UserIn,
-    UserOut,
-    UserRatesIn,
-    UserUpdate,
     VehicleIn,
     VehicleOut,
 )
@@ -43,57 +47,35 @@ def health() -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------- #
-# Sesion
+# Clientes
 # --------------------------------------------------------------------------- #
-auth_router = APIRouter(prefix="/auth", tags=["auth"])
+clients_router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-@auth_router.get("/me", response_model=SessionOut)
-def whoami(
-    current: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> SessionOut:
-    """Usuario de la app detrás del token: el frontend lo usa para saber qué
-    mostrar (portal de chofer vs. pantallas de administración)."""
-    user = db.get(User, current["user_id"])
-    if user is None:  # pragma: no cover - el token ya se resolvio contra la DB
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    return SessionOut(
-        id=user.id,
-        name=user.name,
-        email=user.email,
-        role=user.role,  # type: ignore[arg-type]
-        initials=user.initials,
-        status=user.status,
+@clients_router.get("", response_model=list[ClientOut])
+def list_clients(db: Session = Depends(get_db)) -> list[ClientOut]:
+    clients = db.scalars(select(Client).order_by(Client.name)).all()
+    return [serializers.serialize_client(c) for c in clients]
+
+
+@clients_router.post("", response_model=ClientOut, status_code=201)
+def create_client(payload: ClientIn, db: Session = Depends(get_db)) -> ClientOut:
+    existing = db.scalar(
+        select(Client).where(Client.name == payload.name, Client.phone == payload.phone)
     )
+    if existing:
+        return serializers.serialize_client(existing)
+    client = Client(name=payload.name, phone=payload.phone)
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return serializers.serialize_client(client)
 
 
 # --------------------------------------------------------------------------- #
-# Permisos
+# Choferes
 # --------------------------------------------------------------------------- #
-def _is_admin(current: CurrentUser) -> bool:
-    return current["role"] == "admin"
-
-
-def _ensure_self_or_admin(current: CurrentUser, user_id: str) -> None:
-    """El admin opera sobre cualquiera; el resto solo sobre su propio usuario."""
-    if not _is_admin(current) and current["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="No tenes permisos para esta accion.")
-
-
-def _ensure_request_access(current: CurrentUser, request: Request) -> None:
-    """El admin ve todos los viajes; el chofer solo los que tiene asignados."""
-    if _is_admin(current):
-        return
-    if request.driver_id and request.driver_id == current["user_id"]:
-        return
-    raise HTTPException(status_code=403, detail="No tenes permisos para este viaje.")
-
-
-# --------------------------------------------------------------------------- #
-# Usuarios (administradores, choferes y clientes)
-# --------------------------------------------------------------------------- #
-users_router = APIRouter(prefix="/users", tags=["users"])
+drivers_router = APIRouter(prefix="/drivers", tags=["drivers"])
 
 
 def _initials_from_name(name: str) -> str:
@@ -101,160 +83,84 @@ def _initials_from_name(name: str) -> str:
     return ("".join(p[0] for p in parts)[:2] or "XX").upper()
 
 
-def _generate_code(db: Session, base: str, width: int = 0) -> str:
-    """Genera un identificador libre.
-
-    Con ``width`` se numeran con guion y ceros a la izquierda (ADM-01, ADM-02);
-    sin ``width`` se agrega un sufijo numérico al prefijo (JA, JA2).
-    """
-    if width:
-        counter = 1
-        candidate = f"{base}-{counter:0{width}d}"
-        while db.get(User, candidate) is not None:
-            counter += 1
-            candidate = f"{base}-{counter:0{width}d}"
-        return candidate
-    candidate = base
+def _generate_driver_id(db: Session, initials: str) -> str:
+    candidate = initials
     counter = 2
-    while db.get(User, candidate) is not None:
-        candidate = f"{base}{counter}"
+    while db.get(Driver, candidate) is not None:
+        candidate = f"{initials}{counter}"
         counter += 1
     return candidate
 
 
-def _new_user_id(db: Session, role: str, initials: str) -> str:
-    if role == "cliente":
-        return business.next_client_id(db)
-    if role == "admin":
-        return _generate_code(db, "ADM", width=2)
-    return _generate_code(db, initials)
+@drivers_router.get("", response_model=list[DriverOut])
+def list_drivers(db: Session = Depends(get_db)) -> list[DriverOut]:
+    drivers = db.scalars(select(Driver).order_by(Driver.name)).all()
+    return [serializers.serialize_driver(d) for d in drivers]
 
 
-@users_router.get("", response_model=list[UserOut])
-def list_users(
-    db: Session = Depends(get_db),
-    role: str | None = Query(default=None),
-    current: CurrentUser = Depends(require_role("admin")),
-) -> list[UserOut]:
-    stmt = select(User)
-    if role:
-        stmt = stmt.where(User.role == role)
-    users = db.scalars(stmt.order_by(User.name)).all()
-    return [serializers.serialize_user(u) for u in users]
-
-
-@users_router.post("", response_model=UserOut, status_code=201)
-def create_user(
-    payload: UserIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin")),
-) -> UserOut:
-    # Un cliente repetido (mismo nombre y teléfono) no se duplica: se devuelve
-    # el existente para que la pantalla de "nueva solicitud" pueda elegirlo.
-    if payload.role == "cliente":
-        existing = db.scalar(
-            select(User).where(
-                User.role == "cliente",
-                User.name == payload.name,
-                User.phone == payload.phone,
-            )
-        )
-        if existing:
-            return serializers.serialize_user(existing)
-
+@drivers_router.post("", response_model=DriverOut, status_code=201)
+def create_driver(payload: DriverIn, db: Session = Depends(get_db)) -> DriverOut:
     initials = (payload.initials or _initials_from_name(payload.name)).upper()[:4]
-    user_id = payload.id or _new_user_id(db, payload.role, initials)
-    if db.get(User, user_id) is not None:
-        raise HTTPException(status_code=409, detail=f"Ya existe un usuario con id {user_id}.")
-
-    user = User(
-        id=user_id,
-        role=payload.role,
+    driver_id = payload.id or _generate_driver_id(db, initials)
+    if db.get(Driver, driver_id) is not None:
+        raise HTTPException(status_code=409, detail=f"Ya existe un chofer con id {driver_id}.")
+    driver = Driver(
+        id=driver_id,
+        initials=initials,
         name=payload.name,
         phone=payload.phone,
-        email=payload.email,
-        initials=initials if payload.role in ("chofer", "admin") else None,
         status=payload.status,
         base_rate=payload.base_rate,
         rate_per_km=payload.rate_per_km,
         rate_per_hour=payload.rate_per_hour,
     )
-    db.add(user)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=409, detail="Ya existe un usuario con ese teléfono o correo."
-        ) from exc
-    db.refresh(user)
-    return serializers.serialize_user(user)
+    db.add(driver)
+    db.commit()
+    db.refresh(driver)
+    return serializers.serialize_driver(driver)
 
 
-@users_router.get("/{user_id}", response_model=UserOut)
-def get_user(
-    user_id: str,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(get_current_user),
-) -> UserOut:
-    _ensure_self_or_admin(current, user_id)
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    return serializers.serialize_user(user)
+@drivers_router.get("/{driver_id}", response_model=DriverOut)
+def get_driver(driver_id: str, db: Session = Depends(get_db)) -> DriverOut:
+    driver = db.get(Driver, driver_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Chofer no encontrado.")
+    return serializers.serialize_driver(driver)
 
 
-@users_router.patch("/{user_id}", response_model=UserOut)
-def update_user(
-    user_id: str,
-    payload: UserUpdate,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(get_current_user),
-) -> UserOut:
-    _ensure_self_or_admin(current, user_id)
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    data = payload.model_dump(exclude_unset=True)
-    if not _is_admin(current):
-        # Un chofer no se da de baja ni cambia su estado; solo sus datos.
-        data.pop("status", None)
-    for field in ("name", "phone", "email", "initials", "status"):
-        if field in data and data[field] is not None:
-            setattr(user, field, data[field])
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=409, detail="Ya existe un usuario con ese teléfono o correo."
-        ) from exc
-    db.refresh(user)
-    return serializers.serialize_user(user)
+@drivers_router.patch("/{driver_id}", response_model=DriverOut)
+def update_driver(driver_id: str, payload: DriverIn, db: Session = Depends(get_db)) -> DriverOut:
+    driver = db.get(Driver, driver_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Chofer no encontrado.")
+    driver.name = payload.name
+    driver.phone = payload.phone
+    driver.status = payload.status
+    if payload.initials:
+        driver.initials = payload.initials.upper()[:4]
+    db.commit()
+    db.refresh(driver)
+    return serializers.serialize_driver(driver)
 
 
-@users_router.put("/{user_id}/rates", response_model=UserOut)
-def update_user_rates(
-    user_id: str,
-    payload: UserRatesIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(get_current_user),
-) -> UserOut:
-    """Tarifas y factores (pantalla 'Mi configuración' del chofer)."""
-    _ensure_self_or_admin(current, user_id)
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    user.base_rate = payload.base_rate
-    user.rate_per_km = payload.rate_per_km
-    user.rate_per_hour = payload.rate_per_hour
-    user.factors = [
-        UserFactor(label=f.label, amount=f.amount, position=i)
+@drivers_router.put("/{driver_id}/rates", response_model=DriverOut)
+def update_driver_rates(
+    driver_id: str, payload: DriverFactorsIn, db: Session = Depends(get_db)
+) -> DriverOut:
+    """Tarifas y factores (pantalla 'Mi configuracion' del chofer)."""
+    driver = db.get(Driver, driver_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Chofer no encontrado.")
+    driver.base_rate = payload.base_rate
+    driver.rate_per_km = payload.rate_per_km
+    driver.rate_per_hour = payload.rate_per_hour
+    driver.factors = [
+        DriverFactor(label=f.label, amount=f.amount, position=i)
         for i, f in enumerate(payload.factors)
     ]
     db.commit()
-    db.refresh(user)
-    return serializers.serialize_user(user)
+    db.refresh(driver)
+    return serializers.serialize_driver(driver)
 
 
 # --------------------------------------------------------------------------- #
@@ -264,20 +170,13 @@ vehicles_router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
 
 @vehicles_router.get("", response_model=list[VehicleOut])
-def list_vehicles(
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(get_current_user),
-) -> list[VehicleOut]:
+def list_vehicles(db: Session = Depends(get_db)) -> list[VehicleOut]:
     vehicles = db.scalars(select(Vehicle).order_by(Vehicle.id)).all()
     return [serializers.serialize_vehicle(v) for v in vehicles]
 
 
 @vehicles_router.post("", response_model=VehicleOut, status_code=201)
-def create_vehicle(
-    payload: VehicleIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin")),
-) -> VehicleOut:
+def create_vehicle(payload: VehicleIn, db: Session = Depends(get_db)) -> VehicleOut:
     if db.get(Vehicle, payload.id) is not None:
         raise HTTPException(status_code=409, detail=f"Ya existe un vehículo {payload.id}.")
     vehicle = Vehicle(
@@ -294,11 +193,7 @@ def create_vehicle(
 
 
 @vehicles_router.get("/{vehicle_id}", response_model=VehicleOut)
-def get_vehicle(
-    vehicle_id: str,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(get_current_user),
-) -> VehicleOut:
+def get_vehicle(vehicle_id: str, db: Session = Depends(get_db)) -> VehicleOut:
     vehicle = db.get(Vehicle, vehicle_id)
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
@@ -306,12 +201,7 @@ def get_vehicle(
 
 
 @vehicles_router.patch("/{vehicle_id}", response_model=VehicleOut)
-def update_vehicle(
-    vehicle_id: str,
-    payload: VehicleIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin")),
-) -> VehicleOut:
+def update_vehicle(vehicle_id: str, payload: VehicleIn, db: Session = Depends(get_db)) -> VehicleOut:
     vehicle = db.get(Vehicle, vehicle_id)
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
@@ -345,33 +235,25 @@ def list_requests(
     driver_id: str | None = Query(default=None),
     vehicle_id: str | None = Query(default=None),
     search: str | None = Query(default=None),
-    current: CurrentUser = Depends(require_role("admin", "chofer")),
 ) -> list[RequestOut]:
     stmt = select(Request)
     if status:
         stmt = stmt.where(Request.status == status)
     if day:
         stmt = stmt.where(Request.date == day)
+    if driver_id:
+        stmt = stmt.where(Request.driver_id == driver_id)
     if vehicle_id:
         stmt = stmt.where(Request.vehicle_id == vehicle_id)
     if search:
         like = f"%{search.strip()}%"
         stmt = stmt.where(Request.client_name.ilike(like) | Request.id.ilike(like))
-    if not _is_admin(current):
-        # El chofer solo ve los viajes que tiene asignados.
-        stmt = stmt.where(Request.driver_id == current["user_id"])
-    elif driver_id:
-        stmt = stmt.where(Request.driver_id == driver_id)
     stmt = stmt.order_by(Request.date.desc(), Request.id.desc())
     return [serializers.serialize_request(r) for r in db.scalars(stmt).all()]
 
 
 @requests_router.post("", response_model=RequestOut, status_code=201)
-def create_request(
-    payload: RequestIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin")),
-) -> RequestOut:
+def create_request(payload: RequestIn, db: Session = Depends(get_db)) -> RequestOut:
     if not payload.client_id and not (payload.client_name and payload.phone):
         raise HTTPException(
             status_code=422,
@@ -379,24 +261,15 @@ def create_request(
         )
 
     if payload.client_id:
-        client = db.get(User, payload.client_id)
-        if client is None or client.role != "cliente":
+        client = db.get(Client, payload.client_id)
+        if client is None:
             raise HTTPException(status_code=404, detail="Cliente no encontrado.")
     else:
         client = db.scalar(
-            select(User).where(
-                User.role == "cliente",
-                User.name == payload.client_name,
-                User.phone == payload.phone,
-            )
+            select(Client).where(Client.name == payload.client_name, Client.phone == payload.phone)
         )
         if client is None:
-            client = User(
-                id=business.next_client_id(db),
-                role="cliente",
-                name=payload.client_name or "",
-                phone=payload.phone or "",
-            )
+            client = Client(name=payload.client_name, phone=payload.phone)
             db.add(client)
             db.flush()
 
@@ -438,22 +311,13 @@ def create_request(
 
 
 @requests_router.get("/{request_id}", response_model=RequestOut)
-def get_request(
-    request_id: str,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin", "chofer")),
-) -> RequestOut:
-    request = _get_request_or_404(db, request_id)
-    _ensure_request_access(current, request)
-    return serializers.serialize_request(request)
+def get_request(request_id: str, db: Session = Depends(get_db)) -> RequestOut:
+    return serializers.serialize_request(_get_request_or_404(db, request_id))
 
 
 @requests_router.patch("/{request_id}", response_model=RequestOut)
 def update_request(
-    request_id: str,
-    payload: RequestUpdate,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin")),
+    request_id: str, payload: RequestUpdate, db: Session = Depends(get_db)
 ) -> RequestOut:
     request = _get_request_or_404(db, request_id)
     data = payload.model_dump(exclude_unset=True)
@@ -465,7 +329,8 @@ def update_request(
     new_end = data.get("service_to", request.service_to)
     new_day = data.get("date", request.date)
 
-    if new_status == "Confirmada":
+    confirming = new_status == "Confirmada" or data.get("confirmed") is True
+    if confirming:
         if not new_driver or not new_vehicle:
             raise HTTPException(
                 status_code=409, detail="Para confirmar el viaje se requiere chofer y vehículo."
@@ -490,8 +355,7 @@ def update_request(
                 status_code=409, detail="El vehículo ya tiene un viaje confirmado en ese horario."
             )
         received = serializers.deposit_received(request)
-        required = float(data.get("deposit_required", request.deposit_required))
-        if received < required:
+        if received < float(request.deposit_required):
             raise HTTPException(
                 status_code=409,
                 detail="La seña registrada es insuficiente para confirmar el viaje.",
@@ -508,12 +372,17 @@ def update_request(
         "estimated_km",
         "estimated_hours",
         "status",
+        "confirmed",
         "cargo_notes",
         "cargo_fragile",
         "cargo_approx_units",
     ):
         if field in data:
             setattr(request, field, data[field])
+
+    if data.get("status") == "Cancelada":
+        request.confirmed = False
+        request.status = "Cancelada"
 
     try:
         db.flush()
@@ -532,26 +401,77 @@ def update_request(
     return serializers.serialize_request(request)
 
 
-@requests_router.get("/{request_id}/payments", response_model=list[PaymentOut])
-def list_payments(
-    request_id: str,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin", "chofer")),
-) -> list[PaymentOut]:
+@requests_router.post("/{request_id}/arrived", response_model=RequestOut)
+def mark_arrived(
+    request_id: str, payload: ArrivedIn, db: Session = Depends(get_db)
+) -> RequestOut:
     request = _get_request_or_404(db, request_id)
-    _ensure_request_access(current, request)
+    request.arrived_at = payload.arrived_at
+    db.commit()
+    db.refresh(request)
+    return serializers.serialize_request(request)
+
+
+@requests_router.post("/{request_id}/finished", response_model=RequestOut)
+def mark_finished(
+    request_id: str, payload: FinishedIn, db: Session = Depends(get_db)
+) -> RequestOut:
+    request = _get_request_or_404(db, request_id)
+    request.finished_at = payload.finished_at
+    db.commit()
+    db.refresh(request)
+    return serializers.serialize_request(request)
+
+
+@requests_router.post("/{request_id}/incidents", response_model=IncidentOut, status_code=201)
+def add_incident(
+    request_id: str, payload: IncidentIn, db: Session = Depends(get_db)
+) -> IncidentOut:
+    request = _get_request_or_404(db, request_id)
+    incident = Incident(
+        id=business.next_incident_id(db),
+        request_id=request.id,
+        type=payload.type,
+        description=payload.description,
+        time=payload.time,
+    )
+    db.add(incident)
+    db.commit()
+    db.refresh(incident)
+    return IncidentOut.model_validate(incident)
+
+
+@requests_router.put("/{request_id}/remito", response_model=RequestOut)
+def set_remito(request_id: str, payload: RemitoIn, db: Session = Depends(get_db)) -> RequestOut:
+    request = _get_request_or_404(db, request_id)
+    request.remito_name = payload.name
+    request.remito_data_url = payload.data_url
+    db.commit()
+    db.refresh(request)
+    return serializers.serialize_request(request)
+
+
+@requests_router.delete("/{request_id}/remito", response_model=RequestOut)
+def delete_remito(request_id: str, db: Session = Depends(get_db)) -> RequestOut:
+    request = _get_request_or_404(db, request_id)
+    request.remito_name = None
+    request.remito_data_url = None
+    db.commit()
+    db.refresh(request)
+    return serializers.serialize_request(request)
+
+
+@requests_router.get("/{request_id}/payments", response_model=list[PaymentOut])
+def list_payments(request_id: str, db: Session = Depends(get_db)) -> list[PaymentOut]:
+    request = _get_request_or_404(db, request_id)
     return serializers.serialize_request(request).payments
 
 
 @requests_router.post("/{request_id}/payments", response_model=RequestOut, status_code=201)
 def add_payment(
-    request_id: str,
-    payload: PaymentIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin", "chofer")),
+    request_id: str, payload: PaymentIn, db: Session = Depends(get_db)
 ) -> RequestOut:
     request = _get_request_or_404(db, request_id)
-    _ensure_request_access(current, request)
     payment = Payment(
         request_id=request.id,
         concept=payload.concept,
@@ -560,8 +480,6 @@ def add_payment(
         amount=payload.amount,
         date=payload.date,
         notes=payload.notes,
-        remito_name=payload.remito_name,
-        remito_data_url=payload.remito_data_url,
     )
     db.add(payment)
     db.commit()
@@ -570,7 +488,7 @@ def add_payment(
 
 
 # --------------------------------------------------------------------------- #
-# Pagos (resumen por viaje y remitos)
+# Pagos (resumen por viaje)
 # --------------------------------------------------------------------------- #
 payments_router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -581,7 +499,6 @@ def payments_summary(
     day: date | None = Query(default=None, alias="date"),
     status: str | None = Query(default=None),
     search: str | None = Query(default=None),
-    current: CurrentUser = Depends(require_role("admin")),
 ) -> list[PaymentSummaryRow]:
     stmt = select(Request).order_by(Request.date.desc(), Request.id.desc())
     if day:
@@ -614,42 +531,6 @@ def payments_summary(
     return rows
 
 
-@payments_router.put("/{payment_id}/remito", response_model=PaymentOut)
-def set_payment_remito(
-    payment_id: int,
-    payload: RemitoIn,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin", "chofer")),
-) -> PaymentOut:
-    """Foto del remito: el chofer la sube cuando cobra en efectivo."""
-    payment = db.get(Payment, payment_id)
-    if payment is None:
-        raise HTTPException(status_code=404, detail="Pago no encontrado.")
-    _ensure_request_access(current, payment.request)
-    payment.remito_name = payload.name
-    payment.remito_data_url = payload.data_url
-    db.commit()
-    db.refresh(payment)
-    return PaymentOut.model_validate(payment)
-
-
-@payments_router.delete("/{payment_id}/remito", response_model=PaymentOut)
-def delete_payment_remito(
-    payment_id: int,
-    db: Session = Depends(get_db),
-    current: CurrentUser = Depends(require_role("admin", "chofer")),
-) -> PaymentOut:
-    payment = db.get(Payment, payment_id)
-    if payment is None:
-        raise HTTPException(status_code=404, detail="Pago no encontrado.")
-    _ensure_request_access(current, payment.request)
-    payment.remito_name = None
-    payment.remito_data_url = None
-    db.commit()
-    db.refresh(payment)
-    return PaymentOut.model_validate(payment)
-
-
 # --------------------------------------------------------------------------- #
 # Disponibilidad
 # --------------------------------------------------------------------------- #
@@ -665,7 +546,6 @@ def availability(
     start: time = Query(...),
     end: time = Query(...),
     exclude: str | None = Query(default=None),
-    current: CurrentUser = Depends(require_role("admin")),
 ) -> AvailabilityOut:
     conflicts: list[str] = []
     driver_ok = True

@@ -20,7 +20,6 @@ import {
   ChevronRight,
 } from '@mui/icons-material'
 import { R } from '../routes'
-import { currentUser, roleLabel, signOut } from '../supabase'
 import { Brand } from './Brand'
 import { brand } from '../theme'
 
@@ -115,36 +114,18 @@ export function ChoferShell({
 
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#8A939E' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#6E7A87' }}>
           <LocalShipping sx={{ fontSize: 16 }} />
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
         </Stack>
       </Box>
       <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
-      <Box
-        component="button"
-        type="button"
-        title="Cerrar sesión"
-        aria-label="Cerrar sesión"
-        onClick={() => void signOut()}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 1.5,
-          py: 1,
-          border: 0,
-          borderRadius: 1,
-          bgcolor: 'transparent',
-          cursor: 'pointer',
-          color: '#8A939E',
-          font: 'inherit',
-          '&:hover': { color: brand.navy },
-        }}
-      >
-        <Logout fontSize="small" />
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
-      </Box>
+      <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#6E7A87', '&:hover': { color: brand.navy } }}>
+          <Logout fontSize="small" />
+          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
+        </Stack>
+      </a>
     </Box>
   )
 
@@ -191,7 +172,7 @@ export function ChoferShell({
                     sx={{
                       fontSize: 12.5,
                       fontWeight: i === breadcrumb.length - 1 ? 700 : 500,
-                      color: i === breadcrumb.length - 1 ? brand.navy : '#8A939E',
+                      color: i === breadcrumb.length - 1 ? brand.navy : '#6E7A87',
                     }}
                   >
                     {part}
@@ -205,7 +186,7 @@ export function ChoferShell({
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Turno activo</Typography>
               </Stack>
               <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
-              <Avatar sx={{ width: 32, height: 32, bgcolor: '#F07855', fontSize: 12, fontWeight: 800 }}>{(currentUser()?.initials ?? currentUser()?.name ?? 'CH').slice(0, 2).toUpperCase()}</Avatar>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: '#F07855', fontSize: 12, fontWeight: 800 }}>JA</Avatar>
             </Stack>
           </Box>
         )}
@@ -215,7 +196,7 @@ export function ChoferShell({
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
               <Brand />
               <Box sx={{ flexGrow: 1 }} />
-              <Avatar sx={{ width: 30, height: 30, bgcolor: '#F07855', fontSize: 11, fontWeight: 800 }}>{(currentUser()?.initials ?? currentUser()?.name ?? 'CH').slice(0, 2).toUpperCase()}</Avatar>
+              <Avatar sx={{ width: 30, height: 30, bgcolor: '#F07855', fontSize: 11, fontWeight: 800 }}>JA</Avatar>
             </Toolbar>
           </AppBar>
         )}

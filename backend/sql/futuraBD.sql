@@ -21,6 +21,26 @@
 --
 --   La base está en español: en este archivo los nombres de tablas, columnas,
 --   índices y restricciones van en el mismo idioma.
+--
+-- CÓMO SE MAPEA LA PROPUESTA CON LOS REQUISITOS
+--   Ya resuelto por schema.sql:
+--     [x] Consultar viajes asignados ................ solicitudes.chofer_id
+--     [x] Ver cliente, origen, destino, fecha, hora . solicitudes.*
+--     [x] Importe y estado del pago ................... solicitudes.precio + pagos
+--     [x] Información de la carga .................... items_carga + carga_*
+--     [x] Registrar o confirmar cobros ................ pagos
+--     [x] Administrar clientes / choferes / flota .... usuarios + vehiculos
+--     [x] Registrar y asignar viajes y vehículos ..... solicitudes.chofer_id/vehiculo_id
+--     [x] Consultar disponibilidad .................... derivado de solicitudes
+--     [x] Detectar superposiciones .................... derivado de solicitudes
+--     [x] Calcular cotización (automática) ........... tarifas + factores_tarifa
+--     [x] Registrar pagos y saldos pendientes ........ pagos
+--     [x] Controlar la recaudación por chofer ........ pagos.recibido_por
+--   Propuesto en este archivo (sección C, D, E, F):
+--     [ ] Choferes con vehículo propio ............... C
+--     [ ] Ajuste manual de la cotización ............. D
+--     [ ] Faltas puntuales (chofer y vehículo) ....... E
+--     [ ] Historial de operaciones (bitácora) ........ F
 -- ===========================================================================
 
 
@@ -182,3 +202,182 @@
 --   [ ] ¿Aviso por email, por WhatsApp, o los dos?
 --   [ ] ¿Hace falta que el cliente pueda cancelar su solicitud?
 --   [ ] ¿Se acceptan fotos desde la landing o solo texto?
+
+
+-- ===========================================================================
+-- C) CHOFERES CON VEHÍCULO PROPIO
+-- ===========================================================================
+--
+-- SITUACIÓN REAL
+--   Hay choferes que trabajan con vehículo propio y otros a los que la empresa
+--   le asigna un vehículo viaje a viaje. Hoy el esquema no distingue los dos
+--   casos: la única relación entre chofer y vehículo es el viaje
+--   (`solicitudes.chofer_id` + `solicitudes.vehiculo_id`).
+--
+-- LO QUE PROPONEMOS
+--   Una columna opcional en `vehiculos` con el chofer que tiene ese vehículo.
+--   NULL = vehículo de la empresa (se asigna por viaje).
+--   Con eso la app puede: mostrarle al chofer su vehículo, proponerlo por
+--   defecto al crear un viaje y avisar si el vehículo propio no está disponible.
+--
+-- DDL PROPUESTO (no aplicar sin acuerdo)
+--   ALTER TABLE vehiculos
+--       ADD COLUMN IF NOT EXISTS usuario_id text REFERENCES usuarios(id) ON DELETE SET NULL;
+--   CREATE INDEX IF NOT EXISTS ix_vehiculos_usuario_id ON vehiculos (usuario_id);
+--
+-- NOTAS
+--   * `ON DELETE SET NULL`: si se da de baja al chofer, el vehículo queda
+--     como de la empresa en vez de desaparecer.
+--   * No se puede validar con CHECK que `usuario_id` sea un chofer (Postgres no
+--     permite subconsultas en CHECK): lo garantiza la API o un trigger.
+--   * Si un vehículo propio también se puede prestar a otro chofer, alcanza con
+--     dejar el `usuario_id` del vehículo y cambiar el `chofer_id` del viaje: el
+--     dueño real del vehículo no es el que lo conduce. Por eso
+--     `solicitudes.vehiculo_id` sigue siendo la fuente de verdad de "qué
+--     vehículo hace este viaje".
+--   * Decisión pendiente: ¿el vehículo propio se carga desde el alta del chofer
+--     (Flota) o se agrega aparte desde la pantalla de vehículos?
+
+
+-- ===========================================================================
+-- D) COTIZACIÓN AUTOMÁTICA CON AJUSTE MANUAL
+-- ===========================================================================
+--
+-- SITUACIÓN REAL
+--   El precio sale de la fórmula (tarifa_base + tarifa_por_km x km +
+--   tarifa_por_hora x horas + factores del chofer), pero el admin tiene que
+--   poder tocarlo a mano. Hoy `solicitudes.precio` guarda un único número:
+--   si se edita, se pierde cuánto decía la fórmula y quién lo cambió.
+--
+-- LO QUE PROPONEMOS
+--   Guardar las dos cosas: lo que calculó el sistema y lo que quedó al final.
+--   `precio` sigue siendo el valor final (el que se cobra y el que se muestra).
+--
+-- DDL PROPUESTO (no aplicar sin acuerdo)
+--   ALTER TABLE solicitudes
+--       ADD COLUMN IF NOT EXISTS precio_calculado    numeric(12,2),
+--       ADD COLUMN IF NOT EXISTS precio_manual       boolean NOT NULL DEFAULT false,
+--       ADD COLUMN IF NOT EXISTS cotizacion_detalle  jsonb,
+--       ADD COLUMN IF NOT EXISTS precio_modificado_por text REFERENCES usuarios(id) ON DELETE SET NULL,
+--       ADD COLUMN IF NOT EXISTS precio_modificado_en timestamptz;
+--
+-- CÓMO SE USA
+--   1. La API calcula el precio y guarda:
+--        precio             = resultado de la fórmula
+--        precio_calculado   = resultado de la fórmula
+--        cotizacion_detalle = {"tarifa_base":..., "km":..., "horas":...,
+--                              "factores":[{"etiqueta":...,"monto":...}], "total":...}
+--   2. Si el admin edita el precio:
+--        precio             = valor editado
+--        precio_manual      = true
+--        precio_modificado_por / precio_modificado_en = quién y cuándo
+--        precio_calculado   = sigue con el valor original de la fórmula
+--        cotizacion_detalle = se actualiza con el nuevo total
+--   3. Si después se recalcula, `precio_manual` vuelve a false y se pisa
+--      `precio_calculado`.
+--
+-- NOTAS
+--   * `km_estimados` y `horas_estimadas` son las entradas de la fórmula: si no
+--     están cargadas, no hay cotización automática posible.
+--   * `cotizacion_detalle` es jsonb para no mantener una tabla de detalle que
+--     después nadie consulta. Si más adelante se quiere reportar por concepto,
+--     ahí conviene una tabla `cotizaciones` con una fila por propuesta.
+--   * Decisión pendiente: ¿el precio manual se puede volver a calcular ( botón
+--     "recalcular") o la edición manual es definitiva?
+--   * Decisión pendiente: ¿la cotización se guarda aunque el viaje no se
+--     confirme? Con esto sí queda el precio antes de confirmar.
+
+
+-- ===========================================================================
+-- E) FALTAS PUNTUALES (chofer y vehículo)
+-- ===========================================================================
+--
+-- SITUACIÓN REAL
+--   Son eventos puntuales, no rangos:
+--     - El chofer faltó un día.
+--     - El vehículo se rompió ese día.
+--     - El vehículo quedó suspendido.
+--   Cuando el vehículo está roto, el admin tiene que decidir qué hacer:
+--   reasignar el viaje a otro vehículo o cambiar la fecha del flete. Ninguna
+--   de las dos acciones es automática: por eso el evento se registra y la
+--   decisión se toma sobre el viaje.
+--
+-- LO QUE PROPONEMOS
+--   Una tabla de eventos de no disponibilidad, con la fecha del evento y, si
+--   aplica, el viaje afectado (para que el admin vea el caso en la misma
+--   pantalla donde decide).
+--
+-- DDL PROPUESTO (no aplicar sin acuerdo)
+--   CREATE TABLE IF NOT EXISTS ausencias (
+--       id            integer   GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+--       usuario_id    text      REFERENCES usuarios(id) ON DELETE CASCADE,
+--       vehiculo_id   text      REFERENCES vehiculos(id) ON DELETE CASCADE,
+--       solicitud_id  text      REFERENCES solicitudes(id) ON DELETE SET NULL,
+--       tipo          text      NOT NULL,
+--       fecha         date      NOT NULL,
+--       motivo        text,
+--       creado_en     timestamptz NOT NULL DEFAULT now(),
+--       CONSTRAINT ck_ausencias_tipo CHECK (
+--           tipo IN ('falta_chofer', 'vehiculo_roto', 'vehiculo_suspendido')
+--       ),
+--       CONSTRAINT ck_ausencias_quien CHECK (
+--           usuario_id IS NOT NULL OR vehiculo_id IS NOT NULL
+--       )
+--   );
+--   CREATE INDEX IF NOT EXISTS ix_ausencias_fecha       ON ausencias (fecha);
+--   CREATE INDEX IF NOT EXISTS ix_ausencias_usuario_id  ON ausencias (usuario_id);
+--   CREATE INDEX IF NOT EXISTS ix_ausencias_vehiculo_id ON ausencias (vehiculo_id);
+--
+-- CÓMO SE USA
+--   * Falta del chofer: evento con `usuario_id` + `fecha` + `solicitud_id`
+--     (el viaje que se perdió). El viaje queda 'Cancelada' si el admin lo
+--     cancela: no se agrega un estado nuevo a `solicitudes.estado`.
+--   * Vehículo roto: evento con `vehiculo_id` + `fecha` + `solicitud_id`.
+--     El admin ve el viaje afectado y decide: reasignar `vehiculo_id` a otro
+--     vehículo o cambiar `fecha` y las ventanas horarias.
+--   * El estado del vehículo se actualiza a mano (`vehiculos.estado`). Hoy el
+--     CHECK permite 'Disponible', 'Asignado' y 'En taller'; si hace falta un
+--     'Suspendido' hay que ampliar el CHECK (ALTER TABLE, sin romper datos).
+--
+-- NOTAS
+--   * La tabla no reemplaza al cálculo de disponibilidad: superposiciones y
+--     disponibilidad siguen saliendo de `solicitudes`; esto es el registro de
+--     los eventos, para que la pantalla del chofer y la del admin los vean.
+--   * Decisión pendiente: un franco de varios días, ¿se carga un evento por
+--     día o se acepta un rango de fechas?
+--   * Decisión pendiente: ¿la falta la reporta el chofer desde la app o la
+--     carga la administración?
+
+
+-- ===========================================================================
+-- F) HISTORIAL DE OPERACIONES (BITÁCORA)
+-- ===========================================================================
+--
+-- SITUACIÓN REAL
+--   Hoy cada fila tiene `creado_en` y `actualizado_en`, así que se sabe cuándo
+--   se tocó por última vez, pero no qué cambió ni quién lo cambió. Si "historial
+--   de operaciones" es la lista de viajes con sus pagos, ya está resuelto; si
+--   es una bitácora de auditoría, falta.
+--
+-- DDL PROPUESTO (no aplicar sin acuerdo)
+--   CREATE TABLE IF NOT EXISTS operaciones (
+--       id            integer   GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+--       usuario_id    text      REFERENCES usuarios(id) ON DELETE SET NULL,
+--       entidad       text      NOT NULL,
+--       entidad_id    text      NOT NULL,
+--       accion        text      NOT NULL,
+--       datos_antes   jsonb,
+--       datos_despues jsonb,
+--       creado_en     timestamptz NOT NULL DEFAULT now()
+--   );
+--   CREATE INDEX IF NOT EXISTS ix_operaciones_entidad    ON operaciones (entidad, entidad_id);
+--   CREATE INDEX IF NOT EXISTS ix_operaciones_creado_en  ON operaciones (creado_en);
+--
+-- NOTAS
+--   * `usuario_id` es QUIÉN lo hizo (admin o chofer). El "quién" de un cobro
+--     en efectivo ya está en `pagos.recibido_por`; esto es más general.
+--   * `datos_antes` / `datos_despues` guardan el antes y el después en jsonb:
+--     alcanza para auditar cambios de precio, estado, asignaciones y cobros.
+--   * Crece sin límite: si molesta, se poda por fecha (retención).
+--   * Decisión pendiente: ¿la bitácora la escribe la API (un punto centralizado)
+--     o cada endpoint por su cuenta?
