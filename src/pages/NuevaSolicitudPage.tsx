@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert,
   Box,
   Button,
   InputAdornment,
@@ -14,13 +13,13 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
-  Snackbar,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
 import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { StatusChip } from '../components/StatusChip'
+import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -62,7 +61,7 @@ export function NuevaSolicitudPage() {
 
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
 
   useEffect(() => {
     if (clientMode === 'existente' && !selectedClientId && clients.length > 0) {
@@ -81,7 +80,7 @@ export function NuevaSolicitudPage() {
 
   const label = (txt: string, required: boolean) => (
     <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.7 }}>
-      {txt} {required && <Box component="span" sx={{ color: brand.orange }}>*</Box>}
+      {txt} {required && <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>}
     </Typography>
   )
 
@@ -133,12 +132,12 @@ export function NuevaSolicitudPage() {
       })
 
       setSaved(true)
-      setToast(`Solicitud guardada · ${created.id}`)
+      setToast({ message: `Solicitud guardada · ${created.id}`, tone: 'success' })
       setTimeout(() => {
         window.location.href = R.planificacion(created.id)
       }, 1400)
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'No pudimos guardar la solicitud.')
+      setToast({ message: err instanceof Error ? err.message : 'No pudimos guardar la solicitud.', tone: 'error' })
     } finally {
       setSaving(false)
     }
@@ -199,7 +198,7 @@ export function NuevaSolicitudPage() {
                         </MenuItem>
                       ))}
                     </Select>
-                    <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+                    <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
                       Usamos estos datos para coordinar el servicio con el cliente.
                     </Typography>
                   </Stack>
@@ -227,7 +226,7 @@ export function NuevaSolicitudPage() {
                 <StepHeading n="02" title="Servicio" subtitle="Fecha solicitada, horario aproximado y recorrido." />
                 <Stack spacing={2.5}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#8A939E', letterSpacing: '0.06em' }}>
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#64707C', letterSpacing: '0.06em' }}>
                       Fecha y horario
                     </Typography>
                     <TextField label="Fecha solicitada" type="date" value={date} onChange={(e) => setDate(e.target.value)} size="small" fullWidth sx={{ maxWidth: 260 }} />
@@ -268,7 +267,7 @@ export function NuevaSolicitudPage() {
                 <StepHeading n="03" title="Carga" subtitle="Contanos qué hay que trasladar para elegir el vehículo adecuado." />
                 <Stack spacing={2.5}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#8A939E', letterSpacing: '0.06em' }}>
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, textTransform: 'uppercase', color: '#64707C', letterSpacing: '0.06em' }}>
                       Detalles de la carga
                     </Typography>
                     <TextField
@@ -309,7 +308,7 @@ export function NuevaSolicitudPage() {
           </Box>
 
           <Stack direction={{ xs: 'column-reverse', md: 'row' }} spacing={1.5} sx={{ mt: 2.5, justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>
+            <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
               {step === 2 ? 'Revisá los datos antes de guardar.' : 'Los campos con * son obligatorios.'}
             </Typography>
             <Stack direction="row" spacing={1.5}>
@@ -333,7 +332,7 @@ export function NuevaSolicitudPage() {
                   startIcon={<Check />}
                   disabled={!cargoReady || saving}
                   onClick={save}
-                  sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+                  sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
                 >
                   {saving ? 'Guardando...' : 'Guardar solicitud'}
                 </Button>
@@ -343,9 +342,7 @@ export function NuevaSolicitudPage() {
         </Box>
       </AppShell>
 
-      <Snackbar open={!!toast} autoHideDuration={2500} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert variant="filled" sx={{ bgcolor: brand.navy }} onClose={() => setToast(null)}>{toast}</Alert>
-      </Snackbar>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   )
 }
@@ -358,7 +355,7 @@ function StepHeading({ n, title, subtitle }: { n: string; title: string; subtitl
       </Box>
       <Box>
         <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 16 }}>{title}</Typography>
-        <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>{subtitle}</Typography>
+        <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>{subtitle}</Typography>
       </Box>
     </Stack>
   )
@@ -387,7 +384,7 @@ function StepLocation({
 }) {
   const label = (txt: string, required: boolean) => (
     <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.7 }}>
-      {txt} {required && <Box component="span" sx={{ color: '#F07855' }}>*</Box>}
+      {txt} {required && <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>}
     </Typography>
   )
   return (
@@ -404,7 +401,7 @@ function StepLocation({
           <Box sx={{ width: { xs: '100%', md: 260 } }}>
             <Box sx={{ mb: 0.7 }}>
               <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
-                ¿Hay ascensor? <Box component="span" sx={{ color: '#F07855' }}>*</Box>
+                ¿Hay ascensor? <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>
               </Typography>
             </Box>
             <ToggleButtonGroup value={elevator} exclusive onChange={(_, v) => v && onElevator(v)} size="small" fullWidth>

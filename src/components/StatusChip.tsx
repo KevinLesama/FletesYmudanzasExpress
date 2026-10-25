@@ -2,7 +2,7 @@ import { Box } from '@mui/material'
 import { STATUS_STYLES } from '../theme'
 
 export function StatusChip({ label, dot = true, active }: { label: string; dot?: boolean; active?: boolean }) {
-  const s = STATUS_STYLES[label] ?? { bg: '#F1F2F4', text: '#6F7780', dot: '#8A929B' }
+  const s = STATUS_STYLES[label] ?? { bg: '#F1F2F4', text: '#5F6873', dot: '#8A929B' }
   return (
     <Box
       component="span"
@@ -13,7 +13,7 @@ export function StatusChip({ label, dot = true, active }: { label: string; dot?:
         borderRadius: 999,
         px: 1.25,
         py: 0.5,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 700,
         lineHeight: 1.2,
         whiteSpace: 'nowrap',

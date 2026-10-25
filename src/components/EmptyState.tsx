@@ -20,7 +20,7 @@ export function EmptyState({ title, subtext }: { title: string; subtext: string 
           height: 52,
           borderRadius: '50%',
           bgcolor: '#F0F2F5',
-          color: '#8A939E',
+          color: '#64707C',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -39,7 +39,7 @@ export function LoadingState({ label = 'Cargando...' }: { label?: string }) {
   return (
     <Box sx={{ textAlign: 'center', py: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
       <CircularProgress size={26} sx={{ color: '#132B4A' }} />
-      <Typography sx={{ fontSize: 13.5, color: '#8A939E' }}>{label}</Typography>
+      <Typography sx={{ fontSize: 13.5, color: '#64707C' }}>{label}</Typography>
     </Box>
   )
 }

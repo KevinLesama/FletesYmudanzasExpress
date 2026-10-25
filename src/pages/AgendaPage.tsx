@@ -120,10 +120,10 @@ export function AgendaPage() {
             variant="contained"
             size="large"
             startIcon={<Add />}
-            sx={{ bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
             href={R.nuevaSolicitud}
           >
-            + Nueva solicitud
+            Nueva solicitud
           </Button>
         ) : undefined
       }
@@ -166,10 +166,10 @@ export function AgendaPage() {
           fullWidth
           variant="contained"
           startIcon={<Add />}
-          sx={{ mb: 2.5, py: 1.2, bgcolor: brand.orange, '&:hover': { bgcolor: brand.orangeDark } }}
+          sx={{ mb: 2.5, py: 1.2, bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
           href={R.nuevaSolicitud}
         >
-          + Nueva solicitud
+          Nueva solicitud
         </Button>
       )}
 
@@ -205,7 +205,7 @@ export function AgendaPage() {
                   Planificación del día
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
-                <Typography sx={{ fontSize: 12, color: '#8A939E' }}>{trips.length} viajes · por hora</Typography>
+                <Typography sx={{ fontSize: 12, color: '#64707C' }}>{trips.length} viajes</Typography>
               </Stack>
               <AgendaGrid trips={trips} onOpenTrip={(t) => setSelectedId(t.id)} />
             </>

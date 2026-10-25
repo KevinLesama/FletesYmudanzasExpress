@@ -9,7 +9,8 @@ export function fmtTime(h: string): string {
   return h
 }
 
-export function fmtDate(date: string, short = false): string {
+export function fmtDate(date: string | undefined | null, short = false): string {
+  if (!date) return '—'
   const [y, m, d] = date.split('-')
   const parts = short ? `${d}/${m}` : `${d}/${m}/${y}`
   return parts

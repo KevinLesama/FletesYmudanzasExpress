@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { Brand } from './Brand'
+import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
 
 export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos'
@@ -90,10 +91,10 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
         {item.badge ? (
           <Box
             sx={{
-              bgcolor: brand.orange,
+              bgcolor: brand.orangeStrong,
               color: '#fff',
               borderRadius: 999,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: 700,
               px: 0.9,
               py: 0.1,
@@ -128,7 +129,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
       <Box sx={{ px: 1, mb: 3 }}>
         <Brand />
       </Box>
-      <Typography sx={{ px: 2, mb: 1, fontSize: 11, fontWeight: 700, color: '#9AA3AE', letterSpacing: '0.06em' }}>
+      <Typography sx={{ px: 2, mb: 1, fontSize: 11, fontWeight: 700, color: brand.muted, letterSpacing: '0.06em' }}>
         MENÚ PRINCIPAL
       </Typography>
       <Stack spacing={0.25}>
@@ -136,22 +137,24 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           <NavLink key={item.key} item={item} active={item.key === active} />
         ))}
       </Stack>
-      <Box sx={{ flexGrow: 1 }} />
+      <Box sx={{ flexGrow: 1, minHeight: 180, my: 2, display: 'flex' }}>
+        <MapPreview />
+      </Box>
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#8A939E' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64707C' }}>
           <LocationOn sx={{ fontSize: 16 }} />
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Buenos Aires, Argentina</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: 1, bgcolor: '#EDEAE3' }} />
+      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
-        <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
+        <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>María Rodríguez</Typography>
-          <Typography sx={{ fontSize: 12, color: '#8A939E' }}>Administradora</Typography>
+          <Typography sx={{ fontSize: 12, color: '#64707C' }}>Administradora</Typography>
         </Box>
-        <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none', color: '#8A939E' }}>
-          <IconButton size="small" sx={{ color: '#8A939E' }}>
+        <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none', color: '#64707C' }}>
+          <IconButton size="small" sx={{ color: '#64707C' }}>
             <Logout fontSize="small" />
           </IconButton>
         </a>
@@ -198,13 +201,13 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               {breadcrumb.map((part, i) => (
                 <Stack key={part} direction="row" alignItems="center" spacing={0.6}>
                   {i > 0 && (
-                    <ChevronRight sx={{ fontSize: 15, color: '#B8C0C9' }} />
+                    <ChevronRight sx={{ fontSize: 15, color: '#8A929B' }} />
                   )}
                   <Typography
                     sx={{
                       fontSize: 12.5,
                       fontWeight: i === breadcrumb.length - 1 ? 700 : 500,
-                      color: i === breadcrumb.length - 1 ? brand.navy : '#8A939E',
+                      color: i === breadcrumb.length - 1 ? brand.navy : '#64707C',
                     }}
                   >
                     {part}
@@ -213,15 +216,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               ))}
             </Stack>
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Stack direction="row" alignItems="center" spacing={0.7}>
-                <Box sx={{ width: 7, height: 7, borderRadius: 50, bgcolor: '#4E9A6C' }} />
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Cuenta activa</Typography>
-              </Stack>
-              <Box sx={{ width: 1, height: 20, bgcolor: '#EDEAE3' }} />
               <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar sx={{ width: 32, height: 32, bgcolor: '#526B8A', fontSize: 12, fontWeight: 800 }}>MR</Avatar>
+              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 32, height: 32, bgcolor: '#526B8A', fontSize: 12, fontWeight: 800 }}>MR</Avatar>
             </Stack>
           </Box>
         )}
@@ -229,12 +227,12 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         {isMobile && (
           <AppBar position="fixed" elevation={0} sx={{ bgcolor: brand.navy, top: 0, left: 0, right: 0 }}>
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
-              <Brand />
+              <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
               <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar sx={{ width: 30, height: 30, bgcolor: '#4E6B8E', fontSize: 11, fontWeight: 800 }}>MR</Avatar>
+              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 30, height: 30, bgcolor: '#4E6B8E', fontSize: 11, fontWeight: 800 }}>MR</Avatar>
             </Toolbar>
           </AppBar>
         )}
@@ -245,7 +243,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <Box sx={{ flexGrow: 1 }}>
                 {kicker && (
                   <Typography
-                    sx={{ fontSize: 11, fontWeight: 800, color: brand.orange, letterSpacing: '0.14em', mb: 0.5 }}
+                    sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
                   >
                     {kicker.toUpperCase()}
                   </Typography>

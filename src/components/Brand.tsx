@@ -3,10 +3,15 @@ import type { ReactNode } from 'react'
 import { LocalShipping } from '@mui/icons-material'
 import { brand } from '../theme'
 
-type Variant = 'dark' | 'light'
+type Surface = 'light' | 'dark'
 
-export function Brand({ subtitle = 'Administración', variant = 'dark' }: { subtitle?: string; variant?: Variant }) {
-  const dark = variant === 'dark'
+/**
+ * The brand block carries a navy tile on every surface, so the wordmark needs
+ * to know which ink reads on the surface it sits on: navy on a light one,
+ * white on a dark one.
+ */
+export function Brand({ subtitle = 'Administración', surface = 'light' }: { subtitle?: string; surface?: Surface }) {
+  const onDark = surface === 'dark'
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
       <Box
@@ -18,9 +23,9 @@ export function Brand({ subtitle = 'Administración', variant = 'dark' }: { subt
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          bgcolor: dark ? brand.navy : brand.cream,
-          color: dark ? '#FFFFFF' : brand.navy,
-          boxShadow: dark ? '0 4px 10px rgba(19,43,74,0.25)' : 'none',
+          bgcolor: brand.navy,
+          color: '#FFFFFF',
+          boxShadow: onDark ? 'none' : '0 4px 10px rgba(19,43,74,0.25)',
         }}
       >
         <LocalShipping fontSize="small" />
@@ -32,7 +37,7 @@ export function Brand({ subtitle = 'Administración', variant = 'dark' }: { subt
             fontFamily: "'Manrope', sans-serif",
             fontWeight: 800,
             fontSize: 16,
-            color: dark ? '#FFFFFF' : brand.navy,
+            color: onDark ? '#FFFFFF' : brand.navy,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -45,7 +50,7 @@ export function Brand({ subtitle = 'Administración', variant = 'dark' }: { subt
           sx={{
             fontSize: 12,
             fontWeight: 600,
-            color: dark ? 'rgba(255,255,255,0.6)' : '#8A939E',
+            color: onDark ? 'rgba(255,255,255,0.72)' : '#64707C',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

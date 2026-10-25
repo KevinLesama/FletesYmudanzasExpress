@@ -20,8 +20,8 @@ export function TripCard({ trip, driver, vehicle, selected, onSelect, conflictNo
 
   const row = (label: string, value: string, icon: React.ReactNode) => (
     <Stack direction="row" spacing={1.5} alignItems="center">
-      <Box sx={{ color: '#8A939E', display: 'flex' }}>{icon}</Box>
-      <Typography sx={{ fontSize: 12, color: '#8A939E', width: 86, flexShrink: 0 }}>{label}</Typography>
+      <Box sx={{ color: '#64707C', display: 'flex' }}>{icon}</Box>
+      <Typography sx={{ fontSize: 12, color: '#64707C', width: 86, flexShrink: 0 }}>{label}</Typography>
       <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#33475F' }}>{value}</Typography>
     </Stack>
   )
@@ -85,25 +85,25 @@ export function TripCard({ trip, driver, vehicle, selected, onSelect, conflictNo
       </Stack>
 
       <Stack direction="row" spacing={1} alignItems="center">
-        <Typo color="#8A939E" size={12.5}>
+        <Typo color="#64707C" size={12.5}>
           {trip.origin.barrio}
         </Typo>
-        <ArrowForward sx={{ fontSize: 13, color: '#B8C0C9', flexShrink: 0 }} />
-        <Typo color="#8A939E" size={12.5}>
+        <ArrowForward sx={{ fontSize: 13, color: '#8A929B', flexShrink: 0 }} />
+        <Typo color="#64707C" size={12.5}>
           {trip.destination.barrio}
         </Typo>
       </Stack>
 
       {driver && (
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.2 }}>
-          <Person sx={{ fontSize: 14, color: '#8A939E' }} />
+          <Person sx={{ fontSize: 14, color: '#64707C' }} />
           <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>{driver.name}</Typography>
           {vehicle && (
             <>
               <Box sx={{ width: 3, height: 3, borderRadius: 50, bgcolor: '#C4C9CE' }} />
               <Typography
                 sx={{
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   fontWeight: 700,
                   color: brand.navy,
                   bgcolor: '#F0F2F5',

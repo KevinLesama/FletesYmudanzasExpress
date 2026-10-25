@@ -82,7 +82,7 @@ export function IngresoPage() {
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
                 Fletes Express
               </Typography>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#8A939E' }}>Gestión de viajes</Typography>
+              <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#64707C' }}>Gestión de viajes</Typography>
             </Box>
           </Stack>
 
@@ -94,7 +94,7 @@ export function IngresoPage() {
                   fontSize: 12,
                   fontWeight: 800,
                   letterSpacing: '0.16em',
-                  color: brand.orange,
+                  color: brand.orangeInk,
                 }}
               >
                 ORGANIZACIÓN PARA TODO EL EQUIPO
@@ -134,7 +134,7 @@ export function IngresoPage() {
             }}
           >
             <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#8A939E', letterSpacing: '0.1em' }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#64707C', letterSpacing: '0.1em' }}>
                 RUTA COORDINADA
               </Typography>
               <Stack direction="row" alignItems="center" spacing={0.7}>
@@ -170,7 +170,7 @@ export function IngresoPage() {
                     <MyLocation sx={{ fontSize: 17 }} />
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#8A939E' }}>PUNTO DE ORIGEN</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#64707C' }}>PUNTO DE ORIGEN</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Palermo</Typography>
                   </Box>
                 </Stack>
@@ -208,7 +208,7 @@ export function IngresoPage() {
                     <LocationOn sx={{ fontSize: 17 }} />
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#8A939E' }}>PUNTO DE DESTINO</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#64707C' }}>PUNTO DE DESTINO</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Saavedra</Typography>
                   </Box>
                 </Stack>
@@ -216,8 +216,8 @@ export function IngresoPage() {
             </Box>
 
             <Stack direction="row" alignItems="center" spacing={1}>
-              <Shield sx={{ fontSize: 15, color: '#8A939E' }} />
-              <Typography sx={{ fontSize: 12.5, color: '#8A939E' }}>Acceso exclusivo para el equipo</Typography>
+              <Shield sx={{ fontSize: 15, color: '#64707C' }} />
+              <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>Acceso exclusivo para el equipo</Typography>
             </Stack>
           </Box>
         </Box>
@@ -240,7 +240,7 @@ export function IngresoPage() {
               boxShadow: '0 2px 6px rgba(19,43,74,0.03)',
             }}
           >
-            <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orange }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orangeInk }}>
               BIENVENIDO
             </Typography>
             <Typography sx={{ mt: 0.5, fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 24 }}>
@@ -262,7 +262,7 @@ export function IngresoPage() {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <MailOutline sx={{ fontSize: 18, color: '#8A939E' }} />
+                    <MailOutline sx={{ fontSize: 18, color: '#64707C' }} />
                   </InputAdornment>
                 ),
               }}
@@ -278,7 +278,7 @@ export function IngresoPage() {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Lock sx={{ fontSize: 18, color: '#8A939E' }} />
+                    <Lock sx={{ fontSize: 18, color: '#64707C' }} />
                   </InputAdornment>
                 ),
                 endAdornment: (
@@ -287,7 +287,7 @@ export function IngresoPage() {
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       onClick={() => setShowPassword((s) => !s)}
                       edge="end"
-                      sx={{ color: '#8A939E' }}
+                      sx={{ color: '#64707C' }}
                     >
                       {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                     </IconButton>
@@ -311,7 +311,7 @@ export function IngresoPage() {
             </Typography>
 
             <Divider sx={{ my: 2.5 }}>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#8A939E', px: 1 }}>
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#64707C', px: 1 }}>
                 VISTA DE DEMOSTRACIÓN
               </Typography>
             </Divider>
@@ -337,7 +337,7 @@ export function IngresoPage() {
               </Button>
             </Stack>
 
-            <Typography sx={{ mt: 2, textAlign: 'center', fontSize: 11.5, color: '#8A939E' }}>
+            <Typography sx={{ mt: 2, textAlign: 'center', fontSize: 12.5, color: '#64707C' }}>
               Accesos de muestra; no se inicia una sesión real.
             </Typography>
           </Box>
@@ -345,7 +345,7 @@ export function IngresoPage() {
       </Box>
 
       <Box sx={{ textAlign: 'center', py: 2.5 }}>
-        <Typography sx={{ fontSize: 12, color: '#8A939E' }}>
+        <Typography sx={{ fontSize: 12, color: '#64707C' }}>
           Fletes Express <span style={{ opacity: 0.5 }}>•</span> Acceso privado
         </Typography>
       </Box>
