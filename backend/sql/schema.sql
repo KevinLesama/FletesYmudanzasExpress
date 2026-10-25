@@ -519,12 +519,20 @@ $$;
 -- 6.4 Un viaje con plata en efectivo no se finaliza sin la foto del remito.
 --     El efectivo puede registrarse después del cierre: ese caso lo cubre
 --     fn_validar_pago. Las dos puertas juntas cierran el circuito.
+--     Además sella finalizada_en: el cierre es atómico y la API no puede
+--     olvidarse de la columna que exige ck_solicitudes_finalizada_en.
 --     Se dispara en TODO update para que nadie vacíe remito_ruta después.
 CREATE OR REPLACE FUNCTION fn_validar_cierre_viaje()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    -- Sellar la marca de cierre acá evita que el llamador tenga que acordarse
+    -- de mandar estado y finalizada_en juntos en el mismo UPDATE.
+    IF NEW.estado = 'finalizada' AND NEW.finalizada_en IS NULL THEN
+        NEW.finalizada_en := now();
+    END IF;
+
     IF NEW.estado <> 'finalizada' OR NEW.remito_ruta IS NOT NULL THEN
         RETURN NEW;
     END IF;
