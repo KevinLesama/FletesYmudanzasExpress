@@ -46,6 +46,7 @@ Primitivas en `src/design/tokens.ts` (`color`), expuestas al tema MUI.
 | Texto atenuado | `muted` | `#64707C` | Metadatos, captions, íconos secundarios |
 | Error | `red` | `#B24A3A` | Errores, estados destructivos |
 | Advertencia | `amber` | `#B9761F` | Conflictos, pendientes |
+| Advertencia de texto | `amberInk` | `#8A5610` | Texto ámbar sobre `amberSoft` (5.6:1); `amber` solo llega a 3.4:1 |
 | Éxito | `green` | `#2F7D55` | Confirmaciones |
 
 Reglas:
@@ -127,11 +128,34 @@ inputs 12, cards 16, diálogos 20, chips 8, menús 12.
 | `StatusChip` | `src/components/StatusChip.tsx` | Estado de dominio con punto + texto; colores desde `STATUS_STYLES` |
 | `EmptyState` / `LoadingState` / `ErrorState` | `src/components/EmptyState.tsx` | Los tres estados obligatorios de toda vista con datos |
 | `Toast` | `src/components/Toast.tsx` | Feedback único; `tone` explícito (`success` / `error`) |
-| `AgendaGrid` | `src/components/AgendaGrid.tsx` | Grilla horaria; navegable por teclado |
+| `AgendaToolbar` | `src/components/AgendaToolbar.tsx` | Barra de la agenda: fecha, vistas y filtros en popover |
+| `AgendaGrid` | `src/components/AgendaGrid.tsx` | Grilla horaria multi-día; navegable por teclado |
 | `TripDetailModal` | `src/components/TripDetailModal.tsx` | Detalle del viaje en administración y chofer |
 
 Toda vista con datos remotos debe resolver **cargando → error → vacío →
 contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
+
+## Agenda (calendario)
+
+- Dos vistas: **Día** y **Semana laboral** (lunes a viernes). En móvil siempre
+  se ve Día: cinco columnas no entran en un teléfono.
+- Una sola tarjeta contiene la barra y la grilla. El rango de fechas vive en la
+  barra; el título de la página describe la cantidad ("3 viajes en la vista") y
+  no repite el rango.
+- Ventana horaria fija 08:00–16:00, `68px` por hora. Un viaje fuera de la
+  ventana se recorta al borde, no agranda la grilla.
+- Los bloques toman el fondo y el texto del estado (`green`, `amberInk`,
+  `blue`, `red` sobre su `*Soft`). **Sin franja de acento lateral**: el `border-left`
+  de 3px es el tell que el detector reporta como `side-tab`.
+- Texto ámbar sobre `amberSoft` usa `amberInk` (`#8A5610`, 5.6:1). `amber`
+  suelto llega a 3.4:1 y no pasa AA en texto chico.
+- Las líneas de hora son `div`s de `1px`, no `repeating-linear-gradient`: el
+  gradiente repetido se lee como decoración generada (`repeating-stripes-gradient`).
+- Viajes solapados se reparten en carriles; el borde exterior de la columna deja
+  `6px` de aire para que el bloque no toque el borde de la tarjeta.
+- Chofer, vehículo y estado viven en un popover detrás del botón de filtros, con
+  un punto de aviso cuando hay filtros activos. En la barra solo se muestra el
+  interruptor de vista y la leyenda de estados.
 
 ## Iconografía
 
