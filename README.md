@@ -57,11 +57,12 @@ Editar `.env` (raíz, para Vite):
 
 ### 3) Inicializar la base de datos (Supabase)
 Abrir el **SQL Editor** de Supabase y ejecutar en orden:
-1. `backend/sql/schema.sql` (idempotente: `CREATE TABLE IF NOT EXISTS`, sin datos)
-2. `backend/sql/auth.sql` (vincula `drivers.auth_user_id` con `auth.users` y crea el rol por defecto)
-3. `backend/sql/seed.sql` (datos demo, idempotente con `ON CONFLICT DO NOTHING`)
+1. `backend/sql/install.sql` (esquema + auth en un solo archivo, idempotente)
+2. `backend/sql/seed.sql` (datos demo, idempotente con `ON CONFLICT DO NOTHING`)
 
-`auth.sql` va **después** de `schema.sql` y **antes** de `seed.sql`. Usa el schema `auth` de Supabase, que no existe en un Postgres local sin Supabase.
+`install.sql` es **generado**: combina `schema.sql` + `auth.sql`. Si tocás alguno de los dos, regeneralo con `python backend/sql/build_install.py`. Requiere la extensión `btree_gist` (viene con Supabase y con `postgresql-contrib`).
+
+> **Migrar una base con el esquema viejo**: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` y correr `install.sql` otra vez. Es destructivo: borra los datos existentes (eran de simulación).
 
 ### 4) Levantar los servicios
 **Terminal 1 — Backend:**
@@ -84,25 +85,26 @@ Endpoints útiles:
 
 ## Autenticación y roles
 
-El login usa **Supabase Auth** (email + contraseña). El backend valida el JWT y autoriza por rol.
+El login usa **Supabase Auth** (email + contraseña). El backend valida el JWT y resuelve el rol contra la base.
 
-**Roles** (`app_metadata.role` del usuario en Supabase; **nunca** `user_metadata`, que el usuario puede editar):
-- `admin` → acceso total.
-- `coordinator` → operación diaria (agenda, solicitudes, flota, pagos).
-- `driver` → solo `chofer` (sus viajes).
-- Si el claim falta o es desconocido, se asume `driver` (mínimo privilegio).
+**El rol NO viaja en el token**: sale de `usuarios.rol`, así un cambio de permisos aplica al instante (no hay que esperar a que venza el JWT). La resolución por email usa la vista `v_personal`, que solo trae `administrador` y `chofer`: los clientes son contactos de la empresa, no cuentas del sistema, aunque tengan email cargado.
 
-**Crear el primer admin** (Supabase Dashboard):
-1. Authentication → Users → **Add user** (email + password).
-2. Editá el usuario y en `raw_app_meta_data` poné `{"role":"admin"}`.
-3. Para un chofer: creá el usuario igual, dejá `raw_app_meta_data` en `{"role":"driver"}` (lo setea el trigger de `auth.sql`) y vinculalo:
+- `administrador` → operación diaria (agenda, solicitudes, flota, pagos).
+- `chofer` → solo `chofer` (sus viajes).
+
+**Primer ingreso**: si `usuarios.auth_user_id` está vacío, el backend vincula la cuenta de Auth por email (el mismo email en el panel y en Authentication) y completa el vínculo solo. Si el rol no es de personal o el usuario está inactivo, responde 403 y el frontend cierra la sesión.
+
+**Alta de cuentas** (Supabase Dashboard):
+1. Cargá a la persona en `usuarios` con su email y `rol` (`administrador` o `chofer`).
+2. Authentication → Users → **Add user** con el **mismo email**.
+3. Al primer ingreso el vínculo se completa solo. También se puede forzar:
    ```sql
-   UPDATE drivers SET auth_user_id = '<uuid-del-usuario>' WHERE id = 'JA';
+   UPDATE usuarios SET auth_user_id = '<uuid-del-usuario>' WHERE email = 'persona@empresa.com';
    ```
 
-**Mapa de rutas del frontend** (`src/guard.ts`): `ingreso` es pública; `agenda`, `solicitudes`, `nueva-solicitud`, `planificacion`, `flota`, `pagos` y `chofer-config` requieren `admin`/`coordinator`; `chofer` requiere `driver`. Si el rol no corresponde, redirige al home del rol.
+**Mapa de rutas del frontend** (`src/guard.ts`): `ingreso` es pública; `agenda`, `solicitudes`, `nueva-solicitud`, `planificacion`, `flota`, `pagos` y `chofer-config` requieren `administrador`; `chofer` requiere `chofer`. El guard consulta `GET /api/me` (no el JWT) y, si el rol no corresponde, redirige al home del rol.
 
-**Deuda conocida (fase 1)**: se protege el acceso pero **no se scopean filas**. Un `driver` autenticado puede listar todos los `requests` vía API. Cerrarlo requiere filtrar por el `driver` vinculado a `auth_user_id` en los endpoints de lectura.
+**Deuda conocida (fase 1)**: se protege el acceso pero **no se scopean filas**. Un `chofer` autenticado puede listar todas las `solicitudes` vía API. Cerrarlo requiere filtrar por el usuario vinculado a `auth_user_id` en los endpoints de lectura.
 
 ## Docker (desarrollo/producción local)
 1. Copiar `backend/.env.example` → `backend/.env` y completar `DATABASE_URL` + `CORS_ORIGINS`.
@@ -143,7 +145,7 @@ fletes_ppp/
 ├── src/                # Frontend React/TS
 ├── backend/            # API FastAPI
 │   ├── app/            # Código de la API
-│   ├── sql/            # schema.sql, auth.sql y seed.sql
+│   ├── sql/            # install.sql (generado), schema.sql, auth.sql y seed.sql
 │   └── tests/          # Tests (pytest)
 ├── Dockerfile          # Frontend (multi-stage + nginx)
 ├── docker-compose.yaml
