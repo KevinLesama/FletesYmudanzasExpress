@@ -130,7 +130,8 @@ inputs 12, cards 16, diálogos 20, chips 8, menús 12.
 | `Toast` | `src/components/Toast.tsx` | Feedback único; `tone` explícito (`success` / `error`) |
 | `AgendaToolbar` | `src/components/AgendaToolbar.tsx` | Barra de la agenda: fecha, vistas y filtros en popover |
 | `AgendaGrid` | `src/components/AgendaGrid.tsx` | Grilla horaria multi-día; navegable por teclado |
-| `TripDetailModal` | `src/components/TripDetailModal.tsx` | Detalle del viaje en administración y chofer |
+| `TripDetailModal` | `src/components/TripDetailModal.tsx` | Shell del detalle del viaje: barra de acciones, cuerpo y pie |
+| `TripTracking` | `src/components/TripTracking.tsx` | Héroe, etapas y novedades del seguimiento del viaje |
 
 Toda vista con datos remotos debe resolver **cargando → error → vacío →
 contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
@@ -156,6 +157,25 @@ contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
 - Chofer, vehículo y estado viven en un popover detrás del botón de filtros, con
   un punto de aviso cuando hay filtros activos. En la barra solo se muestra el
   interruptor de vista y la leyenda de estados.
+
+## Detalle del viaje (seguimiento)
+
+- El modal se lee como seguimiento, no como ficha: estado y horario arriba,
+  novedades abajo. Los datos del formulario no se repiten en formato de lista.
+- Cinco etapas fijas: Solicitud, Seña, Confirmado, En viaje, Entregado.
+  **El estado manda**: la etapa sale de `status`; `arrivedAt` y `finishedAt` solo
+  refinan un viaje ya confirmado. Un timestamp suelto no puede adelantar la etapa.
+- Las novedades con horario real (incidente, llegada, entrega) usan ese horario;
+  el resto se estima desde el inicio del servicio y es maqueta visual. La misma
+  regla aplica a "Actualizado", que nunca anuncia una hora que la etapa no reconoce.
+- Puntos de la línea de tiempo: 12px, rellenos si ocurrieron y huecos si no; el
+  incidente va en `red`. El conector es una línea de `2px` en `border`, no un
+  borde lateral.
+- Lateral: chofer, carga con destino y nota del cliente. Para el chofer, el
+  cálculo del viaje va **primero**: es lo que viene a ver.
+- En móvil el dialog es `fullScreen`; la barra superior esconde el cliente (el
+  héroe ya lo nombra) y el pie esconde "Actualizado" para que la acción primaria
+  no se corte en dos líneas.
 
 ## Iconografía
 
