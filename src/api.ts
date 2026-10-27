@@ -7,6 +7,7 @@
 
 import { R } from './routes'
 import { supabase } from './supabase'
+import type { Role, SessionUser } from './supabase'
 import type {
   Availability,
   Client,
@@ -165,6 +166,13 @@ function mapSummary(s: Json): PaymentSummary {
 // --------------------------------------------------------------------------- //
 export const api = {
   base: API_BASE,
+
+  // Identidad. El rol lo resuelve el backend contra `usuarios`; el JWT no lo
+  // lleva, asi un cambio de permisos aplica sin esperar a que venza el token.
+  me: async (): Promise<SessionUser> => {
+    const raw = await http<{ email: string; nombre: string; rol: Role }>('/me')
+    return { email: raw.email, nombre: raw.nombre, role: raw.rol }
+  },
 
   // Choferes
   listDrivers: async (): Promise<Driver[]> => (await http<Json[]>('/drivers')).map(mapDriver),

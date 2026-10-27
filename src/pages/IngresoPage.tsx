@@ -24,6 +24,7 @@ import {
   Route,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { api } from '../api'
 import { Brand } from '../components/Brand'
 import { brand } from '../theme'
 import { supabase } from '../supabase'
@@ -52,7 +53,16 @@ export function IngresoPage() {
       setSubmitting(false)
       return
     }
-    go(R.agenda)
+    // La sesión de Auth no alcanza: el rol sale de `usuarios` vía /api/me.
+    try {
+      const user = await api.me()
+      go(user.role === 'chofer' ? R.chofer : R.agenda)
+    } catch {
+      // Cuenta de Auth sin perfil habilitado como personal de la empresa.
+      await supabase.auth.signOut()
+      setError('Esta cuenta no está habilitada. Hablá con administración.')
+      setSubmitting(false)
+    }
   }
 
   return (

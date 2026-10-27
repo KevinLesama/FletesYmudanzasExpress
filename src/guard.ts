@@ -1,14 +1,18 @@
 import type { ReactElement } from 'react'
+import { api } from './api'
 import { R } from './routes'
 import { renderPage } from './render'
 import { setCurrentUser, supabase, type Role } from './supabase'
 
 /** Roles con acceso a la operacion diaria (agenda, viajes, flota, pagos). */
-export const STAFF_ROLES: Role[] = ['admin', 'coordinator']
+export const STAFF_ROLES: Role[] = ['administrador']
 
 /**
  * Guard de rutas para la MPA: no hay router, cada entry decide antes de montar.
  * Devuelve false (y redirige) si no hay sesion o si el rol no corresponde.
+ *
+ * El rol NO sale del JWT: el backend lo resuelve desde `usuarios` y lo expone
+ * en `/api/me`. Asi un cambio de permisos aplica al instante.
  */
 export async function requireAuth(roles?: Role[]): Promise<boolean> {
   const {
@@ -20,12 +24,22 @@ export async function requireAuth(roles?: Role[]): Promise<boolean> {
     return false
   }
 
-  const role = (session.user.app_metadata?.role ?? 'driver') as Role
-  setCurrentUser({ email: session.user.email ?? '', role })
+  let user
+  try {
+    user = await api.me()
+  } catch {
+    // 401 ya cierra la sesion desde http(). Un 403 significa que la cuenta
+    // existe en Auth pero no esta habilitada como personal.
+    await supabase.auth.signOut()
+    window.location.href = R.ingreso
+    return false
+  }
 
-  if (roles && !roles.includes(role)) {
+  setCurrentUser(user)
+
+  if (roles && !roles.includes(user.role)) {
     // Redirigir al home que si le corresponde evita el loop de 403.
-    window.location.href = role === 'driver' ? R.chofer : R.agenda
+    window.location.href = user.role === 'chofer' ? R.chofer : R.agenda
     return false
   }
   return true

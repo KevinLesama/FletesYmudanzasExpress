@@ -14,10 +14,11 @@ export const supabase = createClient(url, anonKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 })
 
-export type Role = 'admin' | 'coordinator' | 'driver'
+export type Role = 'administrador' | 'chofer'
 
 export interface SessionUser {
   email: string
+  nombre: string
   role: Role
 }
 
@@ -34,9 +35,8 @@ export function currentUser(): SessionUser | null {
 }
 
 const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Administración',
-  coordinator: 'Coordinación',
-  driver: 'Chofer',
+  administrador: 'Administración',
+  chofer: 'Chofer',
 }
 
 export function roleLabel(role?: Role | null): string {

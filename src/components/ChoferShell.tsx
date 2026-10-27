@@ -127,7 +127,7 @@ export function ChoferShell({
         </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography noWrap sx={{ fontSize: 13, fontWeight: 700, color: brand.navy }}>
-            {currentUser()?.email ?? 'Sesión'}
+            {currentUser()?.nombre ?? 'Sesión'}
           </Typography>
           <Typography sx={{ fontSize: 12, color: brand.muted }}>{roleLabel(currentUser()?.role)}</Typography>
         </Box>

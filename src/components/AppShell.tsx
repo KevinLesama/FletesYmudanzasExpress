@@ -154,7 +154,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>
-            {currentUser()?.email ?? 'Sesión'}
+            {currentUser()?.nombre ?? 'Sesión'}
           </Typography>
           <Typography sx={{ fontSize: 12, color: brand.muted }}>
             {roleLabel(currentUser()?.role)}
