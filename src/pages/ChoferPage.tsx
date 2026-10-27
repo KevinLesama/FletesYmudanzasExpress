@@ -130,7 +130,7 @@ export function ChoferPage() {
             />
           </Box>
         ) : (
-          <AgendaGrid trips={dayTrips} onOpenTrip={(t) => setSelectedId(t.id)} />
+          <AgendaGrid days={[date]} trips={dayTrips} today={DEMO_DATE} onOpenTrip={(t) => setSelectedId(t.id)} />
         )}
       </ChoferShell>
 

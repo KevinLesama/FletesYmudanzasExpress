@@ -45,6 +45,7 @@ export const color = {
   green: '#2F7D55',
   greenSoft: '#EAF6EF',
   amber: '#B9761F',
+  amberInk: '#8A5610',
   amberSoft: '#FFF4E5',
   red: '#B24A3A',
   redSoft: '#FFF3EF',
