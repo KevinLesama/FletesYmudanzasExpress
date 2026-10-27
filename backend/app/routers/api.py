@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user, require_role
+from app.core.security import CurrentUser, get_current_user, require_role
 from app.db.session import get_db
 from app.models import Client, DriverFactor, Driver, Payment, Request, Vehicle
 from app.models import Incident, RequestCargoItem
@@ -24,6 +24,7 @@ from app.schemas import (
     FinishedIn,
     IncidentIn,
     IncidentOut,
+    MeOut,
     PaymentIn,
     PaymentOut,
     PaymentSummaryRow,
@@ -48,12 +49,32 @@ def health() -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------- #
+# Identidad
+# --------------------------------------------------------------------------- #
+me_router = APIRouter(prefix="/me", tags=["auth"])
+
+
+@me_router.get("", response_model=MeOut)
+def me(user: CurrentUser = Depends(get_current_user)) -> MeOut:
+    """Usuario autenticado con su rol resuelto en la base.
+
+    El frontend lo usa para los guards: el JWT ya no lleva el rol.
+    """
+    return MeOut(
+        id=user["id"],
+        email=user["email"],
+        nombre=user["nombre"],
+        rol=user["rol"],
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Clientes
 # --------------------------------------------------------------------------- #
 clients_router = APIRouter(
     prefix="/clients",
     tags=["clients"],
-    dependencies=[Depends(get_current_user), Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(get_current_user), Depends(require_role("administrador"))],
 )
 
 
@@ -109,7 +130,7 @@ def list_drivers(db: Session = Depends(get_db)) -> list[DriverOut]:
     "",
     response_model=DriverOut,
     status_code=201,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def create_driver(payload: DriverIn, db: Session = Depends(get_db)) -> DriverOut:
     initials = (payload.initials or _initials_from_name(payload.name)).upper()[:4]
@@ -143,7 +164,7 @@ def get_driver(driver_id: str, db: Session = Depends(get_db)) -> DriverOut:
 @drivers_router.patch(
     "/{driver_id}",
     response_model=DriverOut,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def update_driver(driver_id: str, payload: DriverIn, db: Session = Depends(get_db)) -> DriverOut:
     driver = db.get(Driver, driver_id)
@@ -162,7 +183,7 @@ def update_driver(driver_id: str, payload: DriverIn, db: Session = Depends(get_d
 @drivers_router.put(
     "/{driver_id}/rates",
     response_model=DriverOut,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def update_driver_rates(
     driver_id: str, payload: DriverFactorsIn, db: Session = Depends(get_db)
@@ -201,7 +222,7 @@ def list_vehicles(db: Session = Depends(get_db)) -> list[VehicleOut]:
     "",
     response_model=VehicleOut,
     status_code=201,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def create_vehicle(payload: VehicleIn, db: Session = Depends(get_db)) -> VehicleOut:
     if db.get(Vehicle, payload.id) is not None:
@@ -230,7 +251,7 @@ def get_vehicle(vehicle_id: str, db: Session = Depends(get_db)) -> VehicleOut:
 @vehicles_router.patch(
     "/{vehicle_id}",
     response_model=VehicleOut,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def update_vehicle(vehicle_id: str, payload: VehicleIn, db: Session = Depends(get_db)) -> VehicleOut:
     vehicle = db.get(Vehicle, vehicle_id)
@@ -289,7 +310,7 @@ def list_requests(
     "",
     response_model=RequestOut,
     status_code=201,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def create_request(payload: RequestIn, db: Session = Depends(get_db)) -> RequestOut:
     if not payload.client_id and not (payload.client_name and payload.phone):
@@ -356,7 +377,7 @@ def get_request(request_id: str, db: Session = Depends(get_db)) -> RequestOut:
 @requests_router.patch(
     "/{request_id}",
     response_model=RequestOut,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def update_request(
     request_id: str, payload: RequestUpdate, db: Session = Depends(get_db)
@@ -513,7 +534,7 @@ def list_payments(request_id: str, db: Session = Depends(get_db)) -> list[Paymen
     "/{request_id}/payments",
     response_model=RequestOut,
     status_code=201,
-    dependencies=[Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(require_role("administrador"))],
 )
 def add_payment(
     request_id: str, payload: PaymentIn, db: Session = Depends(get_db)
@@ -540,7 +561,7 @@ def add_payment(
 payments_router = APIRouter(
     prefix="/payments",
     tags=["payments"],
-    dependencies=[Depends(get_current_user), Depends(require_role("admin", "coordinator"))],
+    dependencies=[Depends(get_current_user), Depends(require_role("administrador"))],
 )
 
 

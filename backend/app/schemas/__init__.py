@@ -278,3 +278,12 @@ class AvailabilityOut(BaseModel):
     driver_available: bool
     vehicle_available: bool
     conflicts: list[str] = Field(default_factory=list)
+
+
+class MeOut(BaseModel):
+    """Identidad del usuario autenticado, resuelta contra `usuarios`."""
+
+    id: str
+    email: str
+    nombre: str
+    rol: Literal["administrador", "chofer"]

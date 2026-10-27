@@ -19,6 +19,7 @@ from app.routers.api import (
     clients_router,
     drivers_router,
     health_router,
+    me_router,
     payments_router,
     requests_router,
     vehicles_router,
@@ -61,6 +62,7 @@ for router in (
     requests_router,
     payments_router,
     availability_router,
+    me_router,
 ):
     app.include_router(router, prefix=api_prefix)
 

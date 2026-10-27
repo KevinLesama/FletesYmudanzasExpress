@@ -53,7 +53,9 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_current_user] = lambda: {
         "id": "test-admin",
         "email": "admin@test.local",
-        "role": "admin",
+        "rol": "administrador",
+        "usuario_id": 1,
+        "nombre": "Admin de prueba",
     }
     with TestClient(app) as test_client:
         yield test_client
