@@ -16,6 +16,7 @@ import type {
   PaymentSummary,
   ReceivedBy,
   RemitoPhoto,
+  RequestStatus,
   ShiftRequest,
   TripIncident,
   Vehicle,
@@ -71,65 +72,107 @@ type Json = Record<string, any>
 
 const hhmm = (t: string | null | undefined): string => (t ? t.slice(0, 5) : '')
 
-function mapDriver(d: Json): Driver {
+function mapClient(c: Json): Client {
   return {
-    id: d.id,
-    initials: d.initials,
-    name: d.name,
-    phone: d.phone,
-    status: d.status,
-    baseRate: Number(d.base_rate),
-    ratePerKm: Number(d.rate_per_km),
-    ratePerHour: Number(d.rate_per_hour),
+    id: Number(c.id),
+    name: String(c.nombre ?? c.name ?? ''),
+    phone: String(c.telefono ?? c.phone ?? ''),
+  }
+}
+
+function mapDriver(d: Json): Driver {
+  const name = d.nombre ?? d.name ?? ''
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p: string) => p[0]?.toUpperCase())
+    .join('') || 'CH'
+  return {
+    id: String(d.id),
+    initials,
+    name,
+    phone: d.telefono ?? d.phone ?? '',
+    status: d.activo === false ? 'Inactivo' : 'Activo',
+    baseRate: Number(d.tarifa_base ?? 0),
+    ratePerKm: Number(d.tarifa_por_km ?? 0),
+    ratePerHour: Number(d.tarifa_por_hora ?? 0),
     factors: (d.factors ?? []).map((f: Json) => ({ label: f.label, amount: Number(f.amount) })),
   }
 }
 
 function mapVehicle(v: Json): Vehicle {
+  const estado = v.estado ?? v.status
+  let status: Vehicle['status'] = 'Disponible'
+  if (estado === 'en_taller') status = 'En taller'
+  else if (estado === 'fuera_de_servicio') status = 'Fuera de servicio'
+  else if (estado === 'asignado') status = 'Asignado'
+  else if (v.activo === false) status = 'En taller'
+  else status = 'Disponible'
+
   return {
-    id: v.id,
-    type: v.type,
-    capacityKg: v.capacity_kg,
-    status: v.status,
-    assignedNote: v.assigned_note ?? undefined,
+    id: v.patente ?? String(v.id),
+    type: v.tipo ?? v.type ?? '',
+    capacityKg: Number(v.capacidad_kg ?? v.capacity_kg ?? 0),
+    status,
+    assignedNote: v.notas ?? v.assigned_note ?? undefined,
   }
 }
 
 function mapRequest(r: Json): ShiftRequest {
+  const estado = String(r.estado ?? r.status ?? '')
+  const ESTADOS: Record<string, RequestStatus> = {
+    pendiente: 'Pendiente de revisión',
+    confirmada: 'Confirmada',
+    finalizada: 'Finalizada',
+    cancelada: 'Cancelada',
+    'Pendiente de revisión': 'Pendiente de revisión',
+    'Pendiente de seña': 'Pendiente de seña',
+    Confirmada: 'Confirmada',
+    Finalizada: 'Finalizada',
+    Cancelada: 'Cancelada',
+  }
+  const status: RequestStatus = ESTADOS[estado] ?? 'Pendiente de revisión'
+  const date = String(r.date ?? r.fecha ?? '')
+
   return {
-    id: r.id,
-    client: r.client_name,
-    phone: r.phone,
-    status: r.status,
-    date: r.date,
-    arrivalRange: [hhmm(r.arrival_from), hhmm(r.arrival_to)],
-    serviceRange: [hhmm(r.service_from), hhmm(r.service_to)],
+    id: String(r.codigo ?? r.id ?? ''),
+    client: String(r.client_name ?? r.cliente_nombre ?? ''),
+    phone: String(r.phone ?? r.cliente_telefono ?? ''),
+    status,
+    date,
+    arrivalRange: [hhmm(r.arrival_from ?? r.hora_desde), hhmm(r.arrival_to ?? r.hora_hasta)],
+    serviceRange: [hhmm(r.service_from ?? r.hora_desde), hhmm(r.service_to ?? r.hora_hasta)],
     origin: {
       label: 'Origen',
-      address: r.origin_address,
-      barrio: r.origin_barrio,
-      floor: r.origin_floor,
-      elevator: r.origin_elevator,
+      address: String(r.origin_address ?? r.origen_direccion ?? ''),
+      barrio: String(r.origin_barrio ?? r.origen_barrio ?? ''),
+      floor: String(r.origin_floor ?? r.origen_piso ?? ''),
+      elevator: Boolean(r.origin_elevator ?? r.origen_ascensor),
     },
     destination: {
       label: 'Destino',
-      address: r.destination_address,
-      barrio: r.destination_barrio,
-      floor: r.destination_floor,
-      elevator: r.destination_elevator,
+      address: String(r.destination_address ?? r.destino_direccion ?? ''),
+      barrio: String(r.destination_barrio ?? r.destino_barrio ?? ''),
+      floor: String(r.destination_floor ?? r.destino_piso ?? ''),
+      elevator: Boolean(r.destination_elevator ?? r.destino_ascensor),
     },
     cargo: {
-      items: (r.cargo_items ?? []).map((i: Json) => ({ name: i.name, units: i.units, note: i.note ?? undefined })),
-      approxUnits: r.cargo_approx_units,
-      fragile: r.cargo_fragile,
-      notes: r.cargo_notes,
+      items: (r.cargo_items ?? []).map((i: Json) => ({
+        name: i.name ?? i.descripcion ?? '',
+        units: Number(i.units ?? i.cantidad ?? 0),
+        note: i.note ?? i.nota ?? undefined,
+      })),
+      approxUnits: Number(r.cargo_approx_units ?? 0),
+      fragile: Boolean(r.cargo_fragile),
+      notes: String(r.cargo_notes ?? ''),
     },
-    driverId: r.driver_id ?? undefined,
-    vehicleId: r.vehicle_id ?? undefined,
-    price: Number(r.price),
-    depositRequired: Number(r.deposit_required),
-    depositReceived: Number(r.deposit_received),
-    confirmed: r.confirmed,
+    driverId: r.driver_id != null ? String(r.driver_id) : undefined,
+    vehicleId: r.vehicle_id != null ? String(r.vehicle_id) : undefined,
+    price: Number(r.price ?? r.precio_final ?? 0),
+    depositRequired: Number(r.deposit_required ?? r.precio_final ?? 0),
+    depositReceived: Number(r.deposit_received ?? 0),
+    confirmed: Boolean(r.confirmed),
     estimatedKm: r.estimated_km ?? undefined,
     estimatedHours: r.estimated_hours ?? undefined,
     arrivedAt: r.arrived_at ?? undefined,
@@ -150,15 +193,108 @@ function mapRequest(r: Json): ShiftRequest {
 
 function mapSummary(s: Json): PaymentSummary {
   return {
-    id: s.request_id,
-    client: s.client_name,
-    date: s.date,
-    price: Number(s.price),
-    deposit: Number(s.deposit),
-    collected: Number(s.collected),
-    balance: Number(s.balance),
+    id: String(s.request_id ?? s.codigo ?? s.id ?? ''),
+    client: String(s.client_name ?? ''),
+    date: String(s.date ?? ''),
+    price: Number(s.price ?? 0),
+    deposit: Number(s.deposit ?? 0),
+    collected: Number(s.collected ?? 0),
+    balance: Number(s.balance ?? 0),
     state: s.state,
   }
+}
+
+// Traduce el payload legacy del panel (status, driver_id, service_from, price...)
+// al contrato del backend nuevo (estado, chofer_id, hora_desde, precio_final...).
+const ESTADO_DESDE_LABEL: Record<string, string> = {
+  Confirmada: 'confirmada',
+  Confirmado: 'confirmada',
+  Finalizada: 'finalizada',
+  Finalizado: 'finalizada',
+  Cancelada: 'cancelada',
+  'Pendiente de seña': 'pendiente',
+  'Pendiente de revisión': 'pendiente',
+}
+
+function legacySolicitudPayload(payload: Json): Json {
+  const out: Json = {}
+
+  const clienteId = payload.cliente_id ?? payload.client_id
+  if (clienteId != null && clienteId !== '') out.cliente_id = Number(clienteId)
+
+  const fecha = payload.fecha ?? payload.date
+  if (fecha) out.fecha = fecha
+
+  const desde = payload.hora_desde ?? payload.service_from ?? payload.arrival_from
+  const hasta = payload.hora_hasta ?? payload.service_to ?? payload.arrival_to
+  if (desde) out.hora_desde = String(desde).length === 5 ? `${desde}:00` : desde
+  if (hasta) out.hora_hasta = String(hasta).length === 5 ? `${hasta}:00` : hasta
+
+  const origen = payload.origen ?? payload.origin
+  const origenDireccion = origen?.direccion ?? origen?.address
+  if (origen && origenDireccion) {
+    out.origen = {
+      direccion: origenDireccion,
+      barrio: origen.barrio ?? null,
+      piso: origen.piso ?? origen.floor ?? null,
+      ascensor: Boolean(origen.ascensor ?? origen.elevator),
+      notas: origen.notas ?? null,
+    }
+  }
+  const destino = payload.destino ?? payload.destination
+  const destinoDireccion = destino?.direccion ?? destino?.address
+  if (destino && destinoDireccion) {
+    out.destino = {
+      direccion: destinoDireccion,
+      barrio: destino.barrio ?? null,
+      piso: destino.piso ?? destino.floor ?? null,
+      ascensor: Boolean(destino.ascensor ?? destino.elevator),
+      notas: destino.notas ?? null,
+    }
+  }
+
+  // El alta legacy manda la carga como resumen (bultos + notas) y el esquema
+  // nuevo la guarda como lineas. Se sintetiza una linea para no perder el dato.
+  const cargo = payload.cargo
+  if (cargo) {
+    const items = Array.isArray(cargo.items) ? cargo.items : []
+    if (items.length > 0) {
+      out.items_carga = items.map((i: Json) => ({
+        descripcion: String(i.name ?? i.descripcion ?? 'Carga'),
+        cantidad: Number(i.units ?? i.cantidad ?? 1) || 1,
+        fragil: Boolean(i.fragile ?? i.fragil),
+        nota: i.note ?? i.nota ?? null,
+      }))
+    } else if (cargo.notes || cargo.approx_units) {
+      out.items_carga = [
+        {
+          descripcion: String(cargo.notes || 'Carga general'),
+          cantidad: Number(cargo.approx_units ?? 0) > 0 ? Number(cargo.approx_units) : 1,
+          fragil: Boolean(cargo.fragile),
+          nota: null,
+        },
+      ]
+    }
+  }
+  if (payload.notas != null) out.notas = payload.notas
+
+  const estado = payload.estado ?? payload.status
+  if (estado) out.estado = ESTADO_DESDE_LABEL[String(estado)] ?? estado
+
+  const chofer = payload.chofer_id ?? payload.driver_id
+  if (chofer != null && chofer !== '') out.chofer_id = Number(chofer)
+  const vehiculo = payload.vehiculo_id ?? payload.vehicle_id
+  if (vehiculo != null && vehiculo !== '') out.vehiculo_id = Number(vehiculo)
+
+  const precio = payload.precio_final ?? payload.price
+  if (precio != null && precio !== '') out.precio_final = Number(precio)
+  const km = payload.km_estimados ?? payload.estimated_km
+  if (km != null && km !== '') out.km_estimados = Number(km)
+  const horas = payload.horas_estimadas ?? payload.estimated_hours
+  if (horas != null && horas !== '') out.horas_estimadas = Number(horas)
+  if (payload.motivo_cancelacion != null) out.motivo_cancelacion = payload.motivo_cancelacion
+
+  return out
 }
 
 // --------------------------------------------------------------------------- //
@@ -198,16 +334,65 @@ export const api = {
     capacity_kg: number
     status: Vehicle['status']
     assigned_note?: string | null
-  }): Promise<Vehicle> => mapVehicle(await http<Json>('/vehicles', { method: 'POST', body: JSON.stringify(payload) })),
+  }): Promise<Vehicle> => {
+    const estado =
+      payload.status === 'En taller'
+        ? 'en_taller'
+        : payload.status === 'Fuera de servicio'
+          ? 'fuera_de_servicio'
+          : payload.status === 'Asignado'
+            ? 'asignado'
+            : 'disponible'
+    return mapVehicle(
+      await http<Json>('/vehicles', {
+        method: 'POST',
+        body: JSON.stringify({
+          patente: payload.id,
+          tipo: payload.type,
+          capacidad_kg: payload.capacity_kg,
+          estado,
+          notas: payload.assigned_note ?? null,
+          activo: true,
+        }),
+      }),
+    )
+  },
   updateVehicle: async (
     id: string,
     payload: { id: string; type: string; capacity_kg: number; status: Vehicle['status']; assigned_note?: string | null },
-  ): Promise<Vehicle> => mapVehicle(await http<Json>(`/vehicles/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })),
+  ): Promise<Vehicle> => {
+    const estado =
+      payload.status === 'En taller'
+        ? 'en_taller'
+        : payload.status === 'Fuera de servicio'
+          ? 'fuera_de_servicio'
+          : payload.status === 'Asignado'
+            ? 'asignado'
+            : 'disponible'
+    return mapVehicle(
+      await http<Json>(`/vehicles/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          patente: payload.id,
+          tipo: payload.type,
+          capacidad_kg: payload.capacity_kg,
+          estado,
+          notas: payload.assigned_note ?? null,
+          activo: payload.status !== 'Inactivo',
+        }),
+      }),
+    )
+  },
 
   // Clientes
-  listClients: async (): Promise<Client[]> => http<Client[]>('/clients'),
+  listClients: async (): Promise<Client[]> => (await http<Json[]>('/clients')).map(mapClient),
   createClient: async (payload: { name: string; phone: string }): Promise<Client> =>
-    http<Client>('/clients', { method: 'POST', body: JSON.stringify(payload) }),
+    mapClient(
+      await http<Json>('/clients', {
+        method: 'POST',
+        body: JSON.stringify({ nombre: payload.name, telefono: payload.phone }),
+      }),
+    ),
 
   // Solicitudes
   listRequests: async (params?: { status?: string; date?: string; driver_id?: string; vehicle_id?: string; search?: string }): Promise<ShiftRequest[]> => {
@@ -220,9 +405,14 @@ export const api = {
   },
   getRequest: async (id: string): Promise<ShiftRequest> => mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}`)),
   createRequest: async (payload: Json): Promise<ShiftRequest> =>
-    mapRequest(await http<Json>('/requests', { method: 'POST', body: JSON.stringify(payload) })),
+    mapRequest(await http<Json>('/requests', { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) })),
   updateRequest: async (id: string, payload: Json): Promise<ShiftRequest> =>
-    mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })),
+    mapRequest(
+      await http<Json>(`/requests/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(legacySolicitudPayload(payload)),
+      }),
+    ),
   markArrived: async (id: string, arrivedAt: string): Promise<ShiftRequest> =>
     mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}/arrived`, { method: 'POST', body: JSON.stringify({ arrived_at: arrivedAt }) })),
   markFinished: async (id: string, finishedAt: string): Promise<ShiftRequest> =>
@@ -235,15 +425,14 @@ export const api = {
     mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}/remito`, { method: 'DELETE' })),
   addPayment: async (id: string, payment: Payment): Promise<ShiftRequest> =>
     mapRequest(
-      await http<Json>(`/requests/${encodeURIComponent(id)}/payments`, {
+      await http<Json>(`/payments/requests/${encodeURIComponent(id)}/payments`, {
         method: 'POST',
         body: JSON.stringify({
-          concept: payment.concept,
-          method: payment.method,
-          received_by: payment.receivedBy,
-          amount: payment.amount,
-          date: payment.date,
-          notes: payment.notes ?? null,
+          concepto: payment.concept === 'Seña' ? 'sena' : 'saldo',
+          metodo: payment.method === 'Efectivo' ? 'efectivo' : 'transferencia',
+          monto: payment.amount,
+          fecha: payment.date,
+          notas: payment.notes ?? null,
         }),
       }),
     ),
@@ -267,9 +456,13 @@ export const api = {
     vehicle_id?: string
     exclude?: string
   }): Promise<Availability> => {
-    const qs = new URLSearchParams({ date: params.date, start: params.start, end: params.end })
-    if (params.driver_id) qs.set('driver_id', params.driver_id)
-    if (params.vehicle_id) qs.set('vehicle_id', params.vehicle_id)
+    const qs = new URLSearchParams({
+      fecha: params.date,
+      hora_desde: params.start,
+      hora_hasta: params.end,
+    })
+    if (params.driver_id) qs.set('chofer_id', params.driver_id)
+    if (params.vehicle_id) qs.set('vehiculo_id', params.vehicle_id)
     if (params.exclude) qs.set('exclude', params.exclude)
     const raw = await http<Json>(`/availability?${qs}`)
     return { driverAvailable: raw.driver_available, vehicleAvailable: raw.vehicle_available, conflicts: raw.conflicts ?? [] }

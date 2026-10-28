@@ -1,9 +1,9 @@
 // Tipos del dominio (los mismos que ya usaba la demo) y los DTO que devuelve
 // la API. La API habla en snake_case; los DTO se mapean a estos tipos en api.ts.
 
-export type RequestStatus = 'Pendiente de revisión' | 'Pendiente de seña' | 'Confirmada' | 'Cancelada'
+export type RequestStatus = 'Pendiente de revisión' | 'Pendiente de seña' | 'Confirmada' | 'Finalizada' | 'Cancelada'
 export type TripStatus = 'Confirmada' | 'Tentativa'
-export type VehicleStatus = 'Disponible' | 'Asignado' | 'En taller'
+export type VehicleStatus = 'Disponible' | 'Asignado' | 'En taller' | 'Fuera de servicio' | 'Inactivo'
 export type DriverStatus = 'Activo' | 'Inactivo'
 export type PaymentConcept = 'Seña' | 'Saldo'
 export type PaymentMethod = 'Transferencia' | 'Efectivo'
