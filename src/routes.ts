@@ -6,6 +6,7 @@ export const R = {
   planificacion: (id: string) => `/planificacion?id=${encodeURIComponent(id)}`,
   flota: '/flota',
   pagos: '/pagos',
+  ajustes: '/ajustes',
   chofer: '/chofer',
   choferConfig: '/chofer/config',
 }

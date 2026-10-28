@@ -11,6 +11,7 @@ const PAGES: Record<string, string> = {
   '/planificacion': '/planificacion.html',
   '/flota': '/flota.html',
   '/pagos': '/pagos.html',
+  '/ajustes': '/ajustes.html',
   '/chofer': '/chofer.html',
   '/chofer/config': '/chofer-config.html',
 }
@@ -23,6 +24,7 @@ const PAGE_HTML = [
   'planificacion.html',
   'flota.html',
   'pagos.html',
+  'ajustes.html',
   'chofer.html',
   'chofer-config.html',
 ]
