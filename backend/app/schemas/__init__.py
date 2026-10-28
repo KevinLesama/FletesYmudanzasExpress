@@ -8,272 +8,280 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RequestStatus = Literal["Pendiente de revisión", "Pendiente de seña", "Confirmada", "Cancelada"]
-DriverStatus = Literal["Activo", "Inactivo"]
-VehicleStatus = Literal["Disponible", "Asignado", "En taller"]
-PaymentConcept = Literal["Seña", "Saldo"]
-PaymentMethod = Literal["Transferencia", "Efectivo"]
-ReceivedBy = Literal["Administración", "Chofer"]
+SolicitudEstado = Literal["pendiente", "confirmada", "finalizada", "cancelada"]
+UsuarioRol = Literal["administrador", "chofer", "cliente"]
+VehiculoEstado = Literal["disponible", "en_taller", "fuera_de_servicio"]
+PagoConcepto = Literal["sena", "saldo"]
+PagoMetodo = Literal["efectivo", "transferencia"]
 
 
 # --------------------------------------------------------------------------- #
-# Clientes
+# Usuarios / Clientes / Choferes
 # --------------------------------------------------------------------------- #
-class ClientIn(BaseModel):
-    name: str = Field(min_length=1)
-    phone: str = Field(min_length=1)
-
-
-class ClientOut(BaseModel):
+class UsuarioOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    name: str
-    phone: str
+    rol: UsuarioRol
+    nombre: str
+    telefono: str
+    email: str | None = None
+    licencia: str | None = None
+    tarifa_base: float = 0
+    tarifa_por_km: float = 0
+    tarifa_por_hora: float = 0
+    activo: bool = True
 
 
-# --------------------------------------------------------------------------- #
-# Choferes
-# --------------------------------------------------------------------------- #
-class FactorIn(BaseModel):
-    label: str = ""
-    amount: float = 0
+class ClienteIn(BaseModel):
+    nombre: str = Field(min_length=1)
+    telefono: str = Field(min_length=1)
+    email: str | None = None
 
 
-class FactorOut(FactorIn):
-    pass
-
-
-class DriverIn(BaseModel):
-    id: str | None = Field(default=None, min_length=1, max_length=8)
-    initials: str | None = Field(default=None, max_length=4)
-    name: str = Field(min_length=1)
-    phone: str = Field(min_length=1)
-    status: DriverStatus = "Activo"
-    base_rate: float = 0
-    rate_per_km: float = 0
-    rate_per_hour: float = 0
-
-
-class DriverFactorsIn(BaseModel):
-    """Usado por la pantalla de configuracion del chofer."""
-
-    base_rate: float = 0
-    rate_per_km: float = 0
-    rate_per_hour: float = 0
-    factors: list[FactorIn] = Field(default_factory=list)
-
-
-class DriverOut(BaseModel):
+class ClienteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
-    initials: str
-    name: str
-    phone: str
-    status: DriverStatus
-    base_rate: float
-    rate_per_km: float
-    rate_per_hour: float
-    factors: list[FactorOut] = Field(default_factory=list)
+    id: int
+    nombre: str
+    telefono: str
+    email: str | None = None
+
+
+class ChoferIn(BaseModel):
+    nombre: str = Field(min_length=1)
+    telefono: str = Field(min_length=1)
+    email: str | None = None
+    licencia: str | None = None
+    tarifa_base: float = 0
+    tarifa_por_km: float = 0
+    tarifa_por_hora: float = 0
+    activo: bool = True
+
+
+class ChoferOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    telefono: str
+    email: str | None = None
+    licencia: str | None = None
+    tarifa_base: float = 0
+    tarifa_por_km: float = 0
+    tarifa_por_hora: float = 0
+    activo: bool = True
+
+
+# Alias para compatibilidad con routers existentes
+ClientIn = ClienteIn
+ClientOut = ClienteOut
+DriverIn = ChoferIn
+DriverOut = ChoferOut
 
 
 # --------------------------------------------------------------------------- #
 # Vehiculos
 # --------------------------------------------------------------------------- #
-class VehicleIn(BaseModel):
-    id: str = Field(min_length=1, max_length=16)
-    type: str = Field(min_length=1)
-    capacity_kg: int = Field(gt=0)
-    status: VehicleStatus = "Disponible"
-    assigned_note: str | None = None
+class VehiculoIn(BaseModel):
+    patente: str = Field(min_length=1)
+    tipo: str = Field(min_length=1)
+    capacidad_kg: int = Field(gt=0)
+    estado: VehiculoEstado = "disponible"
+    notas: str | None = None
+    activo: bool = True
 
 
-class VehicleUpdate(BaseModel):
-    type: str | None = None
-    capacity_kg: int | None = Field(default=None, gt=0)
-    status: VehicleStatus | None = None
-    assigned_note: str | None = None
+class VehiculoUpdate(BaseModel):
+    patente: str | None = None
+    tipo: str | None = None
+    capacidad_kg: int | None = Field(default=None, gt=0)
+    estado: VehiculoEstado | None = None
+    notas: str | None = None
+    activo: bool | None = None
 
 
-class VehicleOut(BaseModel):
+class VehiculoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
-    type: str
-    capacity_kg: int
-    status: VehicleStatus
-    assigned_note: str | None = None
+    id: int
+    patente: str
+    tipo: str
+    capacidad_kg: int
+    estado: VehiculoEstado
+    notas: str | None = None
+    activo: bool = True
+
+
+VehicleIn = VehiculoIn
+VehicleUpdate = VehiculoUpdate
+VehicleOut = VehiculoOut
 
 
 # --------------------------------------------------------------------------- #
 # Solicitudes
 # --------------------------------------------------------------------------- #
-class PlaceIn(BaseModel):
-    address: str = Field(min_length=1)
-    barrio: str = ""
-    floor: str = ""
-    elevator: bool = False
+class LugarIn(BaseModel):
+    direccion: str = Field(min_length=1)
+    barrio: str | None = None
+    piso: str | None = None
+    ascensor: bool = False
+    notas: str | None = None
 
 
-class CargoItemIn(BaseModel):
-    name: str = Field(min_length=1)
-    units: int = Field(default=1, ge=1)
-    note: str | None = None
+class ItemCargaIn(BaseModel):
+    descripcion: str = Field(min_length=1)
+    cantidad: int = Field(default=1, ge=1)
+    fragil: bool = False
+    nota: str | None = None
 
 
-class CargoIn(BaseModel):
-    items: list[CargoItemIn] = Field(default_factory=list)
-    approx_units: int = Field(default=0, ge=0)
-    fragile: bool = False
-    notes: str = ""
+class CargaIn(BaseModel):
+    items: list[ItemCargaIn] = Field(default_factory=list)
 
 
-class RequestIn(BaseModel):
-    client_id: int | None = None
-    client_name: str | None = None
-    phone: str | None = None
-    date: DateType
-    arrival_from: TimeType
-    arrival_to: TimeType
-    service_from: TimeType
-    service_to: TimeType
-    origin: PlaceIn
-    destination: PlaceIn
-    cargo: CargoIn = Field(default_factory=CargoIn)
-    price: float = Field(default=0, ge=0)
-    deposit_required: float = Field(default=0, ge=0)
-    estimated_km: int | None = Field(default=None, ge=0)
-    estimated_hours: int | None = Field(default=None, ge=0)
+class SolicitudIn(BaseModel):
+    cliente_id: int
+    fecha: DateType
+    hora_desde: TimeType
+    hora_hasta: TimeType
+    origen: LugarIn
+    destino: LugarIn
+    items_carga: list[ItemCargaIn] = Field(default_factory=list)
+    km_estimados: float | None = Field(default=None, ge=0)
+    horas_estimadas: float | None = Field(default=None, gt=0)
+    precio_calculado: float | None = Field(default=None, ge=0)
+    precio_final: float = Field(default=0, ge=0)
+    notas: str | None = None
 
 
-class RequestUpdate(BaseModel):
-    driver_id: str | None = None
-    vehicle_id: str | None = None
-    date: DateType | None = None
-    service_from: TimeType | None = None
-    service_to: TimeType | None = None
-    price: float | None = Field(default=None, ge=0)
-    deposit_required: float | None = Field(default=None, ge=0)
-    estimated_km: int | None = Field(default=None, ge=0)
-    estimated_hours: int | None = Field(default=None, ge=0)
-    status: RequestStatus | None = None
-    confirmed: bool | None = None
-    cargo_notes: str | None = None
-    cargo_fragile: bool | None = None
-    cargo_approx_units: int | None = Field(default=None, ge=0)
+class SolicitudUpdate(BaseModel):
+    chofer_id: int | None = None
+    vehiculo_id: int | None = None
+    fecha: DateType | None = None
+    hora_desde: TimeType | None = None
+    hora_hasta: TimeType | None = None
+    estado: SolicitudEstado | None = None
+    km_estimados: float | None = Field(default=None, ge=0)
+    horas_estimadas: float | None = Field(default=None, gt=0)
+    precio_calculado: float | None = Field(default=None, ge=0)
+    precio_final: float | None = Field(default=None, ge=0)
+    notas: str | None = None
+    motivo_cancelacion: str | None = None
 
 
-class ArrivedIn(BaseModel):
-    arrived_at: str
-
-
-class FinishedIn(BaseModel):
-    finished_at: str
-
-
-class IncidentIn(BaseModel):
-    type: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    time: str
-
-
-class RemitoIn(BaseModel):
-    name: str = Field(min_length=1)
-    data_url: str = Field(min_length=1)
-
-
-class PaymentIn(BaseModel):
-    concept: PaymentConcept
-    method: PaymentMethod
-    received_by: ReceivedBy
-    amount: float = Field(gt=0)
-    date: DateType
-    notes: str | None = None
-
-
-# -------------------------------- salidas ---------------------------------- #
-class CargoItemOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    name: str
-    units: int
-    note: str | None = None
-
-
-class IncidentOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    type: str
-    description: str
-    time: str
-
-
-class PaymentOut(BaseModel):
+class ItemCargaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    concept: PaymentConcept
-    method: PaymentMethod
-    received_by: ReceivedBy
-    amount: float
-    date: DateType
-    notes: str | None = None
+    descripcion: str
+    cantidad: int
+    fragil: bool
+    nota: str | None = None
+    posicion: int
 
 
-class RequestOut(BaseModel):
+class SolicitudOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
-    client_id: int
-    client_name: str
-    phone: str
-    status: RequestStatus
-    date: DateType
-    arrival_from: TimeType
-    arrival_to: TimeType
-    service_from: TimeType
-    service_to: TimeType
-    origin_address: str
-    origin_barrio: str
-    origin_floor: str
-    origin_elevator: bool
-    destination_address: str
-    destination_barrio: str
-    destination_floor: str
-    destination_elevator: bool
-    cargo_approx_units: int
-    cargo_fragile: bool
-    cargo_notes: str
-    cargo_items: list[CargoItemOut] = Field(default_factory=list)
-    driver_id: str | None = None
-    vehicle_id: str | None = None
-    price: float
-    deposit_required: float
-    deposit_received: float = 0
-    confirmed: bool
-    estimated_km: int | None = None
-    estimated_hours: int | None = None
-    arrived_at: str | None = None
-    finished_at: str | None = None
-    remito_name: str | None = None
-    remito_data_url: str | None = None
-    incidents: list[IncidentOut] = Field(default_factory=list)
-    payments: list[PaymentOut] = Field(default_factory=list)
+    id: int
+    codigo: str
+    cliente_id: int
+    cliente_rol: str
+    estado: SolicitudEstado
+    fecha: DateType
+    hora_desde: TimeType
+    hora_hasta: TimeType
+
+    origen_direccion: str
+    origen_barrio: str | None = None
+    origen_piso: str | None = None
+    origen_ascensor: bool
+    origen_notas: str | None = None
+
+    destino_direccion: str
+    destino_barrio: str | None = None
+    destino_piso: str | None = None
+    destino_ascensor: bool
+    destino_notas: str | None = None
+
+    chofer_id: int | None = None
+    chofer_rol: str | None = None
+    vehiculo_id: int | None = None
+
+    km_estimados: float | None = None
+    horas_estimadas: float | None = None
+    precio_calculado: float | None = None
+    precio_final: float
+    precio_editado: bool | None = None
+    precio_modificado_por: int | None = None
+    precio_modificado_en: str | None = None
+
+    remito_numero: str | None = None
+    remito_ruta: str | None = None
+    remito_nombre: str | None = None
+    remito_subido_por_id: int | None = None
+    receptor_nombre: str | None = None
+    receptor_documento: str | None = None
+    remito_cargado: bool | None = None
+
+    finalizada_en: str | None = None
+    motivo_cancelacion: str | None = None
+    notas: str | None = None
+
+    items_carga: list[ItemCargaOut] = Field(default_factory=list)
+    pagos: list["PagoOut"] = Field(default_factory=list)
+
+    creado_en: str | None = None
+    actualizado_en: str | None = None
 
 
-class PaymentSummaryRow(BaseModel):
-    request_id: str
-    client_name: str
-    date: DateType
-    price: float
-    deposit: float
-    collected: float
-    balance: float
-    state: Literal["Cobrado", "Parcial", "Sin pagos"]
+# Compatibilidad con nombres viejos usados por routers/serializers
+PlaceIn = LugarIn
+CargoItemIn = ItemCargaIn
+CargoIn = CargaIn
+RequestIn = SolicitudIn
+RequestUpdate = SolicitudUpdate
+RequestOut = SolicitudOut
+CargoItemOut = ItemCargaOut
 
 
+# --------------------------------------------------------------------------- #
+# Pagos
+# --------------------------------------------------------------------------- #
+class PagoIn(BaseModel):
+    concepto: PagoConcepto
+    metodo: PagoMetodo
+    monto: float = Field(gt=0)
+    fecha: DateType | None = None
+    recibido_por_id: int | None = None
+    comprobante_ruta: str | None = None
+    comprobante_nombre: str | None = None
+    notas: str | None = None
+
+
+class PagoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    solicitud_id: int
+    concepto: PagoConcepto
+    metodo: PagoMetodo
+    monto: float
+    fecha: DateType
+    recibido_por_id: int
+    comprobante_ruta: str | None = None
+    comprobante_nombre: str | None = None
+    notas: str | None = None
+
+
+PaymentIn = PagoIn
+PaymentOut = PagoOut
+
+
+# --------------------------------------------------------------------------- #
+# Varios
+# --------------------------------------------------------------------------- #
 class AvailabilityOut(BaseModel):
     driver_available: bool
     vehicle_available: bool
@@ -283,7 +291,33 @@ class AvailabilityOut(BaseModel):
 class MeOut(BaseModel):
     """Identidad del usuario autenticado, resuelta contra `usuarios`."""
 
-    id: str
-    email: str
+    id: int
+    email: str | None = None
     nombre: str
-    rol: Literal["administrador", "chofer"]
+    rol: UsuarioRol
+
+
+# Aliases legacy
+Client = ClienteOut
+Driver = ChoferOut
+Vehicle = VehiculoOut
+Request = SolicitudOut
+Payment = PagoOut
+Incident = object  # ya no existe
+RequestCargoItem = ItemCargaOut
+DriverFactor = object
+DriverFactorsIn = object
+FactorIn = object
+FactorOut = object
+ArrivedIn = object
+FinishedIn = object
+IncidentIn = object
+IncidentOut = object
+RemitoIn = object
+PaymentSummaryRow = object
+RequestStatus = SolicitudEstado
+DriverStatus = str
+VehicleStatus = VehiculoEstado
+PaymentConcept = PagoConcepto
+PaymentMethod = PagoMetodo
+ReceivedBy = object

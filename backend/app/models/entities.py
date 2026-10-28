@@ -1,20 +1,23 @@
 """Entidades del dominio.
 
 Cada modelo coincide con las tablas definidas en backend/sql/schema.sql.
-Los estados se validan con CheckConstraints usando literales en espanol,
-exactamente los mismos que consume el frontend.
+Los estados se validan con CheckConstraints usando literales en español/minúsculas
+exactamente los que usa el esquema.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -24,19 +27,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin
+from app.db.base import Base
 
-REQUEST_STATUSES = (
-    "Pendiente de revisión",
-    "Pendiente de seña",
-    "Confirmada",
-    "Cancelada",
-)
-DRIVER_STATUSES = ("Activo", "Inactivo")
-VEHICLE_STATUSES = ("Disponible", "Asignado", "En taller")
-PAYMENT_CONCEPTS = ("Seña", "Saldo")
-PAYMENT_METHODS = ("Transferencia", "Efectivo")
-RECEIVED_BY = ("Administración", "Chofer")
+SOLICITUD_ESTADOS = ("pendiente", "confirmada", "finalizada", "cancelada")
+USUARIO_ROLES = ("administrador", "chofer", "cliente")
+VEHICULO_ESTADOS = ("disponible", "en_taller", "fuera_de_servicio")
+PAGO_CONCEPTOS = ("sena", "saldo")
+PAGO_METODOS = ("efectivo", "transferencia")
 
 
 def _in_list(column: str, values: tuple[str, ...]) -> str:
@@ -44,201 +41,293 @@ def _in_list(column: str, values: tuple[str, ...]) -> str:
     return f"{column} IN ({quoted})"
 
 
-class Client(Base, TimestampMixin):
-    __tablename__ = "clients"
+class Usuario(Base):
+    __tablename__ = "usuarios"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    phone: Mapped[str] = mapped_column(Text, nullable=False)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    rol: Mapped[str] = mapped_column(Text, nullable=False)
+    nombre: Mapped[str] = mapped_column(Text, nullable=False)
+    telefono: Mapped[str] = mapped_column(Text, nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    licencia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tarifa_base: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    tarifa_por_km: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    tarifa_por_hora: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    requests: Mapped[list["Request"]] = relationship(back_populates="client")
-
-    __table_args__ = (UniqueConstraint("name", "phone", name="uq_clients_name_phone"),)
-
-
-class Driver(Base, TimestampMixin):
-    __tablename__ = "drivers"
-
-    id: Mapped[str] = mapped_column(Text, primary_key=True)
-    initials: Mapped[str] = mapped_column(Text, nullable=False)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    phone: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(Text, nullable=False, default="Activo")
-    base_rate: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    rate_per_km: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    rate_per_hour: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-
-    factors: Mapped[list["DriverFactor"]] = relationship(
-        back_populates="driver", cascade="all, delete-orphan", order_by="DriverFactor.position"
+    solicitudes_cliente: Mapped[list["Solicitud"]] = relationship(
+        back_populates="cliente",
+        foreign_keys="Solicitud.cliente_id",
     )
-    requests: Mapped[list["Request"]] = relationship(back_populates="driver")
+    solicitudes_chofer: Mapped[list["Solicitud"]] = relationship(
+        back_populates="chofer",
+        foreign_keys="Solicitud.chofer_id",
+    )
+    precios_modificados: Mapped[list["Solicitud"]] = relationship(
+        back_populates="precio_modificado_por_usuario",
+        foreign_keys="Solicitud.precio_modificado_por",
+    )
+    remitos_subidos: Mapped[list["Solicitud"]] = relationship(
+        back_populates="remito_subido_por",
+        foreign_keys="Solicitud.remito_subido_por_id",
+    )
+    pagos_recibidos: Mapped[list["Pago"]] = relationship(back_populates="recibido_por")
 
     __table_args__ = (
-        CheckConstraint(_in_list("status", DRIVER_STATUSES), name="ck_drivers_status"),
+        CheckConstraint(_in_list("rol", USUARIO_ROLES), name="ck_usuarios_rol"),
+        CheckConstraint("length(btrim(nombre)) > 0", name="ck_usuarios_nombre"),
+        CheckConstraint(
+            "length(regexp_replace(telefono, '\\D', '', 'g')) >= 6",
+            name="ck_usuarios_telefono",
+        ),
+        CheckConstraint(
+            "email IS NULL OR (position('@' IN email) > 1 AND email = btrim(email))",
+            name="ck_usuarios_email",
+        ),
+        CheckConstraint(
+            "rol = 'chofer' OR (tarifa_base = 0 AND tarifa_por_km = 0 AND tarifa_por_hora = 0)",
+            name="ck_usuarios_tarifas",
+        ),
+        CheckConstraint("rol = 'chofer' OR licencia IS NULL", name="ck_usuarios_licencia"),
+        CheckConstraint("rol = 'cliente' OR email IS NOT NULL", name="ck_usuarios_email_personal"),
+        UniqueConstraint("id", "rol", name="uq_usuarios_id_rol"),
     )
 
 
-class DriverFactor(Base, TimestampMixin):
-    __tablename__ = "driver_factors"
+class Vehiculo(Base):
+    __tablename__ = "vehiculos"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    driver_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False
-    )
-    label: Mapped[str] = mapped_column(Text, nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    patente: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo: Mapped[str] = mapped_column(Text, nullable=False)
+    capacidad_kg: Mapped[int] = mapped_column(Integer, nullable=False)
+    estado: Mapped[str] = mapped_column(Text, nullable=False, default="disponible")
+    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    driver: Mapped["Driver"] = relationship(back_populates="factors")
-
-    __table_args__ = (Index("ix_driver_factors_driver_id", "driver_id"),)
-
-
-class Vehicle(Base, TimestampMixin):
-    __tablename__ = "vehicles"
-
-    id: Mapped[str] = mapped_column(Text, primary_key=True)
-    type: Mapped[str] = mapped_column(Text, nullable=False)
-    capacity_kg: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(Text, nullable=False, default="Disponible")
-    assigned_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    requests: Mapped[list["Request"]] = relationship(back_populates="vehicle")
+    solicitudes: Mapped[list["Solicitud"]] = relationship(back_populates="vehiculo")
 
     __table_args__ = (
-        CheckConstraint(_in_list("status", VEHICLE_STATUSES), name="ck_vehicles_status"),
-        CheckConstraint("capacity_kg > 0", name="ck_vehicles_capacity_positive"),
+        CheckConstraint(_in_list("estado", VEHICULO_ESTADOS), name="ck_vehiculos_estado"),
+        CheckConstraint("capacidad_kg > 0", name="ck_vehiculos_capacidad"),
+        CheckConstraint("length(btrim(patente)) > 0", name="ck_vehiculos_patente"),
+        CheckConstraint("length(btrim(tipo)) > 0", name="ck_vehiculos_tipo"),
     )
 
 
-class Request(Base, TimestampMixin):
-    __tablename__ = "requests"
+class Solicitud(Base):
+    __tablename__ = "solicitudes"
 
-    id: Mapped[str] = mapped_column(Text, primary_key=True)  # FEX-1048
-    client_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    codigo: Mapped[str] = mapped_column(Text, nullable=False)
+    cliente_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    cliente_rol: Mapped[str] = mapped_column(Text, nullable=False, default="cliente")
+    estado: Mapped[str] = mapped_column(Text, nullable=False, default="pendiente")
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    hora_desde: Mapped[time] = mapped_column(Time, nullable=False)
+    hora_hasta: Mapped[time] = mapped_column(Time, nullable=False)
+
+    origen_direccion: Mapped[str] = mapped_column(Text, nullable=False)
+    origen_barrio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    origen_piso: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    origen_ascensor: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    origen_notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    destino_direccion: Mapped[str] = mapped_column(Text, nullable=False)
+    destino_barrio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    destino_piso: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    destino_ascensor: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    destino_notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    chofer_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    chofer_rol: Mapped[str] = mapped_column(Text, nullable=False, default="chofer")
+    vehiculo_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
+    km_estimados: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    horas_estimadas: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    precio_calculado: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    precio_final: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    precio_modificado_por: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    precio_modificado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    remito_numero: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    remito_ruta: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    remito_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    remito_subido_por_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    receptor_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    receptor_documento: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    finalizada_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    motivo_cancelacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    cliente: Mapped["Usuario"] = relationship(
+        back_populates="solicitudes_cliente",
+        foreign_keys=[cliente_id, cliente_rol],
+        primaryjoin="and_(Solicitud.cliente_id==Usuario.id, Solicitud.cliente_rol==Usuario.rol)",
     )
-    client_name: Mapped[str] = mapped_column(Text, nullable=False)
-    phone: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(Text, nullable=False, default="Pendiente de revisión")
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-
-    arrival_from: Mapped[time] = mapped_column(Time, nullable=False)
-    arrival_to: Mapped[time] = mapped_column(Time, nullable=False)
-    service_from: Mapped[time] = mapped_column(Time, nullable=False)
-    service_to: Mapped[time] = mapped_column(Time, nullable=False)
-
-    origin_address: Mapped[str] = mapped_column(Text, nullable=False)
-    origin_barrio: Mapped[str] = mapped_column(Text, nullable=False)
-    origin_floor: Mapped[str] = mapped_column(Text, nullable=False)
-    origin_elevator: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    destination_address: Mapped[str] = mapped_column(Text, nullable=False)
-    destination_barrio: Mapped[str] = mapped_column(Text, nullable=False)
-    destination_floor: Mapped[str] = mapped_column(Text, nullable=False)
-    destination_elevator: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    cargo_approx_units: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cargo_fragile: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    cargo_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
-
-    driver_id: Mapped[str | None] = mapped_column(
-        Text, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True
+    chofer: Mapped[Optional["Usuario"]] = relationship(
+        back_populates="solicitudes_chofer",
+        foreign_keys=[chofer_id, chofer_rol],
+        primaryjoin="and_(Solicitud.chofer_id==Usuario.id, Solicitud.chofer_rol==Usuario.rol)",
     )
-    vehicle_id: Mapped[str | None] = mapped_column(
-        Text, ForeignKey("vehicles.id", ondelete="SET NULL"), nullable=True
+    vehiculo: Mapped[Optional["Vehiculo"]] = relationship(back_populates="solicitudes")
+    precio_modificado_por_usuario: Mapped[Optional["Usuario"]] = relationship(
+        back_populates="precios_modificados",
+        foreign_keys=[precio_modificado_por],
     )
-
-    price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    deposit_required: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    estimated_km: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    estimated_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    arrived_at: Mapped[str | None] = mapped_column(Text, nullable=True)
-    finished_at: Mapped[str | None] = mapped_column(Text, nullable=True)
-    remito_name: Mapped[str | None] = mapped_column(Text, nullable=True)
-    remito_data_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    client: Mapped["Client"] = relationship(back_populates="requests")
-    driver: Mapped["Driver | None"] = relationship(back_populates="requests")
-    vehicle: Mapped["Vehicle | None"] = relationship(back_populates="requests")
-    cargo_items: Mapped[list["RequestCargoItem"]] = relationship(
-        back_populates="request", cascade="all, delete-orphan", order_by="RequestCargoItem.position"
+    remito_subido_por: Mapped[Optional["Usuario"]] = relationship(
+        back_populates="remitos_subidos",
+        foreign_keys=[remito_subido_por_id],
     )
-    incidents: Mapped[list["Incident"]] = relationship(
-        back_populates="request", cascade="all, delete-orphan", order_by="Incident.time"
+    items_carga: Mapped[list["ItemCarga"]] = relationship(
+        back_populates="solicitud", cascade="all, delete-orphan", order_by="ItemCarga.posicion"
     )
-    payments: Mapped[list["Payment"]] = relationship(
-        back_populates="request", cascade="all, delete-orphan", order_by="Payment.date"
+    pagos: Mapped[list["Pago"]] = relationship(
+        back_populates="solicitud", cascade="all, delete-orphan", order_by="Pago.fecha"
     )
 
     __table_args__ = (
-        CheckConstraint(_in_list("status", REQUEST_STATUSES), name="ck_requests_status"),
-        CheckConstraint("deposit_required >= 0", name="ck_requests_deposit_non_negative"),
-        CheckConstraint("price >= 0", name="ck_requests_price_non_negative"),
-        Index("ix_requests_date", "date"),
-        Index("ix_requests_status", "status"),
-        Index("ix_requests_client_id", "client_id"),
-        Index("ix_requests_driver_id", "driver_id"),
-        Index("ix_requests_vehicle_id", "vehicle_id"),
+        CheckConstraint(_in_list("estado", SOLICITUD_ESTADOS), name="ck_solicitudes_estado"),
+        CheckConstraint("hora_hasta > hora_desde", name="ck_solicitudes_ventana"),
+        CheckConstraint(
+            "length(btrim(origen_direccion)) > 0 AND length(btrim(destino_direccion)) > 0",
+            name="ck_solicitudes_direcciones",
+        ),
+        CheckConstraint("km_estimados IS NULL OR km_estimados >= 0", name="ck_solicitudes_km"),
+        CheckConstraint("horas_estimadas IS NULL OR horas_estimadas > 0", name="ck_solicitudes_horas"),
+        CheckConstraint(
+            "(precio_calculado IS NULL OR precio_calculado >= 0) AND precio_final >= 0",
+            name="ck_solicitudes_precios",
+        ),
+        CheckConstraint("cliente_rol = 'cliente'", name="ck_solicitudes_cliente_rol"),
+        CheckConstraint("chofer_rol = 'chofer'", name="ck_solicitudes_chofer_rol"),
+        CheckConstraint(
+            "precio_modificado_por IS NULL OR precio_modificado_en IS NOT NULL",
+            name="ck_solicitudes_ajuste_auditado",
+        ),
+        CheckConstraint(
+            "estado NOT IN ('confirmada', 'finalizada') OR (chofer_id IS NOT NULL AND vehiculo_id IS NOT NULL)",
+            name="ck_solicitudes_con_chofer_y_vehiculo",
+        ),
+        CheckConstraint(
+            "(estado = 'finalizada') = (finalizada_en IS NOT NULL)",
+            name="ck_solicitudes_finalizada_en",
+        ),
+        CheckConstraint("remito_nombre IS NULL OR remito_ruta IS NOT NULL", name="ck_solicitudes_remito"),
+        ForeignKeyConstraint(
+            ["cliente_id", "cliente_rol"],
+            ["usuarios.id", "usuarios.rol"],
+            onupdate="RESTRICT",
+            ondelete="RESTRICT",
+            name="fk_solicitudes_cliente",
+        ),
+        ForeignKeyConstraint(
+            ["chofer_id", "chofer_rol"],
+            ["usuarios.id", "usuarios.rol"],
+            onupdate="RESTRICT",
+            ondelete="RESTRICT",
+            name="fk_solicitudes_chofer",
+        ),
+        ForeignKeyConstraint(
+            ["vehiculo_id"],
+            ["vehiculos.id"],
+            onupdate="CASCADE",
+            ondelete="RESTRICT",
+            name="fk_solicitudes_vehiculo",
+        ),
+        ForeignKeyConstraint(
+            ["precio_modificado_por"],
+            ["usuarios.id"],
+            onupdate="CASCADE",
+            ondelete="RESTRICT",
+            name="fk_solicitudes_precio_modificado_por",
+        ),
+        ForeignKeyConstraint(
+            ["remito_subido_por_id"],
+            ["usuarios.id"],
+            onupdate="CASCADE",
+            ondelete="RESTRICT",
+            name="fk_solicitudes_remito_subido_por",
+        ),
     )
 
 
-class RequestCargoItem(Base, TimestampMixin):
-    __tablename__ = "request_cargo_items"
+class ItemCarga(Base):
+    __tablename__ = "items_carga"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    request_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("requests.id", ondelete="CASCADE"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    units: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    solicitud_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    descripcion: Mapped[str] = mapped_column(Text, nullable=False)
+    cantidad: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    fragil: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    nota: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    posicion: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    request: Mapped["Request"] = relationship(back_populates="cargo_items")
-
-    __table_args__ = (Index("ix_request_cargo_items_request_id", "request_id"),)
-
-
-class Incident(Base, TimestampMixin):
-    __tablename__ = "incidents"
-
-    id: Mapped[str] = mapped_column(Text, primary_key=True)  # INC-1001
-    request_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("requests.id", ondelete="CASCADE"), nullable=False
-    )
-    type: Mapped[str] = mapped_column(Text, nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    time: Mapped[str] = mapped_column(Text, nullable=False)
-
-    request: Mapped["Request"] = relationship(back_populates="incidents")
-
-    __table_args__ = (Index("ix_incidents_request_id", "request_id"),)
-
-
-class Payment(Base, TimestampMixin):
-    __tablename__ = "payments"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    request_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("requests.id", ondelete="CASCADE"), nullable=False
-    )
-    concept: Mapped[str] = mapped_column(Text, nullable=False)
-    method: Mapped[str] = mapped_column(Text, nullable=False)
-    received_by: Mapped[str] = mapped_column(Text, nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    request: Mapped["Request"] = relationship(back_populates="payments")
+    solicitud: Mapped["Solicitud"] = relationship(back_populates="items_carga")
 
     __table_args__ = (
-        CheckConstraint(_in_list("concept", PAYMENT_CONCEPTS), name="ck_payments_concept"),
-        CheckConstraint(_in_list("method", PAYMENT_METHODS), name="ck_payments_method"),
-        CheckConstraint(_in_list("received_by", RECEIVED_BY), name="ck_payments_received_by"),
-        CheckConstraint("amount > 0", name="ck_payments_amount_positive"),
-        Index("ix_payments_request_id", "request_id"),
-        Index("ix_payments_date", "date"),
+        CheckConstraint("length(btrim(descripcion)) > 0", name="ck_items_carga_descripcion"),
+        CheckConstraint("cantidad > 0", name="ck_items_carga_cantidad"),
+        ForeignKeyConstraint(
+            ["solicitud_id"],
+            ["solicitudes.id"],
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+            name="fk_items_carga_solicitud",
+        ),
+    )
+
+
+class Pago(Base):
+    __tablename__ = "pagos"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    solicitud_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    concepto: Mapped[str] = mapped_column(Text, nullable=False)
+    metodo: Mapped[str] = mapped_column(Text, nullable=False)
+    monto: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    recibido_por_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    comprobante_ruta: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    comprobante_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    solicitud: Mapped["Solicitud"] = relationship(back_populates="pagos")
+    recibido_por: Mapped["Usuario"] = relationship(back_populates="pagos_recibidos")
+
+    __table_args__ = (
+        CheckConstraint(_in_list("concepto", PAGO_CONCEPTOS), name="ck_pagos_concepto"),
+        CheckConstraint(_in_list("metodo", PAGO_METODOS), name="ck_pagos_metodo"),
+        CheckConstraint("monto > 0", name="ck_pagos_monto"),
+        CheckConstraint(
+            "comprobante_nombre IS NULL OR comprobante_ruta IS NOT NULL",
+            name="ck_pagos_comprobante",
+        ),
+        ForeignKeyConstraint(
+            ["solicitud_id"],
+            ["solicitudes.id"],
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+            name="fk_pagos_solicitud",
+        ),
+        ForeignKeyConstraint(
+            ["recibido_por_id"],
+            ["usuarios.id"],
+            onupdate="CASCADE",
+            ondelete="RESTRICT",
+            name="fk_pagos_recibido_por",
+        ),
     )

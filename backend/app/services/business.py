@@ -1,138 +1,95 @@
-"""Reglas de negocio del dominio (extraidas de la logica del frontend).
-
-- Generacion de identificadores FEX-#### e INC-####.
-- Deteccion de conflictos de chofer/vehiculo (solo viajes Confirmada cuentan,
-  igual que la funcion hasConflict del mock original).
-- Sugerencia de reserva de vehiculo ("Asignado") y liberacion al cancelar.
-"""
+"""Reglas de negocio del dominio."""
 
 from __future__ import annotations
 
-import re
 from datetime import date, time
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Driver, Request, Vehicle
-
-FEX_PATTERN = re.compile(r"^FEX-(\d+)$", re.IGNORECASE)
+from app.models import Solicitud, Usuario, Vehiculo
 
 
-def next_request_id(db: Session) -> str:
-    """Devuelve el proximo FEX-#### correlativo."""
-    ids = db.scalars(select(Request.id)).all()
-    max_num = 0
-    for rid in ids:
-        match = FEX_PATTERN.match(rid or "")
-        if match:
-            max_num = max(max_num, int(match.group(1)))
-    return f"FEX-{max_num + 1:04d}"
-
-
-def next_incident_id(db: Session) -> str:
-    from app.models import Incident
-
-    ids = db.scalars(select(Incident.id)).all()
-    max_num = 0
-    for iid in ids:
-        match = re.match(r"^INC-(\d+)$", iid or "")
-        if match:
-            max_num = max(max_num, int(match.group(1)))
-    return f"INC-{max_num + 1:04d}"
-
-
-def _overlaps(
-    a_from: time, a_to: time, b_from: time, b_to: time
-) -> bool:
+def _overlaps(a_from: time, a_to: time, b_from: time, b_to: time) -> bool:
     return a_from < b_to and b_from < a_to
 
 
 def driver_conflicts(
     db: Session,
-    driver_id: str,
+    driver_id: int,
     day: date,
     start: time,
     end: time,
-    exclude_id: str | None = None,
-) -> list[Request]:
-    """Viajes Confirmada del mismo chofer ese dia que se solapan con el rango."""
-    stmt = select(Request).where(
-        Request.driver_id == driver_id,
-        Request.date == day,
-        Request.status == "Confirmada",
+    exclude_id: int | None = None,
+) -> list[Solicitud]:
+    """Viajes confirmada del mismo chofer ese dia que se solapan con el rango."""
+    stmt = select(Solicitud).where(
+        Solicitud.chofer_id == driver_id,
+        Solicitud.fecha == day,
+        Solicitud.estado == "confirmada",
     )
     if exclude_id:
-        stmt = stmt.where(Request.id != exclude_id)
+        stmt = stmt.where(Solicitud.id != exclude_id)
     return [
         r
         for r in db.scalars(stmt).all()
-        if _overlaps(start, end, r.service_from, r.service_to)
+        if _overlaps(start, end, r.hora_desde, r.hora_hasta)
     ]
 
 
 def vehicle_conflicts(
     db: Session,
-    vehicle_id: str,
+    vehicle_id: int,
     day: date,
     start: time,
     end: time,
-    exclude_id: str | None = None,
-) -> list[Request]:
-    stmt = select(Request).where(
-        Request.vehicle_id == vehicle_id,
-        Request.date == day,
-        Request.status == "Confirmada",
+    exclude_id: int | None = None,
+) -> list[Solicitud]:
+    stmt = select(Solicitud).where(
+        Solicitud.vehiculo_id == vehicle_id,
+        Solicitud.fecha == day,
+        Solicitud.estado == "confirmada",
     )
     if exclude_id:
-        stmt = stmt.where(Request.id != exclude_id)
+        stmt = stmt.where(Solicitud.id != exclude_id)
     return [
         r
         for r in db.scalars(stmt).all()
-        if _overlaps(start, end, r.service_from, r.service_to)
+        if _overlaps(start, end, r.hora_desde, r.hora_hasta)
     ]
 
 
-def vehicle_is_assignable(db: Session, vehicle: Vehicle) -> bool:
-    """Un vehiculo en taller nunca es asignable."""
-    return vehicle.status != "En taller"
+def vehicle_is_assignable(db: Session, vehicle: Vehiculo) -> bool:
+    """Un vehiculo en taller o fuera de servicio nunca es asignable."""
+    return vehicle.estado not in ("en_taller", "fuera_de_servicio")
 
 
-def refresh_vehicle_status(db: Session, vehicle: Vehicle, exclude_id: str | None = None) -> None:
-    """Recalcula el estado del vehiculo segun su uso en viajes Confirmada.
-
-    En taller: se respeta. Si tiene viajes confirmados que lo usan queda
-    Asignado; si no, Disponible. La nota de asignacion se arma con el proximo
-    viaje confirmado.
-    """
-    if vehicle.status == "En taller":
+def refresh_vehicle_status(db: Session, vehicle: Vehiculo, exclude_id: int | None = None) -> None:
+    if vehicle.estado == "en_taller":
         return
     stmt = (
-        select(Request)
+        select(Solicitud)
         .where(
-            Request.vehicle_id == vehicle.id,
-            Request.status == "Confirmada",
+            Solicitud.vehiculo_id == vehicle.id,
+            Solicitud.estado == "confirmada",
         )
-        .order_by(Request.date, Request.service_from)
+        .order_by(Solicitud.fecha, Solicitud.hora_desde)
     )
     if exclude_id:
-        stmt = stmt.where(Request.id != exclude_id)
+        stmt = stmt.where(Solicitud.id != exclude_id)
     upcoming = db.scalars(stmt).all()
     if upcoming:
-        first = upcoming[0]
-        vehicle.status = "Asignado"
-        vehicle.assigned_note = f"{first.id} · {first.date.isoformat()}"
+        vehicle.estado = "disponible"
     else:
-        vehicle.status = "Disponible"
-        vehicle.assigned_note = None
+        vehicle.estado = "disponible"
 
 
-def driver_exists(db: Session, driver_id: str) -> Driver | None:
-    return db.get(Driver, driver_id)
+def driver_exists(db: Session, driver_id: int) -> Usuario | None:
+    return db.get(Usuario, driver_id)
 
 
-def count_requests_for_driver(db: Session, driver_id: str) -> int:
+def count_requests_for_driver(db: Session, driver_id: int) -> int:
     return int(
-        db.scalar(select(func.count()).select_from(Request).where(Request.driver_id == driver_id))
+        db.scalar(select(func.count()).select_from(Solicitud).where(Solicitud.chofer_id == driver_id))
         or 0
     )
