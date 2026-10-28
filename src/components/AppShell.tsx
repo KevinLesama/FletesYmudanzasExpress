@@ -21,17 +21,20 @@ import {
   LocationOn,
   NotificationsNone,
   ChevronRight,
+  SettingsOutlined,
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
 
-export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos'
+export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos' | 'ajustes'
 
 interface NavItem {
   key: NavKey
   label: string
+  /** Etiqueta corta para la barra inferior del teléfono. */
+  short?: string
   icon: ComponentType<SvgIconProps>
   href: string
   badge?: number
@@ -40,8 +43,9 @@ interface NavItem {
 const NAV: NavItem[] = [
   { key: 'agenda', label: 'Agenda', icon: CalendarMonth, href: R.agenda },
   { key: 'solicitudes', label: 'Solicitudes', icon: Checklist, href: R.solicitudes, badge: 5 },
-  { key: 'flota', label: 'Choferes y vehículos', icon: LocalShipping, href: R.flota },
+  { key: 'flota', label: 'Choferes y vehículos', short: 'Choferes', icon: LocalShipping, href: R.flota },
   { key: 'pagos', label: 'Pagos', icon: AccountBalanceWallet, href: R.pagos },
+  { key: 'ajustes', label: 'Ajustes', icon: SettingsOutlined, href: R.ajustes },
 ]
 
 const SIDEBAR_W = 260
@@ -268,7 +272,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           elevation={8}
           sx={{ top: 'auto', bottom: 0, bgcolor: brand.navy, color: '#fff' }}
         >
-          <Box component="nav" sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', pb: 'env(safe-area-inset-bottom)' }}>
+          <Box
+            component="nav"
+            sx={{ display: 'grid', gridTemplateColumns: `repeat(${NAV.length}, 1fr)`, pb: 'env(safe-area-inset-bottom)' }}
+          >
             {NAV.map((item) => {
               const Icon = item.icon
               const isActive = item.key === active
@@ -293,7 +300,11 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
                       <Box sx={{ position: 'absolute', top: 0, height: 3, width: 40, borderRadius: 4, bgcolor: brand.orange }} />
                     )}
                     <Icon fontSize="small" sx={{ position: 'relative' }} />
-                    <Typography sx={{ fontSize: 11, fontWeight: isActive ? 700 : 600 }}>{item.label}</Typography>
+                    <Typography
+                      sx={{ fontSize: 11, fontWeight: isActive ? 700 : 600, lineHeight: 1.2, textAlign: 'center' }}
+                    >
+                      {item.short ?? item.label}
+                    </Typography>
                   </Box>
                 </a>
               )
