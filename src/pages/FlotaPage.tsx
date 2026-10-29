@@ -31,12 +31,16 @@ import { Add, Check, Close, Edit, InfoOutlined, LocalShipping, Person } from '@m
 import { AppShell } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
+import { usePagedList } from '../usePagedList'
 import { ars } from '../format'
 import { brand } from '../theme'
 import type { Driver, DriverStatus, Vehicle, VehicleStatus } from '../types'
+
+const FLEET_PAGE_SIZE = 10
 
 type DialogState =
   | { mode: 'driver'; data: Driver | null }
@@ -60,6 +64,10 @@ export function FlotaPage() {
   const assignedVehicles = vehicles.filter((v) => v.status === 'Asignado').length
   const workshopVehicles = vehicles.filter((v) => v.status === 'En taller').length
   const activeDrivers = drivers.filter((d) => d.status === 'Activo').length
+
+  // Cada solapa pagina por su cuenta, con el mismo tamaño de página.
+  const driverPages = usePagedList(drivers, FLEET_PAGE_SIZE)
+  const vehiclePages = usePagedList(vehicles, FLEET_PAGE_SIZE)
 
   const openAdd = () => setDialog({ mode: tab === 0 ? 'driver' : 'vehicle', data: null })
   const openEdit = (mode: 'driver' | 'vehicle', data: Driver | Vehicle) => setDialog({ mode, data: data as any })
@@ -151,7 +159,8 @@ export function FlotaPage() {
                 ))}
               </Stack>
             ) : (
-              <Table>
+              <>
+                <Table>
                 <TableHead>
                   <TableRow>
                     <TableCell>Chofer</TableCell>
@@ -162,7 +171,7 @@ export function FlotaPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {drivers.map((d) => (
+                  {driverPages.pageItems.map((d) => (
                     <TableRow key={d.id} hover>
                       <TableCell>
                         <Stack direction="row" spacing={1.5} alignItems="center">
@@ -187,6 +196,14 @@ export function FlotaPage() {
                   ))}
                 </TableBody>
               </Table>
+              <TablePaginationFooter
+                page={driverPages.page}
+                pageSize={FLEET_PAGE_SIZE}
+                total={driverPages.total}
+                itemLabel="choferes"
+                onPageChange={driverPages.setPage}
+              />
+              </>
             ))}
 
           {tab === 1 &&
@@ -217,7 +234,8 @@ export function FlotaPage() {
                 ))}
               </Stack>
             ) : (
-              <Table>
+              <>
+                <Table>
                 <TableHead>
                   <TableRow>
                     <TableCell>Identificador</TableCell>
@@ -228,7 +246,7 @@ export function FlotaPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {vehicles.map((v) => (
+                  {vehiclePages.pageItems.map((v) => (
                     <TableRow key={v.id} hover>
                       <TableCell sx={{ fontWeight: 800, color: brand.navy }}>{v.id}</TableCell>
                       <TableCell>{v.type}</TableCell>
@@ -248,6 +266,14 @@ export function FlotaPage() {
                   ))}
                 </TableBody>
               </Table>
+              <TablePaginationFooter
+                page={vehiclePages.page}
+                pageSize={FLEET_PAGE_SIZE}
+                total={vehiclePages.total}
+                itemLabel="vehículos"
+                onPageChange={vehiclePages.setPage}
+              />
+              </>
             ))}
         </Box>
       </AppShell>

@@ -2,7 +2,6 @@ import type { ComponentType, ReactNode } from 'react'
 import type { SvgIconProps } from '@mui/material/SvgIcon'
 import {
   AppBar,
-  Avatar,
   Box,
   Drawer,
   IconButton,
@@ -17,32 +16,48 @@ import {
   CalendarMonth,
   Checklist,
   LocalShipping,
-  Logout,
   LocationOn,
+  LockOutlined,
   NotificationsNone,
   ChevronRight,
+  PersonOutline,
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { currentUser, roleLabel, signOut } from '../supabase'
+import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
+import { loadSettings } from '../settingsStore'
 
-export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos'
+export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos' | 'ajustes'
 
 interface NavItem {
   key: NavKey
   label: string
+  /** Etiqueta corta para la barra inferior del teléfono. */
+  short?: string
   icon: ComponentType<SvgIconProps>
   href: string
   badge?: number
 }
 
+/**
+ * Primary navigation only: things the admin does every day. Settings are not a
+ * daily task, so they live in the account menu in the top bar instead.
+ */
 const NAV: NavItem[] = [
   { key: 'agenda', label: 'Agenda', icon: CalendarMonth, href: R.agenda },
   { key: 'solicitudes', label: 'Solicitudes', icon: Checklist, href: R.solicitudes, badge: 5 },
-  { key: 'flota', label: 'Choferes y vehículos', icon: LocalShipping, href: R.flota },
+  { key: 'flota', label: 'Choferes y vehículos', short: 'Choferes', icon: LocalShipping, href: R.flota },
   { key: 'pagos', label: 'Pagos', icon: AccountBalanceWallet, href: R.pagos },
+]
+
+/** Account shortcuts, reached from the avatar in the top bar. */
+const ACCOUNT_ITEMS: AccountMenuItem[] = [
+  { key: 'perfil', label: 'Perfil', icon: PersonOutline, href: R.ajustesSeccion('perfil') },
+  { key: 'notificaciones', label: 'Notificaciones', icon: NotificationsNone, href: R.ajustesSeccion('notificaciones') },
+  { key: 'seguridad', label: 'Seguridad', icon: LockOutlined, href: R.ajustesSeccion('seguridad') },
 ]
 
 const SIDEBAR_W = 260
@@ -117,13 +132,27 @@ interface AppShellProps {
   kicker?: string
   description?: string
   action?: ReactNode
+  /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
+  fill?: boolean
   children: ReactNode
 }
 
-export function AppShell({ active, breadcrumb, title, kicker, description, action, children }: AppShellProps) {
+export function AppShell({ active, breadcrumb, title, kicker, description, action, fill, children }: AppShellProps) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const current = NAV.find((n) => n.key === active)!
+  const fillLayout = Boolean(fill) && !isMobile
+  const profile = loadSettings().profile
+  // La identidad sale de la sesión de Supabase; `loadSettings` sólo aporta la
+  // foto, que es una preferencia local de la cuenta.
+  const user = currentUser()
+  const name = user?.nombre ?? profile.name
+  const account = {
+    name,
+    role: user ? roleLabel(user.role) : profile.role,
+    email: user?.email ?? profile.email,
+    initials: initialsFrom(name),
+    photo: profile.photo,
+  }
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -147,34 +176,17 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Buenos Aires, Argentina</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
-        <Avatar sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>
-          {(currentUser()?.email ?? 'FE').slice(0, 2).toUpperCase()}
-        </Avatar>
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>
-            {currentUser()?.nombre ?? 'Sesión'}
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: brand.muted }}>
-            {roleLabel(currentUser()?.role)}
-          </Typography>
-        </Box>
-        <IconButton
-          size="small"
-          title="Cerrar sesión"
-          aria-label="Cerrar sesión"
-          onClick={() => void signOut()}
-          sx={{ color: brand.muted }}
-        >
-          <Logout fontSize="small" />
-        </IconButton>
-      </Stack>
     </Box>
   )
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        minHeight: '100vh',
+        ...(fillLayout && { height: '100dvh', minHeight: 0, overflow: 'hidden' }),
+      }}
+    >
       {!isMobile && (
         <Drawer
           variant="permanent"
@@ -195,7 +207,15 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         </Drawer>
       )}
 
-      <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          ...(fillLayout && { minHeight: 0, overflow: 'hidden' }),
+        }}
+      >
         {!isMobile && (
           <Box
             sx={{
@@ -230,7 +250,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 32, height: 32, bgcolor: '#526B8A', fontSize: 12, fontWeight: 800 }}>MR</Avatar>
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} onSignOut={() => void signOut()} />
             </Stack>
           </Box>
         )}
@@ -243,13 +263,27 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 30, height: 30, bgcolor: '#4E6B8E', fontSize: 11, fontWeight: 800 }}>MR</Avatar>
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
             </Toolbar>
           </AppBar>
         )}
 
-        <Box sx={{ pt: { xs: 9.5, md: 3.5 }, px: { xs: 2, md: 4 }, pb: { xs: 12, md: 4 } }}>
-          <Box sx={{ maxWidth: 1180, mx: 'auto' }}>
+        <Box
+          sx={{
+            pt: { xs: 9.5, md: 3.5 },
+            px: { xs: 2, md: 4 },
+            pb: { xs: 12, md: 4 },
+            ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }),
+          }}
+        >
+          <Box
+            sx={{
+              maxWidth: 1180,
+              mx: 'auto',
+              width: '100%',
+              ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
+            }}
+          >
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
               <Box sx={{ flexGrow: 1 }}>
                 {kicker && (
@@ -279,7 +313,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           elevation={8}
           sx={{ top: 'auto', bottom: 0, bgcolor: brand.navy, color: '#fff' }}
         >
-          <Box component="nav" sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', pb: 'env(safe-area-inset-bottom)' }}>
+          <Box
+            component="nav"
+            sx={{ display: 'grid', gridTemplateColumns: `repeat(${NAV.length}, 1fr)`, pb: 'env(safe-area-inset-bottom)' }}
+          >
             {NAV.map((item) => {
               const Icon = item.icon
               const isActive = item.key === active
@@ -304,7 +341,11 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
                       <Box sx={{ position: 'absolute', top: 0, height: 3, width: 40, borderRadius: 4, bgcolor: brand.orange }} />
                     )}
                     <Icon fontSize="small" sx={{ position: 'relative' }} />
-                    <Typography sx={{ fontSize: 11, fontWeight: isActive ? 700 : 600 }}>{item.label}</Typography>
+                    <Typography
+                      sx={{ fontSize: 11, fontWeight: isActive ? 700 : 600, lineHeight: 1.2, textAlign: 'center' }}
+                    >
+                      {item.short ?? item.label}
+                    </Typography>
                   </Box>
                 </a>
               )

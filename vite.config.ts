@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'node:path'
 
@@ -11,6 +11,7 @@ const PAGES: Record<string, string> = {
   '/planificacion': '/planificacion.html',
   '/flota': '/flota.html',
   '/pagos': '/pagos.html',
+  '/ajustes': '/ajustes.html',
   '/chofer': '/chofer.html',
   '/chofer/config': '/chofer-config.html',
 }
@@ -23,6 +24,7 @@ const PAGE_HTML = [
   'planificacion.html',
   'flota.html',
   'pagos.html',
+  'ajustes.html',
   'chofer.html',
   'chofer-config.html',
 ]
@@ -54,33 +56,40 @@ function mpaRoutes(): Plugin {
   }
 }
 
-export default defineConfig({
-  base: '/',
-  plugins: [react(), mpaRoutes()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  // Vite no inyecta los .env en process.env al evaluar este archivo, así que
+  // se leen explícitamente para que VITE_PROXY_TARGET funcione desde .env.
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:8000'
+
+  return {
+    base: '/',
+    plugins: [react(), mpaRoutes()],
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
       },
     },
-  },
-  preview: {
-    port: 4173,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
-        changeOrigin: true,
+    preview: {
+      port: 4173,
+      proxy: {
+        '/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
       },
     },
-  },
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      input: Object.fromEntries(
-        PAGE_HTML.map((file) => [file.replace('.html', ''), resolve(__dirname, file)]),
-      ),
+    build: {
+      outDir: 'dist',
+      rollupOptions: {
+        input: Object.fromEntries(
+          PAGE_HTML.map((file) => [file.replace('.html', ''), resolve(__dirname, file)]),
+        ),
+      },
     },
-  },
+  }
 })

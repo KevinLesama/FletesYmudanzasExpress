@@ -1,21 +1,8 @@
 import { useMemo, useState } from 'react'
-import {
-  Box,
-  Button,
-  Chip,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material'
-import { Add, ChevronLeft, ChevronRight } from '@mui/icons-material'
+import { Box, Button, useMediaQuery, useTheme } from '@mui/material'
+import { Add } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
-import { MiniCalendar } from '../components/MiniCalendar'
+import { AgendaToolbar, EMPTY_FILTERS, type AgendaFilters, type AgendaView } from '../components/AgendaToolbar'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
@@ -23,21 +10,14 @@ import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { R } from '../routes'
 import { brand } from '../theme'
-import { DEMO_DATE, fmtLong } from '../format'
-
-const STATUS_OPTIONS = ['Confirmada', 'Pendiente de seña', 'Pendiente de revisión', 'Cancelada']
-
-function shiftDate(date: string, delta: number): string {
-  const [y, m, d] = date.split('-').map(Number)
-  const dt = new Date(y, (m ?? 1) - 1, (d ?? 1) + delta)
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-}
+import { color } from '../design/tokens'
+import { DEMO_DATE } from '../format'
+import { addDays, workWeekDays } from '../agendaDates'
 
 export function AgendaPage() {
-  const [date, setDate] = useState(DEMO_DATE)
-  const [driver, setDriver] = useState('all')
-  const [vehicle, setVehicle] = useState('all')
-  const [status, setStatus] = useState('all')
+  const [anchor, setAnchor] = useState(DEMO_DATE)
+  const [view, setView] = useState<AgendaView>('workWeek')
+  const [filters, setFilters] = useState<AgendaFilters>(EMPTY_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -51,69 +31,52 @@ export function AgendaPage() {
   const drivers = catalogState.data?.drivers ?? []
   const vehicles = catalogState.data?.vehicles ?? []
 
+  // Five columns do not fit a phone: the day is the only view there.
+  const effectiveView: AgendaView = isMobile ? 'day' : view
+  const days = useMemo(
+    () => (effectiveView === 'day' ? [anchor] : workWeekDays(anchor)),
+    [anchor, effectiveView],
+  )
+
   const trips = useMemo(
     () =>
       allRequests
         .filter(
-          (t) =>
-            t.date === date &&
-            (driver === 'all' || t.driverId === driver) &&
-            (vehicle === 'all' || t.vehicleId === vehicle) &&
-            (status === 'all' || t.status === status),
+          (trip) =>
+            days.includes(trip.date) &&
+            (filters.driver === 'all' || trip.driverId === filters.driver) &&
+            (filters.vehicle === 'all' || trip.vehicleId === filters.vehicle) &&
+            (filters.status === 'all' || trip.status === filters.status),
         )
-        .sort((a, b) => a.serviceRange[0].localeCompare(b.serviceRange[0])),
-    [allRequests, date, driver, vehicle, status],
+        .sort((a, b) => a.date.localeCompare(b.date) || a.serviceRange[0].localeCompare(b.serviceRange[0])),
+    [allRequests, days, filters],
   )
 
   const marked = useMemo(() => {
-    const s = new Set<string>()
-    allRequests.filter((r) => r.status !== 'Cancelada').forEach((r) => s.add(r.date))
-    return s
+    const dates = new Set<string>()
+    allRequests.filter((request) => request.status !== 'Cancelada').forEach((request) => dates.add(request.date))
+    return dates
   }, [allRequests])
 
-  const [year, month] = useMemo(() => {
-    const [y, m] = date.split('-').map(Number)
-    return [y, (m ?? 1) - 1]
-  }, [date])
-
-  const shiftMonth = (delta: number) => {
-    const dt = new Date(year, month + delta, 1)
-    setDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-01`)
+  const shift = (direction: -1 | 1) => {
+    setAnchor(addDays(anchor, direction * (effectiveView === 'day' ? 1 : 7)))
   }
 
-  const selected = allRequests.find((r) => r.id === selectedId) ?? null
-  const selectedDriverName = selected?.driverId ? drivers.find((d) => d.id === selected.driverId)?.name : undefined
+  const selected = allRequests.find((request) => request.id === selectedId) ?? null
+  const selectedDriverName = selected?.driverId ? drivers.find((driver) => driver.id === selected.driverId)?.name : undefined
   const selectedVehicleName = selected?.vehicleId
-    ? `${selected.vehicleId} · ${vehicles.find((v) => v.id === selected.vehicleId)?.type ?? ''}`
+    ? `${selected.vehicleId} · ${vehicles.find((vehicle) => vehicle.id === selected.vehicleId)?.type ?? ''}`
     : undefined
 
-  const filterSelect = (
-    label: string,
-    value: string,
-    onChange: (v: string) => void,
-    options: { value: string; label: string }[],
-    id: string,
-  ) => (
-    <FormControl size="small" fullWidth>
-      <InputLabel id={id} sx={{ fontSize: 13 }}>
-        {label}
-      </InputLabel>
-      <Select labelId={id} label={label} value={value} onChange={(e) => onChange(e.target.value)} sx={{ bgcolor: '#fff' }}>
-        {options.map((o) => (
-          <MenuItem key={o.value} value={o.value}>
-            {o.label}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  )
+  const tripCountLabel = `${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'}`
 
   return (
     <AppShell
       active="agenda"
       breadcrumb={['Operación', 'Agenda']}
       title="Agenda de viajes"
-      description={fmtLong(date)}
+      fill
+      description={trips.length === 0 ? 'Sin viajes en la vista' : `${tripCountLabel} en la vista`}
       action={
         !isMobile ? (
           <Button
@@ -128,89 +91,70 @@ export function AgendaPage() {
         ) : undefined
       }
     >
-      {/* Barra de controles y filtros */}
-      <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: 2, mb: 2.5 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
-          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
-            <IconButton size="small" onClick={() => setDate(shiftDate(date, -1))} aria-label="Día anterior">
-              <ChevronLeft fontSize="small" />
-            </IconButton>
-            <Button size="small" onClick={() => setDate(DEMO_DATE)} sx={{ fontSize: 12.5 }}>
-              Hoy
-            </Button>
-            <IconButton size="small" onClick={() => setDate(shiftDate(date, 1))} aria-label="Día siguiente">
-              <ChevronRight fontSize="small" />
-            </IconButton>
-            <Chip label={fmtLong(date)} sx={{ fontWeight: 700, bgcolor: '#FBF9F6', border: '1px solid #E9E6DF', ml: 0.5 }} />
-          </Stack>
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, flexGrow: 1 }}>
-            {filterSelect('Chofer', driver, setDriver, [
-              { value: 'all', label: 'Todos los choferes' },
-              ...drivers.map((d) => ({ value: d.id, label: d.name })),
-            ], 'agenda-filter-driver')}
-            {filterSelect('Vehículo', vehicle, setVehicle, [
-              { value: 'all', label: 'Todos los vehículos' },
-              ...vehicles.map((v) => ({ value: v.id, label: `${v.id} · ${v.type}` })),
-            ], 'agenda-filter-vehicle')}
-            {filterSelect('Estado', status, setStatus, [
-              { value: 'all', label: 'Todos los estados' },
-              ...STATUS_OPTIONS.map((s) => ({ value: s, label: s })),
-            ], 'agenda-filter-status')}
-          </Box>
-        </Stack>
-      </Box>
-
       {isMobile && (
         <Button
           fullWidth
           variant="contained"
           startIcon={<Add />}
-          sx={{ mb: 2.5, py: 1.2, bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
+          sx={{ mb: 2, py: 1.2, bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
           href={R.nuevaSolicitud}
         >
           Nueva solicitud
         </Button>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '300px 1fr' }, gap: 2.5, alignItems: 'start' }}>
-        {/* Panel izquierdo: calendario de navegación */}
-        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: 2.5 }}>
-          <MiniCalendar
-            year={year}
-            month={month}
-            selected={date}
+      <Box
+        sx={{
+          bgcolor: color.paper,
+          border: `1px solid ${color.border}`,
+          borderRadius: 3,
+          overflow: 'hidden',
+          ...(!isMobile && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
+        }}
+      >
+        <Box sx={{ px: { xs: 1.5, md: 2 }, py: 1.5, borderBottom: `1px solid ${color.border}` }}>
+          <AgendaToolbar
+            view={effectiveView}
+            onViewChange={setView}
+            days={days}
+            anchor={anchor}
             marked={marked}
-            onSelect={setDate}
-            onPrevMonth={() => shiftMonth(-1)}
-            onNextMonth={() => shiftMonth(1)}
+            onSelectDate={setAnchor}
+            onShift={shift}
+            onToday={() => setAnchor(DEMO_DATE)}
+            filters={filters}
+            onFiltersChange={setFilters}
+            drivers={drivers}
+            vehicles={vehicles}
+            showViewSwitch={!isMobile}
+            showLegend={!isMobile}
           />
         </Box>
 
-        {/* Panel derecho: grilla de planificación */}
-        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: { xs: 1.5, md: 2.5 } }}>
-          {requestsState.loading ? (
+        {requestsState.loading ? (
+          <Box sx={{ p: 3 }}>
             <LoadingState label="Cargando agenda..." />
-          ) : requestsState.error ? (
+          </Box>
+        ) : requestsState.error ? (
+          <Box sx={{ p: 3 }}>
             <ErrorState message={requestsState.error} onRetry={requestsState.reload} />
-          ) : trips.length === 0 ? (
+          </Box>
+        ) : trips.length === 0 ? (
+          <Box sx={{ p: 3 }}>
             <EmptyState
               title="No hay viajes para estos filtros"
-              subtext="Probá con otra selección o cambiá la fecha para ver los viajes cargados."
+              subtext="Probá con otra selección o movete a otra fecha para ver los viajes cargados."
             />
-          ) : (
-            <>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.2 }}>
-                <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 16 }}>
-                  Planificación del día
-                </Typography>
-                <Box sx={{ flexGrow: 1 }} />
-                <Typography sx={{ fontSize: 12, color: '#64707C' }}>{trips.length} viajes</Typography>
-              </Stack>
-              <AgendaGrid trips={trips} onOpenTrip={(t) => setSelectedId(t.id)} />
-            </>
-          )}
-        </Box>
+          </Box>
+        ) : (
+          <AgendaGrid
+            days={days}
+            trips={trips}
+            today={DEMO_DATE}
+            fill={!isMobile}
+            onOpenTrip={(trip) => setSelectedId(trip.id)}
+          />
+        )}
       </Box>
 
       {selected && (

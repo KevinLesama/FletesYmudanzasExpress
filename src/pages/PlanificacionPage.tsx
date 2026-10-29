@@ -43,6 +43,7 @@ import {
   Undo,
 } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
+import { SearchableSelect } from '../components/SearchableSelect'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { StatusChip } from '../components/StatusChip'
@@ -209,19 +210,16 @@ export function PlanificacionPage() {
     </MenuItem>
   )
 
-  const vehicleOption = (v: Vehicle) => {
-    const disabled = v.status === 'En taller'
+  const vehicleOptionContent = (v: Vehicle) => {
     const note = v.status !== 'Disponible' ? `· ${v.status}` : ''
     return (
-      <MenuItem value={v.id} disabled={disabled} key={v.id}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: '#64707C' }} />
-          <span>
-            {v.id} · {v.type}
-          </span>
-          {note && <span style={{ fontSize: 12, color: '#9C493A' }}>{note}</span>}
-        </Stack>
-      </MenuItem>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <LocalShipping sx={{ fontSize: 16, color: '#64707C' }} />
+        <span>
+          {v.id} · {v.type}
+        </span>
+        {note && <span style={{ fontSize: 12, color: '#9C493A' }}>{note}</span>}
+      </Stack>
     )
   }
 
@@ -317,12 +315,19 @@ export function PlanificacionPage() {
             {drivers.map((d) => driverOption(d))}
           </Select>
         </FormControl>
-        <FormControl size="small" fullWidth>
-          <InputLabel>Vehículo</InputLabel>
-          <Select label="Vehículo" value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-            {vehicles.map((v) => vehicleOption(v))}
-          </Select>
-        </FormControl>
+        <SearchableSelect
+          label="Vehículo"
+          value={selectedVehicle ?? null}
+          options={vehicles}
+          getKey={(v) => v.id}
+          getLabel={(v) => `${v.id} · ${v.type}`}
+          getSearchText={(v) => v.status}
+          renderOption={vehicleOptionContent}
+          isOptionDisabled={(v) => v.status === 'En taller'}
+          onChange={(v) => setVehicleId(v?.id ?? '')}
+          placeholder="Buscar por ID o tipo"
+          fullWidth
+        />
       </Stack>
 
       <Stack spacing={1} sx={{ mt: 2 }}>

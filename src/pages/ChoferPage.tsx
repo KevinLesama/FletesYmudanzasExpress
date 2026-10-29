@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import {
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -111,7 +110,6 @@ export function ChoferPage() {
           <IconButton size="small" onClick={() => setDate(shiftDate(date, 1))} aria-label="Día siguiente">
             <ChevronRight fontSize="small" />
           </IconButton>
-          <Chip label={fmtLong(date)} sx={{ fontWeight: 700, bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', ml: 0.5 }} />
         </Stack>
 
         {tripsState.loading ? (
@@ -130,7 +128,7 @@ export function ChoferPage() {
             />
           </Box>
         ) : (
-          <AgendaGrid trips={dayTrips} onOpenTrip={(t) => setSelectedId(t.id)} />
+          <AgendaGrid days={[date]} trips={dayTrips} today={DEMO_DATE} onOpenTrip={(t) => setSelectedId(t.id)} />
         )}
       </ChoferShell>
 
