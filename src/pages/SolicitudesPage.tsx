@@ -15,19 +15,23 @@ import {
   TableRow,
   TextField,
   Typography,
-  IconButton,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, ArrowForward, ArrowBack, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
+import { Add, ArrowForward, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
+import { usePagedList } from '../usePagedList'
 import { R } from '../routes'
 import { brand } from '../theme'
 import { fmtDate } from '../format'
+import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
+
+const LIST_PAGE_SIZE = 10
 
 export function SolicitudesPage() {
   const theme = useTheme()
@@ -50,6 +54,8 @@ export function SolicitudesPage() {
       })
       .sort((a, b) => Number(b.id.slice(4)) - Number(a.id.slice(4)))
   }, [data, search, date, status])
+
+  const pages = usePagedList(list, LIST_PAGE_SIZE)
 
   const dateOptions = useMemo(() => {
     const unique = Array.from(new Set((data ?? []).map((r) => r.date)))
@@ -119,9 +125,12 @@ export function SolicitudesPage() {
       >
         <TextField
           size="small"
+          type="search"
           placeholder="Buscar por cliente o número de solicitud"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          sx={SEARCH_FIELD_SX}
+          inputProps={SEARCH_INPUT_PROPS}
           InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
         />
         <FormControl size="small">
@@ -176,7 +185,7 @@ export function SolicitudesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {list.map((r) => (
+              {pages.pageItems.map((r) => (
                 <TableRow key={r.id} hover>
                   <TableCell sx={{ fontWeight: 800, color: brand.navy }}>{r.id}</TableCell>
                   <TableCell>{r.client}</TableCell>
@@ -204,20 +213,13 @@ export function SolicitudesPage() {
             </TableBody>
           </Table>
 
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            sx={{ px: 2.5, py: 1.5, borderTop: '1px solid #EDEAE3', bgcolor: '#FBF9F6' }}
-          >
-            <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
-              Mostrando 1-{list.length} de {list.length} solicitudes
-            </Typography>
-            <Stack direction="row" spacing={1}>
-              <IconButton size="small" disabled aria-label="Página anterior"><ArrowBack sx={{ fontSize: 18 }} /></IconButton>
-              <IconButton size="small" disabled aria-label="Página siguiente"><ArrowForward sx={{ fontSize: 18 }} /></IconButton>
-            </Stack>
-          </Stack>
+          <TablePaginationFooter
+            page={pages.page}
+            pageSize={LIST_PAGE_SIZE}
+            total={pages.total}
+            itemLabel="solicitudes"
+            onPageChange={pages.setPage}
+          />
         </Box>
       ) : (
         <Stack spacing={1.5}>

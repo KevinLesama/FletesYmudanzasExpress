@@ -2,7 +2,6 @@ import type { ComponentType, ReactNode } from 'react'
 import type { SvgIconProps } from '@mui/material/SvgIcon'
 import {
   AppBar,
-  Avatar,
   Box,
   Drawer,
   IconButton,
@@ -17,16 +16,18 @@ import {
   CalendarMonth,
   Checklist,
   LocalShipping,
-  Logout,
   LocationOn,
+  LockOutlined,
   NotificationsNone,
   ChevronRight,
-  SettingsOutlined,
+  PersonOutline,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
+import { loadSettings } from '../settingsStore'
 
 export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos' | 'ajustes'
 
@@ -40,12 +41,22 @@ interface NavItem {
   badge?: number
 }
 
+/**
+ * Primary navigation only: things the admin does every day. Settings are not a
+ * daily task, so they live in the account menu in the top bar instead.
+ */
 const NAV: NavItem[] = [
   { key: 'agenda', label: 'Agenda', icon: CalendarMonth, href: R.agenda },
   { key: 'solicitudes', label: 'Solicitudes', icon: Checklist, href: R.solicitudes, badge: 5 },
   { key: 'flota', label: 'Choferes y vehículos', short: 'Choferes', icon: LocalShipping, href: R.flota },
   { key: 'pagos', label: 'Pagos', icon: AccountBalanceWallet, href: R.pagos },
-  { key: 'ajustes', label: 'Ajustes', icon: SettingsOutlined, href: R.ajustes },
+]
+
+/** Account shortcuts, reached from the avatar in the top bar. */
+const ACCOUNT_ITEMS: AccountMenuItem[] = [
+  { key: 'perfil', label: 'Perfil', icon: PersonOutline, href: R.ajustesSeccion('perfil') },
+  { key: 'notificaciones', label: 'Notificaciones', icon: NotificationsNone, href: R.ajustesSeccion('notificaciones') },
+  { key: 'seguridad', label: 'Seguridad', icon: LockOutlined, href: R.ajustesSeccion('seguridad') },
 ]
 
 const SIDEBAR_W = 260
@@ -120,13 +131,23 @@ interface AppShellProps {
   kicker?: string
   description?: string
   action?: ReactNode
+  /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
+  fill?: boolean
   children: ReactNode
 }
 
-export function AppShell({ active, breadcrumb, title, kicker, description, action, children }: AppShellProps) {
+export function AppShell({ active, breadcrumb, title, kicker, description, action, fill, children }: AppShellProps) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const current = NAV.find((n) => n.key === active)!
+  const fillLayout = Boolean(fill) && !isMobile
+  const profile = loadSettings().profile
+  const account = {
+    name: profile.name,
+    role: profile.role,
+    email: profile.email,
+    initials: initialsFrom(profile.name),
+    photo: profile.photo,
+  }
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -150,24 +171,17 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Buenos Aires, Argentina</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1 }}>
-        <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 36, height: 36, bgcolor: '#526B8A', fontSize: 13, fontWeight: 800 }}>MR</Avatar>
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: brand.navy }}>María Rodríguez</Typography>
-          <Typography sx={{ fontSize: 12, color: '#64707C' }}>Administradora</Typography>
-        </Box>
-        <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none', color: '#64707C' }}>
-          <IconButton size="small" sx={{ color: '#64707C' }}>
-            <Logout fontSize="small" />
-          </IconButton>
-        </a>
-      </Stack>
     </Box>
   )
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        minHeight: '100vh',
+        ...(fillLayout && { height: '100dvh', minHeight: 0, overflow: 'hidden' }),
+      }}
+    >
       {!isMobile && (
         <Drawer
           variant="permanent"
@@ -188,7 +202,15 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         </Drawer>
       )}
 
-      <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          ...(fillLayout && { minHeight: 0, overflow: 'hidden' }),
+        }}
+      >
         {!isMobile && (
           <Box
             sx={{
@@ -223,7 +245,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 32, height: 32, bgcolor: '#526B8A', fontSize: 12, fontWeight: 800 }}>MR</Avatar>
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} />
             </Stack>
           </Box>
         )}
@@ -236,13 +258,27 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <Avatar src="/avatar-nievasys.jpg" alt="María Rodríguez" sx={{ width: 30, height: 30, bgcolor: '#4E6B8E', fontSize: 11, fontWeight: 800 }}>MR</Avatar>
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" />
             </Toolbar>
           </AppBar>
         )}
 
-        <Box sx={{ pt: { xs: 9.5, md: 3.5 }, px: { xs: 2, md: 4 }, pb: { xs: 12, md: 4 } }}>
-          <Box sx={{ maxWidth: 1180, mx: 'auto' }}>
+        <Box
+          sx={{
+            pt: { xs: 9.5, md: 3.5 },
+            px: { xs: 2, md: 4 },
+            pb: { xs: 12, md: 4 },
+            ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }),
+          }}
+        >
+          <Box
+            sx={{
+              maxWidth: 1180,
+              mx: 'auto',
+              width: '100%',
+              ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
+            }}
+          >
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
               <Box sx={{ flexGrow: 1 }}>
                 {kicker && (

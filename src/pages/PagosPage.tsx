@@ -27,12 +27,17 @@ import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search, WarningAmber } fro
 import { AppShell } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
+import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
+import { usePagedList } from '../usePagedList'
 import { ars, fmtDate } from '../format'
+import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
 import { brand } from '../theme'
 import type { Payment, PaymentConcept, PaymentMethod, PaymentSummary, ReceivedBy } from '../types'
+
+const PAYMENTS_PAGE_SIZE = 10
 
 export function PagosPage() {
   const theme = useTheme()
@@ -56,6 +61,8 @@ export function PagosPage() {
       return true
     })
   }, [trips, date, status, search])
+
+  const pages = usePagedList(rows, PAYMENTS_PAGE_SIZE)
 
   const registerPayment = async (trip: PaymentSummary, payment: Payment) => {
     setBusy(true)
@@ -86,7 +93,7 @@ export function PagosPage() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {rows.map((r) => (
+          {pages.pageItems.map((r) => (
             <TableRow key={r.id} hover>
               <TableCell>
                 <Typography sx={{ fontWeight: 800, color: brand.navy }}>{r.id}</Typography>
@@ -109,6 +116,13 @@ export function PagosPage() {
           ))}
         </TableBody>
       </Table>
+      <TablePaginationFooter
+        page={pages.page}
+        pageSize={PAYMENTS_PAGE_SIZE}
+        total={pages.total}
+        itemLabel="registros"
+        onPageChange={pages.setPage}
+      />
     </Box>
   )
 
@@ -177,9 +191,12 @@ export function PagosPage() {
         >
           <TextField
             size="small"
+            type="search"
             placeholder="Buscar por viaje o cliente"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            sx={SEARCH_FIELD_SX}
+            inputProps={SEARCH_INPUT_PROPS}
             InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
           />
           <FormControl size="small">
