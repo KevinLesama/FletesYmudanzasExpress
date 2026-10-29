@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { Toast, type ToastState } from '../components/Toast'
+import { useQuery } from '../routes'
 import { color, radius, type } from '../design/tokens'
 import { ars } from '../format'
 import {
@@ -133,7 +134,19 @@ function SettingRow({
 }
 
 export function AjustesPage() {
-  const [section, setSection] = useState<SectionKey>('perfil')
+  // `?seccion=` lets the account menu deep-link straight into one panel, and
+  // keeps the address bar in sync when the section changes.
+  const [section, setSection] = useState<SectionKey>(() => {
+    const requested = useQuery().get('seccion')
+    return SECTIONS.some((item) => item.key === requested) ? (requested as SectionKey) : 'perfil'
+  })
+
+  const selectSection = (key: SectionKey) => {
+    setSection(key)
+    const url = new URL(window.location.href)
+    url.searchParams.set('seccion', key)
+    window.history.replaceState(null, '', url)
+  }
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings())
   const [toast, setToast] = useState<ToastState | null>(null)
   const [nameDraft, setNameDraft] = useState(settings.profile.name)
@@ -540,7 +553,7 @@ export function AjustesPage() {
                 key={item.key}
                 component="button"
                 type="button"
-                onClick={() => setSection(item.key)}
+                onClick={() => selectSection(item.key)}
                 aria-current={active ? 'page' : undefined}
                 sx={{
                   appearance: 'none',

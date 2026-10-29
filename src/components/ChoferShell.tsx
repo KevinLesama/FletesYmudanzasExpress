@@ -2,10 +2,8 @@ import type { ComponentType, ReactNode } from 'react'
 import type { SvgIconProps } from '@mui/material/SvgIcon'
 import {
   AppBar,
-  Avatar,
   Box,
   Drawer,
-  IconButton,
   Stack,
   Toolbar,
   Typography,
@@ -13,13 +11,13 @@ import {
   useTheme,
 } from '@mui/material'
 import {
-  Logout,
   Route,
   Settings,
   LocalShipping,
   ChevronRight,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { AccountMenu, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
 import { brand } from '../theme'
 
@@ -34,8 +32,24 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: 'viajes', label: 'Mis viajes', icon: Route, href: R.chofer },
+]
+
+/**
+ * The driver view is mobile-only and has exactly two screens, so the account
+ * menu doubles as navigation: the bottom bar no longer needs to carry them.
+ */
+const ACCOUNT_ITEMS: AccountMenuItem[] = [
+  { key: 'viajes', label: 'Mis viajes', icon: Route, href: R.chofer },
   { key: 'config', label: 'Mi configuración', icon: Settings, href: R.choferConfig },
 ]
+
+/** The demo signs the driver in as the seeded `JA` (Jorge Almada). */
+const ACCOUNT = {
+  name: 'Jorge Almada',
+  role: 'Chofer',
+  initials: 'JA',
+  accent: brand.orangeStrong,
+}
 
 const SIDEBAR_W = 260
 
@@ -119,13 +133,6 @@ export function ChoferShell({
           <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
         </Stack>
       </Box>
-      <Box sx={{ my: 2, height: '1px', bgcolor: '#EDEAE3' }} />
-      <a href={R.ingreso} title="Salir" aria-label="Cerrar sesión" style={{ textDecoration: 'none' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, color: '#64707C', '&:hover': { color: brand.navy } }}>
-          <Logout fontSize="small" />
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Salir</Typography>
-        </Stack>
-      </a>
     </Box>
   )
 
@@ -181,12 +188,7 @@ export function ChoferShell({
               ))}
             </Stack>
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Stack direction="row" alignItems="center" spacing={0.7}>
-                <Box sx={{ width: 7, height: 7, borderRadius: 50, bgcolor: '#4E9A6C' }} />
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Turno activo</Typography>
-              </Stack>
-              <Box sx={{ width: '1px', height: 20, bgcolor: '#EDEAE3' }} />
-              <Avatar sx={{ width: 32, height: 32, bgcolor: brand.orangeStrong, fontSize: 12, fontWeight: 800 }}>JA</Avatar>
+              <AccountMenu user={ACCOUNT} items={ACCOUNT_ITEMS} />
             </Stack>
           </Box>
         )}
@@ -196,12 +198,13 @@ export function ChoferShell({
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
               <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
-              <Avatar sx={{ width: 30, height: 30, bgcolor: brand.orangeStrong, fontSize: 11, fontWeight: 800 }}>JA</Avatar>
+              <AccountMenu user={ACCOUNT} items={ACCOUNT_ITEMS} surface="dark" />
             </Toolbar>
           </AppBar>
         )}
 
-        <Box sx={{ pt: { xs: 9.5, md: 3.5 }, px: { xs: 2, md: 4 }, pb: { xs: 12, md: 4 } }}>
+        {/* No mobile bottom bar on the driver view, so it does not reserve space for one. */}
+        <Box sx={{ pt: { xs: 9.5, md: 3.5 }, px: { xs: 2, md: 4 }, pb: 4 }}>
           <Box sx={{ maxWidth: 980, mx: 'auto' }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
               <Box sx={{ flexGrow: 1 }}>
@@ -222,9 +225,9 @@ export function ChoferShell({
         </Box>
       </Box>
 
-      {isMobile && (
+      {isMobile && NAV.length > 1 && (
         <AppBar position="fixed" elevation={8} sx={{ top: 'auto', bottom: 0, bgcolor: brand.navy, color: '#fff' }}>
-          <Box component="nav" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', pb: 'env(safe-area-inset-bottom)' }}>
+          <Box component="nav" sx={{ display: 'grid', gridTemplateColumns: `repeat(${NAV.length}, 1fr)`, pb: 'env(safe-area-inset-bottom)' }}>
             {NAV.map((item) => {
               const Icon = item.icon
               const isActive = item.key === active

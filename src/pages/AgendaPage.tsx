@@ -75,6 +75,7 @@ export function AgendaPage() {
       active="agenda"
       breadcrumb={['Operación', 'Agenda']}
       title="Agenda de viajes"
+      fill
       description={trips.length === 0 ? 'Sin viajes en la vista' : `${tripCountLabel} en la vista`}
       action={
         !isMobile ? (
@@ -102,7 +103,15 @@ export function AgendaPage() {
         </Button>
       )}
 
-      <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, overflow: 'hidden' }}>
+      <Box
+        sx={{
+          bgcolor: color.paper,
+          border: `1px solid ${color.border}`,
+          borderRadius: 3,
+          overflow: 'hidden',
+          ...(!isMobile && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
+        }}
+      >
         <Box sx={{ px: { xs: 1.5, md: 2 }, py: 1.5, borderBottom: `1px solid ${color.border}` }}>
           <AgendaToolbar
             view={effectiveView}
@@ -138,7 +147,13 @@ export function AgendaPage() {
             />
           </Box>
         ) : (
-          <AgendaGrid days={days} trips={trips} today={DEMO_DATE} onOpenTrip={(trip) => setSelectedId(trip.id)} />
+          <AgendaGrid
+            days={days}
+            trips={trips}
+            today={DEMO_DATE}
+            fill={!isMobile}
+            onOpenTrip={(trip) => setSelectedId(trip.id)}
+          />
         )}
       </Box>
 

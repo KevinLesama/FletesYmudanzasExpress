@@ -3,8 +3,8 @@ import { color, type } from '../design/tokens'
 import { dayNumber, weekdayShort } from '../agendaDates'
 import type { RequestStatus, ShiftRequest } from '../types'
 
-const HOUR_START = 8
-const HOUR_END = 16
+const HOUR_START = 7
+const HOUR_END = 19
 const MIN_START = HOUR_START * 60
 const MIN_END = HOUR_END * 60
 const GUTTER = 62
@@ -197,11 +197,14 @@ export function AgendaGrid({
   days,
   trips,
   today,
+  fill,
   onOpenTrip,
 }: {
   days: string[]
   trips: ShiftRequest[]
   today: string
+  /** El grid ocupa el alto disponible y hace scroll interno, con el encabezado fijo. */
+  fill?: boolean
   onOpenTrip: (trip: ShiftRequest) => void
 }) {
   const tripsByDay = new Map<string, ShiftRequest[]>()
@@ -214,7 +217,12 @@ export function AgendaGrid({
   const columns = `repeat(${days.length}, minmax(0, 1fr))`
 
   return (
-    <Box sx={{ overflowX: 'auto' }}>
+    <Box
+      sx={{
+        overflowX: 'auto',
+        ...(fill && { flex: 1, minHeight: 0, overflowY: 'auto' }),
+      }}
+    >
       <Box sx={{ minWidth: days.length === 1 ? 320 : 560 }}>
         {/* Encabezado: días */}
         <Box
@@ -223,6 +231,7 @@ export function AgendaGrid({
             gridTemplateColumns: `${GUTTER}px ${columns}`,
             bgcolor: color.sand,
             borderBottom: `1px solid ${color.border}`,
+            ...(fill && { position: 'sticky', top: 0, zIndex: 2 }),
           }}
         >
           <Box />
@@ -266,12 +275,12 @@ export function AgendaGrid({
           })}
         </Box>
 
-        {/* Cuerpo: eje horario + columnas */}
+        {/* Cuerpo: eje horario + columnas. La tarjeta ya aporta el borde
+            inferior, así que el grid no repite una segunda línea ahí. */}
         <Box
           sx={{
             display: 'grid',
             gridTemplateColumns: `${GUTTER}px ${columns}`,
-            borderBottom: `1px solid ${color.borderSoft}`,
           }}
         >
           <Box sx={{ position: 'relative', height: CONTENT_H }}>
