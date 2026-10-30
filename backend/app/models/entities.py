@@ -16,6 +16,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    FetchedValue,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -24,6 +25,7 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -55,8 +57,8 @@ class Usuario(Base):
     tarifa_por_hora: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     solicitudes_cliente: Mapped[list["Solicitud"]] = relationship(
         back_populates="cliente",
@@ -107,8 +109,8 @@ class Vehiculo(Base):
     estado: Mapped[str] = mapped_column(Text, nullable=False, default="disponible")
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     solicitudes: Mapped[list["Solicitud"]] = relationship(back_populates="vehiculo")
 
@@ -124,7 +126,7 @@ class Solicitud(Base):
     __tablename__ = "solicitudes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    codigo: Mapped[str] = mapped_column(Text, nullable=False)
+    codigo: Mapped[str] = mapped_column(Text, nullable=False, server_default=FetchedValue())
     cliente_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     cliente_rol: Mapped[str] = mapped_column(Text, nullable=False, default="cliente")
     estado: Mapped[str] = mapped_column(Text, nullable=False, default="pendiente")
@@ -166,8 +168,8 @@ class Solicitud(Base):
     motivo_cancelacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     cliente: Mapped["Usuario"] = relationship(
         back_populates="solicitudes_cliente",
@@ -271,8 +273,8 @@ class ItemCarga(Base):
     fragil: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     nota: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     posicion: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     solicitud: Mapped["Solicitud"] = relationship(back_populates="items_carga")
 
@@ -302,8 +304,8 @@ class Pago(Base):
     comprobante_ruta: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     comprobante_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     solicitud: Mapped["Solicitud"] = relationship(back_populates="pagos")
     recibido_por: Mapped["Usuario"] = relationship(back_populates="pagos_recibidos")

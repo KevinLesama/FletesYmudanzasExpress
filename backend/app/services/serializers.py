@@ -148,7 +148,9 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "driver_id": solicitud.chofer_id,
         "vehicle_id": solicitud.vehiculo_id,
         "price": float(precio_final),
-        "deposit_required": float(precio_final),
+        # La seña no se guarda en el viaje: es el 50 % del precio final
+        # (regla de presentación, ver backend/sql/schema.sql).
+        "deposit_required": float(precio_final) / 2,
         "deposit_received": sena_total,
         "confirmed": solicitud.estado in ("confirmada", "finalizada"),
         "estimated_km": float(solicitud.km_estimados) if solicitud.km_estimados is not None else None,

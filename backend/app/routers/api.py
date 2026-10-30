@@ -16,6 +16,7 @@ from app.schemas import (
     AvailabilityOut,
     ChoferIn,
     ChoferOut,
+    ChoferUpdate,
     ClienteIn,
     ClienteOut,
     MeOut,
@@ -125,7 +126,13 @@ def create_driver(payload: ChoferIn, db: Session = Depends(get_db)) -> ChoferOut
         activo=payload.activo,
     )
     db.add(chofer)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409, detail="Ya existe un usuario con ese email."
+        ) from exc
     db.refresh(chofer)
     return serializers.serialize_driver(chofer)
 
@@ -143,19 +150,21 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)) -> ChoferOut:
     response_model=ChoferOut,
     dependencies=[Depends(require_role("administrador"))],
 )
-def update_driver(driver_id: int, payload: ChoferIn, db: Session = Depends(get_db)) -> ChoferOut:
+def update_driver(driver_id: int, payload: ChoferUpdate, db: Session = Depends(get_db)) -> ChoferOut:
     driver = db.get(Usuario, driver_id)
     if driver is None or driver.rol != "chofer":
         raise HTTPException(status_code=404, detail="Chofer no encontrado.")
-    driver.nombre = payload.nombre
-    driver.telefono = payload.telefono
-    driver.email = payload.email
-    driver.licencia = payload.licencia
-    driver.tarifa_base = payload.tarifa_base
-    driver.tarifa_por_km = payload.tarifa_por_km
-    driver.tarifa_por_hora = payload.tarifa_por_hora
-    driver.activo = payload.activo
-    db.commit()
+    # Actualizacion parcial: un PATCH del formulario de flota manda solo
+    # nombre, telefono, email y estado; no debe borrar licencia ni tarifas.
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(driver, field, value)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409, detail="Ya existe un usuario con ese email."
+        ) from exc
     db.refresh(driver)
     return serializers.serialize_driver(driver)
 
@@ -244,6 +253,10 @@ def _get_request_or_404(db: Session, request_ref: str | int) -> Solicitud:
             selectinload(Solicitud.pagos),
         )
         .where(condition)
+        # expire_on_commit=False: sin populate_existing la sesion devuelve la
+        # coleccion cacheada y un pago recien insertado no aparece en la
+        # respuesta del POST.
+        .execution_options(populate_existing=True)
     )
     if request is None:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
@@ -307,7 +320,6 @@ def create_request(payload: SolicitudIn, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=404, detail="Cliente no encontrado.")
     
     solicitud = Solicitud(
-        codigo=f"FEX-{db.scalar(select(func.coalesce(func.max(Solicitud.id), 0))) + 1001:04d}" if False else None,  # se genera por default
         cliente_id=cliente.id,
         cliente_rol="cliente",
         estado="pendiente",
@@ -385,7 +397,7 @@ def update_request(
             raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
         if not business.vehicle_is_assignable(db, vehicle):
             raise HTTPException(
-                status_code=409, detail="El vehículo no está disponible (en taller)."
+                status_code=409, detail="El vehículo no está operativo."
             )
         if business.vehicle_conflicts(db, new_vehiculo, new_fecha, new_desde, new_hasta, exclude_id=request.id):
             raise HTTPException(

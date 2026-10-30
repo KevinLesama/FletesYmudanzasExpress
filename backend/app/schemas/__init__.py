@@ -6,13 +6,16 @@ from datetime import date as DateType
 from datetime import time as TimeType
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SolicitudEstado = Literal["pendiente", "confirmada", "finalizada", "cancelada"]
 UsuarioRol = Literal["administrador", "chofer", "cliente"]
 VehiculoEstado = Literal["disponible", "en_taller", "fuera_de_servicio"]
 PagoConcepto = Literal["sena", "saldo"]
 PagoMetodo = Literal["efectivo", "transferencia"]
+
+# Mismo criterio que ck_usuarios_email en backend/sql/schema.sql.
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
 # --------------------------------------------------------------------------- #
@@ -48,15 +51,56 @@ class ClienteOut(BaseModel):
     email: str | None = None
 
 
-class ChoferIn(BaseModel):
+class _ChoferBase(BaseModel):
+    """Reglas de nombre y telefono compartidas por alta y edicion.
+
+    Replican las restricciones de la tabla usuarios para que un dato invalido
+    devuelva 422 en el campo en vez de un error de integridad generico.
+    """
+
+    @field_validator("nombre", check_fields=False)
+    @classmethod
+    def _nombre_no_vacio(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        limpio = value.strip()
+        if not limpio:
+            raise ValueError("El nombre no puede estar vacio.")
+        return limpio
+
+    @field_validator("telefono", check_fields=False)
+    @classmethod
+    def _telefono_con_digitos(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if sum(ch.isdigit() for ch in value) < 6:
+            raise ValueError("El telefono debe tener al menos 6 digitos.")
+        return value
+
+
+class ChoferIn(_ChoferBase):
     nombre: str = Field(min_length=1)
     telefono: str = Field(min_length=1)
-    email: str | None = None
+    # Obligatorio para el personal: lo exige ck_usuarios_email_personal.
+    email: str = Field(pattern=EMAIL_PATTERN)
     licencia: str | None = None
     tarifa_base: float = 0
     tarifa_por_km: float = 0
     tarifa_por_hora: float = 0
     activo: bool = True
+
+
+class ChoferUpdate(_ChoferBase):
+    """Actualizacion parcial: solo se aplican los campos enviados."""
+
+    nombre: str | None = Field(default=None, min_length=1)
+    telefono: str | None = Field(default=None, min_length=1)
+    email: str | None = Field(default=None, pattern=EMAIL_PATTERN)
+    licencia: str | None = None
+    tarifa_base: float | None = Field(default=None, ge=0)
+    tarifa_por_km: float | None = Field(default=None, ge=0)
+    tarifa_por_hora: float | None = Field(default=None, ge=0)
+    activo: bool | None = None
 
 
 class ChoferOut(BaseModel):
