@@ -93,6 +93,7 @@ function mapDriver(d: Json): Driver {
     initials,
     name,
     phone: d.telefono ?? d.phone ?? '',
+    email: d.email ?? '',
     status: d.activo === false ? 'Inactivo' : 'Activo',
     baseRate: Number(d.tarifa_base ?? 0),
     ratePerKm: Number(d.tarifa_por_km ?? 0),
@@ -315,12 +316,35 @@ export const api = {
   createDriver: async (payload: {
     name: string
     phone: string
+    email: string
     status: Driver['status']
-  }): Promise<Driver> => mapDriver(await http<Json>('/drivers', { method: 'POST', body: JSON.stringify(payload) })),
+  }): Promise<Driver> =>
+    mapDriver(
+      await http<Json>('/drivers', {
+        method: 'POST',
+        body: JSON.stringify({
+          nombre: payload.name,
+          telefono: payload.phone,
+          email: payload.email,
+          activo: payload.status !== 'Inactivo',
+        }),
+      }),
+    ),
   updateDriver: async (
     id: string,
-    payload: { name: string; phone: string; status: Driver['status'] },
-  ): Promise<Driver> => mapDriver(await http<Json>(`/drivers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })),
+    payload: { name: string; phone: string; email: string; status: Driver['status'] },
+  ): Promise<Driver> =>
+    mapDriver(
+      await http<Json>(`/drivers/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          nombre: payload.name,
+          telefono: payload.phone,
+          email: payload.email,
+          activo: payload.status !== 'Inactivo',
+        }),
+      }),
+    ),
   updateDriverRates: async (
     id: string,
     payload: { base_rate: number; rate_per_km: number; rate_per_hour: number; factors: { label: string; amount: number }[] },

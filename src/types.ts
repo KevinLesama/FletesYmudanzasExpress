@@ -20,6 +20,7 @@ export interface Driver {
   initials: string
   name: string
   phone: string
+  email: string
   status: DriverStatus
   baseRate: number // tarifa por viaje (sueldo base)
   ratePerKm: number
