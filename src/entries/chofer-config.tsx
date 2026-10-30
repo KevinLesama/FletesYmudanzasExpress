@@ -1,4 +1,4 @@
-import { renderPage } from '../render'
+import { STAFF_ROLES, mountWithAuth } from '../guard'
 import { ChoferConfigPage } from '../pages/ChoferConfigPage'
 
-renderPage(<ChoferConfigPage />)
+mountWithAuth(STAFF_ROLES, <ChoferConfigPage />)

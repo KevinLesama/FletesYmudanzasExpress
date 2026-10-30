@@ -14,6 +14,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.security import get_current_user
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -46,7 +47,16 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
         finally:
             pass
 
+    # Los tests de negocio no prueban autenticacion: entran como admin fake.
+    # La autenticacion real se cubre en tests/test_auth.py.
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: {
+        "id": "test-admin",
+        "email": "admin@test.local",
+        "rol": "administrador",
+        "usuario_id": 1,
+        "nombre": "Admin de prueba",
+    }
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

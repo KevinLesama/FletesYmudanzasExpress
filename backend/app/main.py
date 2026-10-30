@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
@@ -19,11 +20,11 @@ from app.routers.api import (
     clients_router,
     drivers_router,
     health_router,
+    me_router,
     payments_router,
     requests_router,
     vehicles_router,
 )
-
 settings = get_settings()
 
 app = FastAPI(
@@ -61,7 +62,37 @@ for router in (
     requests_router,
     payments_router,
     availability_router,
+    me_router,
 ):
     app.include_router(router, prefix=api_prefix)
 
 app.include_router(health_router)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    openapi_schema["components"] = openapi_schema.get("components", {})
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+    for path in openapi_schema["paths"].values():
+        for operation in path.values():
+            if isinstance(operation, dict) and "security" not in operation:
+                # Solo agregar a endpoints que usan auth? mejor agregar a todos excepto health
+                pass
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi

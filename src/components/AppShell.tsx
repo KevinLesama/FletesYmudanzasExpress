@@ -23,6 +23,7 @@ import {
   PersonOutline,
 } from '@mui/icons-material'
 import { R } from '../routes'
+import { currentUser, roleLabel, signOut } from '../supabase'
 import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
@@ -141,11 +142,15 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const fillLayout = Boolean(fill) && !isMobile
   const profile = loadSettings().profile
+  // La identidad sale de la sesión de Supabase; `loadSettings` sólo aporta la
+  // foto, que es una preferencia local de la cuenta.
+  const user = currentUser()
+  const name = user?.nombre ?? profile.name
   const account = {
-    name: profile.name,
-    role: profile.role,
-    email: profile.email,
-    initials: initialsFrom(profile.name),
+    name,
+    role: user ? roleLabel(user.role) : profile.role,
+    email: user?.email ?? profile.email,
+    initials: initialsFrom(name),
     photo: profile.photo,
   }
 
@@ -245,7 +250,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <AccountMenu user={account} items={ACCOUNT_ITEMS} />
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} onSignOut={() => void signOut()} />
             </Stack>
           </Box>
         )}
@@ -258,7 +263,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
                 <NotificationsNone fontSize="small" />
               </IconButton>
-              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" />
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
             </Toolbar>
           </AppBar>
         )}

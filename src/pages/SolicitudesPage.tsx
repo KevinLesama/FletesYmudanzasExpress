@@ -78,9 +78,10 @@ export function SolicitudesPage() {
 
   const statusOptions = [
     { value: 'all', label: 'Todos los estados' },
+    { value: 'Pendiente de revisión', label: 'Pendiente de revisión' },
     { value: 'Pendiente de seña', label: 'Pendiente de seña' },
     { value: 'Confirmada', label: 'Confirmada' },
-    { value: 'Pendiente de revisión', label: 'Pendiente de revisión' },
+    { value: 'Finalizada', label: 'Finalizada' },
     { value: 'Cancelada', label: 'Cancelada' },
   ]
 

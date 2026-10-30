@@ -7,6 +7,13 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+# Vite reemplaza import.meta.env en build-time: las variables deben existir aca.
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 RUN npm run build
 
 # Etapa 2: servidor estatico nginx

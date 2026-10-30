@@ -311,6 +311,7 @@ function RecordDialog({
   const [id, setId] = useState(initialD ? initialD.id : initialV ? initialV.id : '')
   const [name, setName] = useState(initialD?.name ?? '')
   const [phone, setPhone] = useState(initialD?.phone ?? '')
+  const [email, setEmail] = useState(initialD?.email ?? '')
   const [type, setType] = useState(initialV?.type ?? '')
   const [capacity, setCapacity] = useState(initialV ? String(initialV.capacityKg) : '')
   const [driverStatus, setDriverStatus] = useState<DriverStatus>(initialD?.status ?? 'Activo')
@@ -319,7 +320,9 @@ function RecordDialog({
   const [saving, setSaving] = useState(false)
 
   const editing = !!state.data
-  const canSave = isDriver ? name.trim() !== '' && phone.trim() !== '' : id.trim() !== '' && type.trim() !== '' && Number(capacity) > 0
+  const canSave = isDriver
+    ? name.trim() !== '' && phone.trim() !== '' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+    : id.trim() !== '' && type.trim() !== '' && Number(capacity) > 0
 
   const save = async () => {
     setSaving(true)
@@ -327,9 +330,9 @@ function RecordDialog({
     try {
       if (isDriver) {
         if (editing) {
-          await api.updateDriver(initialD!.id, { name, phone, status: driverStatus })
+          await api.updateDriver(initialD!.id, { name, phone, email: email.trim(), status: driverStatus })
         } else {
-          await api.createDriver({ name, phone, status: driverStatus })
+          await api.createDriver({ name, phone, email: email.trim(), status: driverStatus })
         }
         onSaved('Cambios guardados')
       } else {
@@ -389,6 +392,7 @@ function RecordDialog({
           <Stack spacing={2}>
             <TextField label="Nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" placeholder="Nombre completo" />
             <TextField label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth size="small" placeholder="11 5555-0000" />
+            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth size="small" placeholder="chofer@ejemplo.com" required />
             <FormControl size="small" fullWidth>
               <InputLabel>Estado</InputLabel>
               <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}>

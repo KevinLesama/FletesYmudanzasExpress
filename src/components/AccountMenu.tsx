@@ -39,6 +39,8 @@ interface AccountMenuProps {
   items: AccountMenuItem[]
   /** `dark` reads on the navy AppBar used by the mobile shell. */
   surface?: 'light' | 'dark'
+  /** Cierra la sesión real; sin esto el ítem sólo navega a /ingreso. */
+  onSignOut?: () => void
 }
 
 /** `María Rodríguez` -> `MR`; falls back to `?` on an empty name. */
@@ -53,7 +55,7 @@ export function initialsFrom(name: string): string {
  * identity, account sections and sign out. It replaces the avatar that used to
  * sit silently in the top bar and the duplicate identity block in the sidebar.
  */
-export function AccountMenu({ user, items, surface = 'light' }: AccountMenuProps) {
+export function AccountMenu({ user, items, surface = 'light', onSignOut }: AccountMenuProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const open = Boolean(anchorEl)
   const onDark = surface === 'dark'
@@ -170,7 +172,10 @@ export function AccountMenu({ user, items, surface = 'light' }: AccountMenuProps
         <MenuItem
           component="a"
           href={R.ingreso}
-          onClick={close}
+          onClick={() => {
+            close()
+            onSignOut?.()
+          }}
           sx={{
             mx: 1,
             px: 1.25,

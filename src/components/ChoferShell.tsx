@@ -17,7 +17,8 @@ import {
   ChevronRight,
 } from '@mui/icons-material'
 import { R } from '../routes'
-import { AccountMenu, type AccountMenuItem } from './AccountMenu'
+import { currentUser, roleLabel, signOut } from '../supabase'
+import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
 import { brand } from '../theme'
 
@@ -43,13 +44,7 @@ const ACCOUNT_ITEMS: AccountMenuItem[] = [
   { key: 'config', label: 'Mi configuración', icon: Settings, href: R.choferConfig },
 ]
 
-/** The demo signs the driver in as the seeded `JA` (Jorge Almada). */
-const ACCOUNT = {
-  name: 'Jorge Almada',
-  role: 'Chofer',
-  initials: 'JA',
-  accent: brand.orangeStrong,
-}
+/** Identidad del chofer logueado: el backend la resuelve al validar la sesión. */
 
 const SIDEBAR_W = 260
 
@@ -71,6 +66,17 @@ export function ChoferShell({
 }) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
+  // La identidad del chofer sale de la sesión validada por el backend.
+  const user = currentUser()
+  const name = user?.nombre ?? 'Chofer'
+  const account = {
+    name,
+    role: user ? roleLabel(user.role) : 'Sin rol',
+    email: user?.email,
+    initials: initialsFrom(name),
+    accent: brand.orangeStrong,
+  }
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -188,7 +194,7 @@ export function ChoferShell({
               ))}
             </Stack>
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <AccountMenu user={ACCOUNT} items={ACCOUNT_ITEMS} />
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} onSignOut={() => void signOut()} />
             </Stack>
           </Box>
         )}
@@ -198,7 +204,7 @@ export function ChoferShell({
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
               <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
-              <AccountMenu user={ACCOUNT} items={ACCOUNT_ITEMS} surface="dark" />
+              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
             </Toolbar>
           </AppBar>
         )}

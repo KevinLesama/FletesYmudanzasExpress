@@ -35,7 +35,6 @@ import {
   ReceiptLong,
   Save,
   Schedule,
-  WarningAmber,
   Close,
   Paid,
   BugReport,
@@ -52,7 +51,7 @@ import { R, useQuery } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
-import type { Availability, Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
+import type { Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
 import { color } from '../design/tokens'
 
@@ -124,6 +123,8 @@ export function PlanificacionPage() {
   const request = requestState.data
   const drivers: Driver[] = catalogState.data?.drivers ?? []
   const vehicles: Vehicle[] = catalogState.data?.vehicles ?? []
+  const availableDrivers = useMemo(() => drivers.filter((driver) => driver.status === 'Activo'), [drivers])
+  const availableVehicles = useMemo(() => vehicles.filter((vehicle) => vehicle.status === 'Disponible'), [vehicles])
 
   const [driverId, setDriverId] = useState('')
   const [vehicleId, setVehicleId] = useState('')
@@ -137,8 +138,6 @@ export function PlanificacionPage() {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
-  const [availability, setAvailability] = useState<Availability | null>(null)
-  const [availabilityError, setAvailabilityError] = useState(false)
 
   // Sincroniza el formulario cuando llega la solicitud.
   useEffect(() => {
@@ -153,6 +152,12 @@ export function PlanificacionPage() {
     setCancelled(request.status === 'Cancelada')
   }, [request])
 
+  useEffect(() => {
+    if (catalogState.loading) return
+    if (driverId && !availableDrivers.some((driver) => driver.id === driverId)) setDriverId('')
+    if (vehicleId && !availableVehicles.some((vehicle) => vehicle.id === vehicleId)) setVehicleId('')
+  }, [catalogState.loading, driverId, vehicleId, availableDrivers, availableVehicles])
+
   const [confirmedState, setConfirmedState] = useState(false)
 
   const depositReceived = request?.depositReceived ?? 0
@@ -161,64 +166,27 @@ export function PlanificacionPage() {
   const selectedDriver = drivers.find((d) => d.id === driverId)
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId)
 
-  const conflict = !!availability && !availability.driverAvailable
-  const vehicleBusy = !!availability && !availability.vehicleAvailable
-  // A failed availability check must never read as "available".
-  const canConfirm = depositOk && !conflict && !vehicleBusy && !availabilityError && !!driverId && !!vehicleId
-
-  // Consulta de disponibilidad real cada vez que cambian los valores relevantes.
-  useEffect(() => {
-    if (!request || !driverId || !vehicleId) {
-      setAvailability(null)
-      setAvailabilityError(false)
-      return
-    }
-    let active = true
-    api
-      .availability({
-        date: request.date,
-        start,
-        end,
-        driver_id: driverId,
-        vehicle_id: vehicleId,
-        exclude: request.id,
-      })
-      .then((result) => {
-        if (active) {
-          setAvailability(result)
-          setAvailabilityError(false)
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setAvailability(null)
-          setAvailabilityError(true)
-        }
-      })
-    return () => {
-      active = false
-    }
-  }, [request, driverId, vehicleId, start, end])
+  const canConfirm =
+    depositOk &&
+    availableDrivers.some((driver) => driver.id === driverId) &&
+    availableVehicles.some((vehicle) => vehicle.id === vehicleId)
 
   const driverOption = (d: Driver) => (
     <MenuItem value={d.id} key={d.id}>
       <Stack direction="row" alignItems="center" spacing={1}>
         <Person sx={{ fontSize: 16, color: '#64707C' }} />
         <span>{d.name}</span>
-        {d.status !== 'Activo' && <span style={{ fontSize: 12, color: '#9C493A' }}>· {d.status}</span>}
       </Stack>
     </MenuItem>
   )
 
   const vehicleOptionContent = (v: Vehicle) => {
-    const note = v.status !== 'Disponible' ? `· ${v.status}` : ''
     return (
       <Stack direction="row" alignItems="center" spacing={1}>
         <LocalShipping sx={{ fontSize: 16, color: '#64707C' }} />
         <span>
           {v.id} · {v.type}
         </span>
-        {note && <span style={{ fontSize: 12, color: '#9C493A' }}>{note}</span>}
       </Stack>
     )
   }
@@ -312,18 +280,17 @@ export function PlanificacionPage() {
         <FormControl size="small" fullWidth>
           <InputLabel>Chofer</InputLabel>
           <Select label="Chofer" value={driverId} onChange={(e) => setDriverId(e.target.value)}>
-            {drivers.map((d) => driverOption(d))}
+            {availableDrivers.map((d) => driverOption(d))}
           </Select>
         </FormControl>
         <SearchableSelect
           label="Vehículo"
           value={selectedVehicle ?? null}
-          options={vehicles}
+          options={availableVehicles}
           getKey={(v) => v.id}
           getLabel={(v) => `${v.id} · ${v.type}`}
           getSearchText={(v) => v.status}
           renderOption={vehicleOptionContent}
-          isOptionDisabled={(v) => v.status === 'En taller'}
           onChange={(v) => setVehicleId(v?.id ?? '')}
           placeholder="Buscar por ID o tipo"
           fullWidth
@@ -332,56 +299,18 @@ export function PlanificacionPage() {
 
       <Stack spacing={1} sx={{ mt: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <CheckCircle sx={{ fontSize: 16, color: availabilityError || conflict ? '#B9761F' : '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: availabilityError || conflict ? '#B9761F' : '#2F7D55' }}>
-            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — {availabilityError ? 'disponibilidad sin verificar' : conflict ? 'no disponible para este horario' : 'disponible para este horario'}
+          <CheckCircle sx={{ fontSize: 16, color: '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
+            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — disponible
           </Typography>
         </Stack>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: availabilityError || vehicleBusy ? '#B9761F' : '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: availabilityError || vehicleBusy ? '#B9761F' : '#2F7D55' }}>
-            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — {availabilityError ? 'disponibilidad sin verificar' : vehicleBusy ? 'no disponible' : 'disponible'}
+          <LocalShipping sx={{ fontSize: 16, color: '#2F7D55' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
+            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — disponible
           </Typography>
         </Stack>
       </Stack>
-
-      {availability && availability.conflicts.length > 0 && (
-        <Box sx={{ mt: 2 }}>
-          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#5C6B7A', mb: 1 }}>Conflictos detectados</Typography>
-          <Stack spacing={0.8}>
-            {availability.conflicts.map((c) => (
-              <Typography key={c} sx={{ fontSize: 12.5, color: '#64707C' }}>
-                <WarningAmber sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.5, color: '#B9761F' }} />
-                {c}
-              </Typography>
-            ))}
-          </Stack>
-        </Box>
-      )}
-
-      {availabilityError && (
-        <Box sx={{ mt: 2, p: 1.4, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #EBD3AE', color: '#98621B' }}>
-          <Stack direction="row" spacing={1} alignItems="flex-start">
-            <InfoOutlined sx={{ fontSize: 16, mt: 0.2 }} />
-            <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
-              No pudimos verificar la disponibilidad. La confirmación queda bloqueada hasta poder comprobarla.
-            </Typography>
-          </Stack>
-        </Box>
-      )}
-
-      {(conflict || vehicleBusy) && (
-        <Box sx={{ mt: 2, p: 1.4, borderRadius: 2, bgcolor: '#FFF3EF', border: '1px solid #F3DAD2', color: '#9C493A' }}>
-          <Stack direction="row" spacing={1} alignItems="flex-start">
-            <InfoOutlined sx={{ fontSize: 16, mt: 0.2 }} />
-            <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
-              {conflict
-                ? `Este chofer ya tiene un viaje entre las ${start} y las ${end}.`
-                : 'El vehículo seleccionado no está disponible para este horario.'}
-            </Typography>
-          </Stack>
-        </Box>
-      )}
     </>
   )
 
@@ -510,8 +439,8 @@ export function PlanificacionPage() {
                   <Lock sx={{ fontSize: 16, mt: 0.2 }} />
                   <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
                     {depositOk
-                      ? 'Confirmación habilitada: la seña está registrada y la asignación no tiene conflictos.'
-                      : 'Confirmación bloqueada. Para confirmar el viaje, primero registrá la seña requerida y verificá que chofer y vehículo estén disponibles.'}
+                      ? 'Confirmación habilitada: la seña está registrada y los recursos están disponibles.'
+                      : 'Confirmación bloqueada. Para confirmar el viaje, primero registrá la seña requerida y elegí un chofer y un vehículo disponibles.'}
                   </Typography>
                 </Stack>
               </Box>
@@ -614,15 +543,17 @@ export function PlanificacionPage() {
         onSave={(amount, date, concept, method, receivedBy, notes) => {
           setDialogOpen(false)
           runAction(
-            () =>
-              api.addPayment(request.id, {
+            async () => {
+              await api.updateRequest(request.id, { price: Number(price || 0) })
+              return api.addPayment(request.id, {
                 concept,
                 method,
                 receivedBy,
                 amount,
                 date,
                 notes,
-              }),
+              })
+            },
             `Seña registrada · ${ars(amount)}`,
           )
         }}
@@ -732,7 +663,7 @@ function DepositDialog({
 
   const save = () => {
     const num = Number(amount || 0)
-    const max = Math.max(price - received, depositRequired)
+    const max = Math.max(price - received, 0)
     if (num <= 0 || num > max) {
       setError(`Ingresá un importe entre $ 1 y ${ars(max)}.`)
       return
