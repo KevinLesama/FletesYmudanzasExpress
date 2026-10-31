@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -9,37 +9,88 @@ import {
   TextField,
   Typography,
   useTheme,
-  useMediaQuery,
 } from '@mui/material'
 import {
   ArrowForward,
   LocalShipping,
   Lock,
+  LockReset,
   MailOutline,
   Shield,
   Visibility,
   VisibilityOff,
   MyLocation,
   LocationOn,
-  Route,
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { api } from '../api'
-import { Brand } from '../components/Brand'
 import { brand } from '../theme'
 import { supabase } from '../supabase'
 
+type AuthMode = 'login' | 'request' | 'update'
+
+const AUTH_MODE_COPY: Record<AuthMode, { kicker: string; title: string; description: string; submitting: string; submit: string }> = {
+  login: {
+    kicker: 'BIENVENIDO',
+    title: 'Ingresá a tu cuenta',
+    description: 'Usá tus datos de acceso para continuar.',
+    submitting: 'Ingresando…',
+    submit: 'Ingresar',
+  },
+  request: {
+    kicker: 'RECUPERACIÓN',
+    title: 'Recuperá tu acceso',
+    description: 'Te enviaremos un enlace seguro al correo de tu cuenta.',
+    submitting: 'Enviando…',
+    submit: 'Enviar enlace',
+  },
+  update: {
+    kicker: 'NUEVA CONTRASEÑA',
+    title: 'Elegí una contraseña nueva',
+    description: 'Usá al menos 8 caracteres para proteger tu cuenta.',
+    submitting: 'Actualizando…',
+    submit: 'Actualizar contraseña',
+  },
+}
+
 export function IngresoPage() {
   const [showPassword, setShowPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordConfirmation, setPasswordConfirmation] = useState('')
+  const [mode, setMode] = useState<AuthMode>(() => (
+    new URLSearchParams(window.location.search).get('modo') === 'restablecer' ? 'update' : 'login'
+  ))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const go = (href: string) => {
     window.location.href = href
+  }
+
+  useEffect(() => {
+    if (!supabase) return undefined
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setMode('update')
+        setError(null)
+        setMessage(null)
+      }
+    })
+
+    return () => subscription.subscription.unsubscribe()
+  }, [])
+
+  const resetForm = (nextMode: AuthMode) => {
+    setMode(nextMode)
+    setError(null)
+    setMessage(null)
+    setSubmitting(false)
   }
 
   const signIn = async (e: React.FormEvent) => {
@@ -69,6 +120,68 @@ export function IngresoPage() {
       setSubmitting(false)
     }
   }
+
+  const requestPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    setMessage(null)
+    if (!supabase) {
+      setError('El acceso no está configurado. Faltan las variables de Supabase.')
+      setSubmitting(false)
+      return
+    }
+
+    const redirectTo = `${window.location.origin}${R.ingreso}?modo=restablecer`
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+    if (authError) {
+      setError('No pudimos enviar el enlace. Revisá el correo e intentá nuevamente.')
+      setSubmitting(false)
+      return
+    }
+
+    setMessage('Si el correo está registrado, recibirás un enlace para crear una nueva contraseña.')
+    setSubmitting(false)
+  }
+
+  const updatePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    setMessage(null)
+    if (newPassword.length < 8) {
+      setError('La nueva contraseña debe tener al menos 8 caracteres.')
+      setSubmitting(false)
+      return
+    }
+    if (newPassword !== passwordConfirmation) {
+      setError('Las contraseñas no coinciden.')
+      setSubmitting(false)
+      return
+    }
+    if (!supabase) {
+      setError('El acceso no está configurado. Faltan las variables de Supabase.')
+      setSubmitting(false)
+      return
+    }
+
+    const { error: authError } = await supabase.auth.updateUser({ password: newPassword })
+    if (authError) {
+      setError('No pudimos actualizar la contraseña. Volvé a solicitar un enlace.')
+      setSubmitting(false)
+      return
+    }
+
+    await supabase.auth.signOut()
+    setNewPassword('')
+    setPasswordConfirmation('')
+    setMode('login')
+    setMessage('Tu contraseña fue actualizada. Ya podés ingresar con la nueva contraseña.')
+    setSubmitting(false)
+  }
+
+  const formSubmit = { login: signIn, request: requestPasswordReset, update: updatePassword }[mode]
+  const modeCopy = AUTH_MODE_COPY[mode]
 
   return (
     <Box
@@ -257,7 +370,7 @@ export function IngresoPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box
             component="form"
-            onSubmit={signIn}
+            onSubmit={formSubmit}
             sx={{
               width: '100%',
               maxWidth: 420,
@@ -269,16 +382,16 @@ export function IngresoPage() {
             }}
           >
             <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orangeInk }}>
-              BIENVENIDO
+              {modeCopy.kicker}
             </Typography>
             <Typography sx={{ mt: 0.5, fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 24 }}>
-              Ingresá a tu cuenta
+              {modeCopy.title}
             </Typography>
             <Typography sx={{ mt: 0.5, color: 'text.secondary', fontSize: 13.5 }}>
-              Usá tus datos de acceso para continuar.
+              {modeCopy.description}
             </Typography>
 
-            <TextField
+            {mode !== 'update' && <TextField
               fullWidth
               label="Correo electrónico"
               type="email"
@@ -297,8 +410,8 @@ export function IngresoPage() {
                   </InputAdornment>
                 ),
               }}
-            />
-            <TextField
+            />}
+            {mode === 'login' && <TextField
               fullWidth
               label="Contraseña"
               required
@@ -327,11 +440,57 @@ export function IngresoPage() {
                   </InputAdornment>
                 ),
               }}
-            />
+            />}
+            {mode === 'update' && <>
+              <TextField
+                fullWidth
+                label="Nueva contraseña"
+                required
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                margin="normal"
+                type={showNewPassword ? 'text' : 'password'}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockReset sx={{ fontSize: 18, color: '#64707C' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={showNewPassword ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'}
+                        onClick={() => setShowNewPassword((s) => !s)}
+                        edge="end"
+                        sx={{ color: '#64707C' }}
+                      >
+                        {showNewPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                fullWidth
+                label="Repetí la nueva contraseña"
+                required
+                autoComplete="new-password"
+                value={passwordConfirmation}
+                onChange={(e) => setPasswordConfirmation(e.target.value)}
+                margin="normal"
+                type="password"
+              />
+            </>}
 
             {error && (
               <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
                 {error}
+              </Alert>
+            )}
+            {message && (
+              <Alert severity="success" sx={{ mt: 2, borderRadius: 2 }}>
+                {message}
               </Alert>
             )}
 
@@ -344,11 +503,24 @@ export function IngresoPage() {
               sx={{ mt: 2.5, py: 1.3 }}
               endIcon={<ArrowForward />}
             >
-              {submitting ? 'Ingresando…' : 'Ingresar'}
+              {submitting ? modeCopy.submitting : modeCopy.submit}
             </Button>
-            <Typography sx={{ mt: 1.5, textAlign: 'center', fontSize: 12.5, color: brand.navy, fontWeight: 600 }}>
+            {mode === 'login' && <Button
+              type="button"
+              variant="text"
+              onClick={() => resetForm('request')}
+              sx={{ mt: 1, width: '100%', color: brand.navy, fontWeight: 600 }}
+            >
               Recuperar contraseña
-            </Typography>
+            </Button>}
+            {mode !== 'login' && <Button
+              type="button"
+              variant="text"
+              onClick={() => resetForm('login')}
+              sx={{ mt: 1, width: '100%', color: brand.navy, fontWeight: 600 }}
+            >
+              Volver al ingreso
+            </Button>}
           </Box>
         </Box>
       </Box>
