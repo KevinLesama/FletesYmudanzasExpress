@@ -80,9 +80,13 @@ export function TripDetailModal({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const mapPoint = (place: typeof trip.origin) =>
+    place.lat != null && place.lng != null
+      ? `${place.lat},${place.lng}`
+      : `${place.address}, ${place.barrio}`
   const gmaps = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-    `${trip.origin.address}, ${trip.origin.barrio}`,
-  )}&destination=${encodeURIComponent(`${trip.destination.address}, ${trip.destination.barrio}`)}`
+    mapPoint(trip.origin),
+  )}&destination=${encodeURIComponent(mapPoint(trip.destination))}`
 
   const wa = waLink(
     trip.phone,

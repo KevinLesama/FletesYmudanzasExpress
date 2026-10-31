@@ -376,6 +376,14 @@ export function TrackingAside({
   vehicleName?: string
   children?: React.ReactNode
 }) {
+  const mapUrl = (place: typeof trip.origin) => {
+    if (place.lat != null && place.lng != null) {
+      return `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.address}, ${place.barrio}`)}`
+  }
+  const originMapUrl = mapUrl(trip.origin)
+  const destinationMapUrl = mapUrl(trip.destination)
   const initials = driverName
     ? driverName
         .split(' ')
@@ -416,6 +424,80 @@ export function TrackingAside({
               {vehicleName ?? 'Sin vehículo asignado'}
             </Typography>
           </Box>
+        </Stack>
+      </AsideCard>
+
+      <AsideCard title="Recorrido" meta={trip.totalKm ? `${trip.totalKm} km total` : undefined}>
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={1.2} alignItems="flex-start">
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color.navy, mt: '5px', flexShrink: 0 }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="a"
+                href={originMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                sx={{
+                  fontSize: type.caption,
+                  fontWeight: 700,
+                  color: color.navy,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+                aria-label={`Abrir origen en Google Maps: ${trip.origin.address}`}
+              >
+                {trip.origin.address}
+              </Typography>
+              <Typography sx={{ fontSize: type.micro, color: color.muted }}>{trip.origin.barrio}</Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1.2} alignItems="flex-start">
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color.orangeInk, mt: '5px', flexShrink: 0 }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="a"
+                href={destinationMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                sx={{
+                  fontSize: type.caption,
+                  fontWeight: 700,
+                  color: color.navy,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+                aria-label={`Abrir destino en Google Maps: ${trip.destination.address}`}
+              >
+                {trip.destination.address}
+              </Typography>
+              <Typography sx={{ fontSize: type.micro, color: color.muted }}>{trip.destination.barrio}</Typography>
+            </Box>
+          </Stack>
+
+          {trip.estimatedKm != null && (
+            <Stack
+              direction="row"
+              spacing={2}
+              sx={{ pt: 1.2, borderTop: `1px solid ${color.borderSoft}`, flexWrap: 'wrap', rowGap: 1 }}
+            >
+              <Box>
+                <Typography sx={{ fontSize: type.micro, fontWeight: 800, color: color.muted, letterSpacing: '0.06em' }}>IDA</Typography>
+                <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>{trip.estimatedKm} km</Typography>
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: type.micro, fontWeight: 800, color: color.muted, letterSpacing: '0.06em' }}>TOTAL</Typography>
+                <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>{trip.totalKm ?? 0} km</Typography>
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: type.micro, fontWeight: 800, color: color.muted, letterSpacing: '0.06em' }}>VIAJE</Typography>
+                <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>~{trip.etaMinutes ?? 0} min</Typography>
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: type.micro, fontWeight: 800, color: color.muted, letterSpacing: '0.06em' }}>ESPERA</Typography>
+                <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>{trip.waitMinutes ?? 0} min</Typography>
+              </Box>
+            </Stack>
+          )}
         </Stack>
       </AsideCard>
 

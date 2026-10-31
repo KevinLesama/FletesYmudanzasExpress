@@ -54,6 +54,64 @@ export interface Place {
   barrio: string
   floor: string
   elevator: boolean
+  // Identidad del lugar elegido en el autocompletado. Si esta presente, el
+  // backend resuelve direccion y coordenadas contra Google Maps.
+  placeId?: string
+  lat?: number
+  lng?: number
+}
+
+export interface PlaceSuggestion {
+  placeId: string
+  primary: string
+  secondary?: string
+  lat?: number
+  lng?: number
+}
+
+export interface PlaceDetail {
+  placeId: string
+  address: string
+  lat: number
+  lng: number
+  locality?: string
+  partido?: string
+  province?: string
+}
+
+export interface RouteEstimate {
+  kmIda: number
+  kmVuelta: number
+  kmTotal: number
+  etaMinutes: number
+  returnMinutes: number
+}
+
+// Desglose que devuelve el backend. El frontend NO calcula plata: solo muestra.
+export interface Quote {
+  kmIda: number
+  kmVuelta: number
+  kmTotal: number
+  etaMinutes: number
+  returnMinutes: number
+  waitMinutes: number
+  totalHours: number
+  tariffBase: number
+  tariffPerKm: number
+  tariffPerHour: number
+  costBase: number
+  costKm: number
+  costTime: number
+  driverCost: number
+  margin: number
+  suggestedPrice: number
+  depositRequired: number
+}
+
+export interface RequestTariffs {
+  base: number
+  perKm: number
+  perHour: number
 }
 
 export interface CargoItem {
@@ -88,6 +146,15 @@ export interface ShiftRequest {
   confirmed?: boolean
   estimatedKm?: number
   estimatedHours?: number
+  // Distancia de ida (estimatedKm), vuelta y total usada para la tarifa.
+  returnKm?: number
+  totalKm?: number
+  etaMinutes?: number
+  waitMinutes?: number
+  driverCost?: number
+  suggestedPrice?: number
+  priceOverridden?: boolean
+  tariffs?: RequestTariffs
   arrivedAt?: string
   finishedAt?: string
   incidents?: TripIncident[]

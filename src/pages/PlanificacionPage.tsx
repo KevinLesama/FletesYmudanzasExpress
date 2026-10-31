@@ -40,6 +40,9 @@ import {
   BugReport,
   Block,
   Undo,
+  Refresh,
+  WarningAmber,
+  RouteOutlined,
 } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
 import { SearchableSelect } from '../components/SearchableSelect'
@@ -51,7 +54,7 @@ import { R, useQuery } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
-import type { Driver, ReceivedBy, ShiftRequest, Vehicle } from '../types'
+import type { Driver, Quote, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
 import { color } from '../design/tokens'
 
@@ -131,7 +134,11 @@ export function PlanificacionPage() {
   const [start, setStart] = useState('11:00')
   const [end, setEnd] = useState('13:00')
   const [price, setPrice] = useState('')
-  const [depositRequired, setDepositRequired] = useState('')
+  const [priceTouched, setPriceTouched] = useState(false)
+  const [waitMinutes, setWaitMinutes] = useState('120')
+  const [quote, setQuote] = useState<Quote | null>(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [quoteError, setQuoteError] = useState('')
   const [saved, setSaved] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -147,10 +154,48 @@ export function PlanificacionPage() {
     setStart(request.serviceRange[0] || '11:00')
     setEnd(request.serviceRange[1] || '13:00')
     setPrice(String(request.price ?? 0))
-    setDepositRequired(String(request.depositRequired ?? 0))
+    setPriceTouched(Boolean(request.priceOverridden))
+    setWaitMinutes(String(request.waitMinutes ?? 120))
     setConfirmedState(request.status === 'Confirmada')
     setCancelled(request.status === 'Cancelada')
   }, [request])
+
+  // Cotizacion del backend con las tarifas del chofer elegido. Se recalcula al
+  // cambiar chofer o espera; es solo una vista previa hasta guardar.
+  useEffect(() => {
+    if (!request || !driverId || request.estimatedKm == null) {
+      setQuote(null)
+      setQuoteError('')
+      return
+    }
+    let cancelledRequest = false
+    setQuoteLoading(true)
+    const timer = window.setTimeout(() => {
+      api
+        .quote(request.id, { driverId, waitMinutes: Number(waitMinutes || 0) })
+        .then((q) => {
+          if (cancelledRequest) return
+          setQuote(q)
+          setQuoteError('')
+        })
+        .catch((err) => {
+          if (cancelledRequest) return
+          setQuote(null)
+          setQuoteError(err instanceof Error ? err.message : 'No pudimos calcular el costo.')
+        })
+        .finally(() => {
+          if (!cancelledRequest) setQuoteLoading(false)
+        })
+    }, 350)
+    return () => {
+      cancelledRequest = true
+      window.clearTimeout(timer)
+    }
+  }, [request, driverId, waitMinutes])
+
+  useEffect(() => {
+    if (quote && !priceTouched) setPrice(String(Math.round(quote.suggestedPrice)))
+  }, [quote, priceTouched])
 
   useEffect(() => {
     if (catalogState.loading) return
@@ -161,7 +206,13 @@ export function PlanificacionPage() {
   const [confirmedState, setConfirmedState] = useState(false)
 
   const depositReceived = request?.depositReceived ?? 0
-  const depositOk = depositReceived >= Number(depositRequired || 0) && Number(depositRequired) > 0
+  // La seña es siempre el 50 % del precio acordado. El backend es la fuente de
+  // verdad (pricing.sena); aca se replica solo para mostrarla mientras se edita.
+  const depositRequired = Math.round(Number(price || 0) / 2)
+  const depositOk = depositReceived >= depositRequired && depositRequired > 0
+  const priceOverridden = Boolean(request?.priceOverridden)
+  const suggestedPrice = quote?.suggestedPrice ?? request?.suggestedPrice ?? 0
+  const hasDistance = request?.estimatedKm != null
 
   const selectedDriver = drivers.find((d) => d.id === driverId)
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId)
@@ -243,37 +294,26 @@ export function PlanificacionPage() {
 
   const planning = (
     <>
-      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1.5}>
-        <SectionCard title="Precio acordado">
-          <TextField
-            size="small"
-            value={price}
-            onChange={(e) => setPrice(e.target.value.replace(/[^\d]/g, ''))}
-            InputProps={{
-              startAdornment: <InputAdornment position="start">$</InputAdornment>,
-            }}
-            sx={{ width: 170 }}
-          />
-        </SectionCard>
-        <SectionCard title="Seña requerida">
-          <TextField
-            size="small"
-            value={depositRequired}
-            onChange={(e) => setDepositRequired(e.target.value.replace(/[^\d]/g, ''))}
-            InputProps={{
-              startAdornment: <InputAdornment position="start">$</InputAdornment>,
-            }}
-            sx={{ width: 170 }}
-          />
-        </SectionCard>
-      </Stack>
-
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
         <Stack direction="row" alignItems="center" spacing={1}>
           <Schedule sx={{ fontSize: 17, color: '#64707C' }} />
         </Stack>
         <TextField size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} />
         <TextField size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} />
+        <TextField
+          size="small"
+          type="number"
+          label="Espera (carga y descarga)"
+          value={waitMinutes}
+          onChange={(e) => setWaitMinutes(e.target.value.replace(/[^\d]/g, ''))}
+          onBlur={() => {
+            const n = Math.min(Math.max(Number(waitMinutes || 0), 0), 1440)
+            setWaitMinutes(String(n))
+          }}
+          InputProps={{ endAdornment: <InputAdornment position="end">min</InputAdornment> }}
+          inputProps={{ min: 0, max: 1440, step: 15 }}
+          sx={{ width: { xs: '100%', md: 190 } }}
+        />
       </Stack>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
@@ -311,6 +351,98 @@ export function PlanificacionPage() {
           </Typography>
         </Stack>
       </Stack>
+
+      <Box sx={{ mt: 2, p: 1.8, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <Paid sx={{ fontSize: 16, color: brand.navy }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 800 }}>Costos del viaje</Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          {quoteLoading && <CircularProgress size={14} />}
+        </Stack>
+
+        {!driverId && (
+          <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
+            Elegí un chofer para ver su costo y el precio sugerido.
+          </Typography>
+        )}
+        {driverId && !hasDistance && (
+          <Typography sx={{ fontSize: 12.5, color: '#98621B' }}>
+            Esta solicitud no tiene distancia calculada (se cargó sin geolocalización), así que el costo no se puede calcular.
+          </Typography>
+        )}
+        {quoteError && <Typography sx={{ fontSize: 12.5, color: '#B3261E' }}>{quoteError}</Typography>}
+
+        {quote && (
+          <Stack spacing={0.7}>
+            <Row label="Tarifa base" value={ars(quote.costBase)} />
+            <Row label={`Kilometraje (${quote.kmTotal} km)`} value={ars(quote.costKm)} />
+            <Row label={`Tiempo (${quote.totalHours.toString().replace('.', ',')} h)`} value={ars(quote.costTime)} />
+            <Divider sx={{ borderColor: '#E3DFD5', mt: 0.5 }} />
+            <Row label="Costo del chofer" value={ars(quote.driverCost)} strong />
+            <Row label={`Margen (${Math.round((quote.margin - 1) * 100)} %)`} value={ars(quote.suggestedPrice - quote.driverCost)} />
+            <Row label="Precio sugerido" value={ars(quote.suggestedPrice)} strong />
+            <Row label="Seña sugerida (50 %)" value={ars(quote.depositRequired)} />
+          </Stack>
+        )}
+      </Box>
+
+      <Box sx={{ mt: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 800 }}>Precio acordado</Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          {priceOverridden && <StatusChip label="Precio manual" />}
+        </Stack>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <TextField
+            size="small"
+            label="Precio final"
+            value={price}
+            onChange={(e) => {
+              setPrice(e.target.value.replace(/[^\d]/g, ''))
+              setPriceTouched(true)
+            }}
+            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+            sx={{ width: { xs: '100%', sm: 200 } }}
+            helperText={suggestedPrice > 0 ? `Sugerido: ${ars(suggestedPrice)}` : undefined}
+          />
+          <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ alignSelf: 'center' }}>
+            <Typography sx={{ fontSize: 11.5, color: '#64707C', fontWeight: 700 }}>SEÑA REQUERIDA (50 %)</Typography>
+            <Typography sx={{ fontSize: 17, fontWeight: 800, color: brand.navy }}>{ars(depositRequired)}</Typography>
+          </Box>
+        </Stack>
+
+        {priceOverridden && (
+          <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #F0DFC0' }}>
+            <Stack direction="row" spacing={1} alignItems="flex-start">
+              <WarningAmber sx={{ fontSize: 16, color: '#98621B', mt: 0.2 }} />
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#98621B' }}>
+                  El precio se modificó a mano. El sugerido con las tarifas vigentes es {ars(suggestedPrice)}.
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                startIcon={<Refresh />}
+                disabled={!driverId || !hasDistance || busy}
+                onClick={() => {
+                  void runAction(
+                    async () => {
+                      await api.updateRequest(request.id, { recotizar: true })
+                      setPrice(String(Math.round(quote?.suggestedPrice ?? suggestedPrice)))
+                      setPriceTouched(false)
+                    },
+                    'Precio recalculado',
+                  ).then(() => setSaved(false))
+                }}
+                sx={{ color: brand.navy }}
+              >
+                Volver a calcular
+              </Button>
+            </Stack>
+          </Box>
+        )}
+      </Box>
     </>
   )
 
@@ -391,6 +523,20 @@ export function PlanificacionPage() {
               {requestOrigin && <RouteStop place={requestOrigin} kind="origin" color="#132B4A" />}
               <Box sx={{ my: 1.4, ml: 0.85, width: '1px', height: 18, borderLeft: '2px dashed #D8D3C8' }} />
               {requestDestination && <RouteStop place={requestDestination} kind="destination" color="#F07855" />}
+
+              <Divider sx={{ my: 1.6, borderColor: '#EDEAE3' }} />
+              {hasDistance ? (
+                <Stack direction="row" spacing={2.5} flexWrap="wrap" useFlexGap>
+                  <RouteMetric icon={<RouteOutlined sx={{ fontSize: 15 }} />} label="DISTANCIA IDA" value={`${request?.estimatedKm} km`} />
+                  <RouteMetric icon={<RouteOutlined sx={{ fontSize: 15 }} />} label="TOTAL (IDA Y VUELTA)" value={`${request?.totalKm ?? 0} km`} />
+                  <RouteMetric icon={<Schedule sx={{ fontSize: 15 }} />} label="VIAJE (IDA)" value={`~${request?.etaMinutes ?? 0} min`} />
+                  <RouteMetric icon={<Schedule sx={{ fontSize: 15 }} />} label="ESPERA" value={`${request?.waitMinutes ?? 0} min`} />
+                </Stack>
+              ) : (
+                <Typography sx={{ fontSize: 12.5, color: '#98621B' }}>
+                  Sin distancia calculada. La solicitud se cargó sin geolocalización, así que el recorrido no se puede cotizar automáticamente.
+                </Typography>
+              )}
             </SectionCard>
 
             {request && (
@@ -461,7 +607,7 @@ export function PlanificacionPage() {
                         service_from: start,
                         service_to: end,
                         price: Number(price || 0),
-                        deposit_required: Number(depositRequired || 0),
+                        espera_min: Number(waitMinutes || 0),
                       }),
                     'Planificación tentativa guardada',
                   ).then(() => setSaved(true))
@@ -514,7 +660,7 @@ export function PlanificacionPage() {
                         service_from: start,
                         service_to: end,
                         price: Number(price || 0),
-                        deposit_required: Number(depositRequired || 0),
+                        espera_min: Number(waitMinutes || 0),
                         status: 'Confirmada',
                         confirmed: true,
                       }),
@@ -544,7 +690,10 @@ export function PlanificacionPage() {
           setDialogOpen(false)
           runAction(
             async () => {
-              await api.updateRequest(request.id, { price: Number(price || 0) })
+              await api.updateRequest(request.id, {
+                price: Number(price || 0),
+                espera_min: Number(waitMinutes || 0),
+              })
               return api.addPayment(request.id, {
                 concept,
                 method,
@@ -574,8 +723,18 @@ export function PlanificacionPage() {
   )
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function RouteMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
+    <Box>
+      <Stack direction="row" alignItems="center" spacing={0.6} sx={{ color: '#64707C' }}>
+        {icon}
+        <Typography sx={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.07em' }}>{label}</Typography>
+      </Stack>      <Typography sx={{ fontSize: 14, fontWeight: 800, color: brand.navy, mt: 0.2 }}>{value}</Typography>
+    </Box>
+  )
+}
+
+function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {  return (
     <Stack direction="row" alignItems="center" justifyContent="space-between">
       <Typography sx={{ fontSize: 13.5, color: strong ? brand.navy : '#5C6B7A', fontWeight: strong ? 800 : 600 }}>
         {label}

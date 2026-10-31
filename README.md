@@ -131,6 +131,34 @@ npm run build  # typecheck + build de producción
 npm run preview
 ```
 
+## Enriquecimiento geográfico opcional
+
+El backend expone el autocomplete y las rutas a través de `services/scraping/`,
+pero no realiza scraping del DOM de Google Maps. El proveedor principal reutiliza
+la integración oficial de Places API y Routes API de `services/geo.py`.
+
+Opcionalmente se puede habilitar un fallback HTTP a Nominatim y OSRM:
+
+```env
+GEO_ENRICHMENT_ENABLED=true
+GEO_FALLBACK_ENABLED=true
+NOMINATIM_URL=https://nominatim.openstreetmap.org/search
+ROUTING_URL=https://router.project-osrm.org
+GEO_USER_AGENT=fletes-express/1.0
+GEO_TIMEOUT_SECONDS=6
+```
+
+El fallback debe habilitarse sólo después de revisar las políticas y límites
+vigentes de cada servicio. Nominatim exige un `User-Agent` identificable y
+limita el uso intensivo; OSRM público no ofrece garantías de disponibilidad ni
+de capacidad para producción. Photon no se activa por defecto porque requiere
+un endpoint concreto y sus límites dependen de la instancia elegida.
+
+La capa devuelve `ok`, `not_found` o `unavailable`. Cuando no hay resultado,
+el formulario conserva la entrada manual; los kilómetros manuales se guardan
+como datos pendientes de cálculo y nunca se convierten en una distancia
+automática ficticia.
+
 ## Notas importantes
 - **Sin DELETE de entidades** (la UI no lo ofrece). Solo se permite `DELETE /api/requests/{id}/remito` y la cancelación de viajes (`PATCH /requests/{id}` con estado `Cancelada`).
 - **Foto de remito**: se guarda como `data URL` en columna `text`.

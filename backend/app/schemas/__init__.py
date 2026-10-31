@@ -171,6 +171,11 @@ class LugarIn(BaseModel):
     piso: str | None = None
     ascensor: bool = False
     notas: str | None = None
+    # Identidad del lugar elegido en el autocompletado. Solo con place_id el
+    # backend resuelve y persiste coordenadas contra Google Maps.
+    place_id: str | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class ItemCargaIn(BaseModel):
@@ -192,8 +197,12 @@ class SolicitudIn(BaseModel):
     origen: LugarIn
     destino: LugarIn
     items_carga: list[ItemCargaIn] = Field(default_factory=list)
+    # Solo se usan cuando la solicitud se carga a mano, sin geolocalizacion.
+    # Con coordenadas, la distancia la calcula el backend y estos valores se
+    # ignoran: nunca se confia en kilometros que manda el navegador.
     km_estimados: float | None = Field(default=None, ge=0)
     horas_estimadas: float | None = Field(default=None, gt=0)
+    espera_min: int | None = Field(default=None, ge=0, le=1440)
     precio_calculado: float | None = Field(default=None, ge=0)
     precio_final: float = Field(default=0, ge=0)
     notas: str | None = None
@@ -208,8 +217,11 @@ class SolicitudUpdate(BaseModel):
     estado: SolicitudEstado | None = None
     km_estimados: float | None = Field(default=None, ge=0)
     horas_estimadas: float | None = Field(default=None, gt=0)
+    espera_min: int | None = Field(default=None, ge=0, le=1440)
     precio_calculado: float | None = Field(default=None, ge=0)
     precio_final: float | None = Field(default=None, ge=0)
+    # Vuelve a aplicar la formula y pisa el precio acordado con el sugerido.
+    recotizar: bool = False
     notas: str | None = None
     motivo_cancelacion: str | None = None
 
@@ -249,14 +261,31 @@ class SolicitudOut(BaseModel):
     destino_ascensor: bool
     destino_notas: str | None = None
 
+    origen_place_id: str | None = None
+    origen_lat: float | None = None
+    origen_lng: float | None = None
+    destino_place_id: str | None = None
+    destino_lat: float | None = None
+    destino_lng: float | None = None
+
     chofer_id: int | None = None
     chofer_rol: str | None = None
     vehiculo_id: int | None = None
 
     km_estimados: float | None = None
+    km_vuelta: float | None = None
+    km_total: float | None = None
+    duracion_ida_min: int | None = None
+    duracion_vuelta_min: int | None = None
+    espera_min: int = 120
     horas_estimadas: float | None = None
+    tarifa_base_aplicada: float | None = None
+    tarifa_km_aplicada: float | None = None
+    tarifa_hora_aplicada: float | None = None
+    costo_chofer: float | None = None
     precio_calculado: float | None = None
     precio_final: float
+    sena_requerida: float = 0
     precio_editado: bool | None = None
     precio_modificado_por: int | None = None
     precio_modificado_en: str | None = None
@@ -288,6 +317,84 @@ RequestIn = SolicitudIn
 RequestUpdate = SolicitudUpdate
 RequestOut = SolicitudOut
 CargoItemOut = ItemCargaOut
+
+
+# --------------------------------------------------------------------------- #
+# Geolocalizacion y cotizacion
+# --------------------------------------------------------------------------- #
+class PlaceSuggestionOut(BaseModel):
+    place_id: str
+    primary: str
+    secondary: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+class PlaceOut(BaseModel):
+    place_id: str
+    direccion: str
+    lat: float
+    lng: float
+    localidad: str | None = None
+    partido: str | None = None
+    provincia: str | None = None
+
+
+class CoordenadaIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class RutaIn(BaseModel):
+    origen: CoordenadaIn
+    destino: CoordenadaIn
+
+
+class RutaOut(BaseModel):
+    km_ida: float
+    km_vuelta: float
+    km_total: float
+    duracion_ida_min: int
+    duracion_vuelta_min: int
+
+
+class CotizacionOut(BaseModel):
+    """Desglose completo: lo que ve el admin y lo que se guarda en el viaje."""
+
+    km_ida: float
+    km_vuelta: float
+    km_total: float
+    duracion_ida_min: int
+    duracion_vuelta_min: int
+    espera_min: int
+    horas_totales: float
+    tarifa_base: float
+    tarifa_por_km: float
+    tarifa_por_hora: float
+    costo_base: float
+    costo_km: float
+    costo_tiempo: float
+    costo_chofer: float
+    margen: float
+    precio_sugerido: float
+    sena_requerida: float
+
+
+class CotizacionPreviewIn(BaseModel):
+    """Vista previa con tarifas sin guardar (pantalla de configuracion)."""
+
+    km_ida: float = Field(gt=0)
+    duracion_ida_min: int | None = Field(default=None, ge=0)
+    espera_min: int | None = Field(default=None, ge=0, le=1440)
+    tarifa_base: float = Field(default=0, ge=0)
+    tarifa_por_km: float = Field(default=0, ge=0)
+    tarifa_por_hora: float = Field(default=0, ge=0)
+
+
+class TarifasIn(BaseModel):
+    tarifa_base: float = Field(ge=0)
+    tarifa_por_km: float = Field(ge=0)
+    tarifa_por_hora: float = Field(ge=0)
 
 
 # --------------------------------------------------------------------------- #

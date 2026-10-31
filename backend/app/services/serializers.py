@@ -9,6 +9,7 @@ from app.schemas import (
     UsuarioOut,
     VehiculoOut,
 )
+from app.services import pricing
 
 
 def serialize_usuario(usuario: Usuario) -> UsuarioOut:
@@ -54,6 +55,8 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
     precio_editado = (
         solicitud.precio_calculado is not None and precio_final != precio_calculado
     )
+    # La sena no se guarda: siempre es el 50 % del precio acordado.
+    sena_requerida = float(pricing.sena(precio_final))
 
     cliente = getattr(solicitud, "cliente", None)
     client_name = getattr(cliente, "nombre", None) or solicitud.notas or ""
@@ -101,13 +104,29 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "destino_piso": solicitud.destino_piso,
         "destino_ascensor": solicitud.destino_ascensor,
         "destino_notas": solicitud.destino_notas,
+        "origen_place_id": solicitud.origen_place_id,
+        "origen_lat": float(solicitud.origen_lat) if solicitud.origen_lat is not None else None,
+        "origen_lng": float(solicitud.origen_lng) if solicitud.origen_lng is not None else None,
+        "destino_place_id": solicitud.destino_place_id,
+        "destino_lat": float(solicitud.destino_lat) if solicitud.destino_lat is not None else None,
+        "destino_lng": float(solicitud.destino_lng) if solicitud.destino_lng is not None else None,
         "chofer_id": solicitud.chofer_id,
         "chofer_rol": solicitud.chofer_rol,
         "vehiculo_id": solicitud.vehiculo_id,
         "km_estimados": float(solicitud.km_estimados) if solicitud.km_estimados is not None else None,
+        "km_vuelta": float(solicitud.km_vuelta) if solicitud.km_vuelta is not None else None,
+        "km_total": float(solicitud.km_total) if solicitud.km_total is not None else None,
+        "duracion_ida_min": solicitud.duracion_ida_min,
+        "duracion_vuelta_min": solicitud.duracion_vuelta_min,
+        "espera_min": solicitud.espera_min,
         "horas_estimadas": float(solicitud.horas_estimadas) if solicitud.horas_estimadas is not None else None,
+        "tarifa_base_aplicada": float(solicitud.tarifa_base_aplicada) if solicitud.tarifa_base_aplicada is not None else None,
+        "tarifa_km_aplicada": float(solicitud.tarifa_km_aplicada) if solicitud.tarifa_km_aplicada is not None else None,
+        "tarifa_hora_aplicada": float(solicitud.tarifa_hora_aplicada) if solicitud.tarifa_hora_aplicada is not None else None,
+        "costo_chofer": float(solicitud.costo_chofer) if solicitud.costo_chofer is not None else None,
         "precio_calculado": precio_calculado,
         "precio_final": precio_final,
+        "sena_requerida": sena_requerida,
         "precio_editado": precio_editado,
         "precio_modificado_por": solicitud.precio_modificado_por,
         "precio_modificado_en": solicitud.precio_modificado_en.isoformat() if solicitud.precio_modificado_en else None,
@@ -150,11 +169,19 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "price": float(precio_final),
         # La seña no se guarda en el viaje: es el 50 % del precio final
         # (regla de presentación, ver backend/sql/schema.sql).
-        "deposit_required": float(precio_final) / 2,
+        "deposit_required": sena_requerida,
         "deposit_received": sena_total,
         "confirmed": solicitud.estado in ("confirmada", "finalizada"),
         "estimated_km": float(solicitud.km_estimados) if solicitud.km_estimados is not None else None,
         "estimated_hours": float(solicitud.horas_estimadas) if solicitud.horas_estimadas is not None else None,
+        "distance_km": float(solicitud.km_estimados) if solicitud.km_estimados is not None else None,
+        "return_km": float(solicitud.km_vuelta) if solicitud.km_vuelta is not None else None,
+        "total_km": float(solicitud.km_total) if solicitud.km_total is not None else None,
+        "eta_minutes": solicitud.duracion_ida_min,
+        "wait_minutes": solicitud.espera_min,
+        "driver_cost": float(solicitud.costo_chofer) if solicitud.costo_chofer is not None else None,
+        "suggested_price": precio_calculado,
+        "price_overridden": bool(solicitud.precio_modificado_por is not None),
         "arrived_at": None,
         "finished_at": solicitud.finalizada_en.isoformat() if solicitud.finalizada_en else None,
         "incidents": [],

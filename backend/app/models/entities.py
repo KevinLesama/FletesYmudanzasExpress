@@ -146,12 +146,35 @@ class Solicitud(Base):
     destino_ascensor: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     destino_notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Geolocalizacion: se guarda el place_id y las coordenadas resueltas por el
+    # backend (nunca coordenadas inventadas por el cliente).
+    origen_place_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    origen_lat: Mapped[Optional[float]] = mapped_column(Numeric(9, 6), nullable=True)
+    origen_lng: Mapped[Optional[float]] = mapped_column(Numeric(9, 6), nullable=True)
+    destino_place_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    destino_lat: Mapped[Optional[float]] = mapped_column(Numeric(9, 6), nullable=True)
+    destino_lng: Mapped[Optional[float]] = mapped_column(Numeric(9, 6), nullable=True)
+
     chofer_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     chofer_rol: Mapped[str] = mapped_column(Text, nullable=False, default="chofer")
     vehiculo_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
+    # Recorrido y cotizacion.
+    # km_estimados = distancia de IDA (lo que se muestra como recorrido).
+    # km_total    = ida + vuelta (base del costo del chofer).
     km_estimados: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    km_vuelta: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    km_total: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    duracion_ida_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duracion_vuelta_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    espera_min: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
     horas_estimadas: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    # Tarifas del chofer al momento de cotizar: si manana cambia su tarifa, el
+    # viaje conserva el numero con el que se le pago.
+    tarifa_base_aplicada: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    tarifa_km_aplicada: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    tarifa_hora_aplicada: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    costo_chofer: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     precio_calculado: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     precio_final: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     precio_modificado_por: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -205,6 +228,28 @@ class Solicitud(Base):
             name="ck_solicitudes_direcciones",
         ),
         CheckConstraint("km_estimados IS NULL OR km_estimados >= 0", name="ck_solicitudes_km"),
+        CheckConstraint("km_vuelta IS NULL OR km_vuelta >= 0", name="ck_solicitudes_km_vuelta"),
+        CheckConstraint("km_total IS NULL OR km_total >= 0", name="ck_solicitudes_km_total"),
+        CheckConstraint("espera_min >= 0 AND espera_min <= 1440", name="ck_solicitudes_espera"),
+        CheckConstraint(
+            "(duracion_ida_min IS NULL OR duracion_ida_min >= 0)"
+            " AND (duracion_vuelta_min IS NULL OR duracion_vuelta_min >= 0)",
+            name="ck_solicitudes_duraciones",
+        ),
+        CheckConstraint(
+            "(origen_lat IS NULL OR (origen_lat BETWEEN -90 AND 90))"
+            " AND (origen_lng IS NULL OR (origen_lng BETWEEN -180 AND 180))"
+            " AND (destino_lat IS NULL OR (destino_lat BETWEEN -90 AND 90))"
+            " AND (destino_lng IS NULL OR (destino_lng BETWEEN -180 AND 180))",
+            name="ck_solicitudes_coordenadas",
+        ),
+        CheckConstraint(
+            "(tarifa_base_aplicada IS NULL OR tarifa_base_aplicada >= 0)"
+            " AND (tarifa_km_aplicada IS NULL OR tarifa_km_aplicada >= 0)"
+            " AND (tarifa_hora_aplicada IS NULL OR tarifa_hora_aplicada >= 0)"
+            " AND (costo_chofer IS NULL OR costo_chofer >= 0)",
+            name="ck_solicitudes_tarifas",
+        ),
         CheckConstraint("horas_estimadas IS NULL OR horas_estimadas > 0", name="ck_solicitudes_horas"),
         CheckConstraint(
             "(precio_calculado IS NULL OR precio_calculado >= 0) AND precio_final >= 0",

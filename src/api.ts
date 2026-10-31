@@ -14,9 +14,13 @@ import type {
   Driver,
   Payment,
   PaymentSummary,
+  PlaceDetail,
+  PlaceSuggestion,
+  Quote,
   ReceivedBy,
   RemitoPhoto,
   RequestStatus,
+  RouteEstimate,
   ShiftRequest,
   TripIncident,
   Vehicle,
@@ -150,6 +154,9 @@ function mapRequest(r: Json): ShiftRequest {
       barrio: String(r.origin_barrio ?? r.origen_barrio ?? ''),
       floor: String(r.origin_floor ?? r.origen_piso ?? ''),
       elevator: Boolean(r.origin_elevator ?? r.origen_ascensor),
+      placeId: r.origen_place_id ?? undefined,
+      lat: r.origen_lat ?? undefined,
+      lng: r.origen_lng ?? undefined,
     },
     destination: {
       label: 'Destino',
@@ -157,6 +164,9 @@ function mapRequest(r: Json): ShiftRequest {
       barrio: String(r.destination_barrio ?? r.destino_barrio ?? ''),
       floor: String(r.destination_floor ?? r.destino_piso ?? ''),
       elevator: Boolean(r.destination_elevator ?? r.destino_ascensor),
+      placeId: r.destino_place_id ?? undefined,
+      lat: r.destino_lat ?? undefined,
+      lng: r.destino_lng ?? undefined,
     },
     cargo: {
       items: (r.cargo_items ?? []).map((i: Json) => ({
@@ -171,11 +181,26 @@ function mapRequest(r: Json): ShiftRequest {
     driverId: r.driver_id != null ? String(r.driver_id) : undefined,
     vehicleId: r.vehicle_id != null ? String(r.vehicle_id) : undefined,
     price: Number(r.price ?? r.precio_final ?? 0),
-    depositRequired: Number(r.deposit_required ?? r.precio_final ?? 0),
+    depositRequired: Number(r.deposit_required ?? Math.round(Number(r.precio_final ?? 0) / 2)),
     depositReceived: Number(r.deposit_received ?? 0),
     confirmed: Boolean(r.confirmed),
     estimatedKm: r.estimated_km ?? undefined,
     estimatedHours: r.estimated_hours ?? undefined,
+    returnKm: r.return_km ?? undefined,
+    totalKm: r.total_km ?? undefined,
+    etaMinutes: r.eta_minutes ?? undefined,
+    waitMinutes: r.wait_minutes ?? undefined,
+    driverCost: r.driver_cost ?? undefined,
+    suggestedPrice: r.suggested_price ?? undefined,
+    priceOverridden: Boolean(r.price_overridden),
+    tariffs:
+      r.tarifa_base_aplicada != null
+        ? {
+            base: Number(r.tarifa_base_aplicada),
+            perKm: Number(r.tarifa_km_aplicada ?? 0),
+            perHour: Number(r.tarifa_hora_aplicada ?? 0),
+          }
+        : undefined,
     arrivedAt: r.arrived_at ?? undefined,
     finishedAt: r.finished_at ?? undefined,
     incidents: (r.incidents ?? []).map((i: Json) => ({ id: i.id, type: i.type, description: i.description, time: i.time })),
@@ -189,6 +214,28 @@ function mapRequest(r: Json): ShiftRequest {
       date: p.date,
       notes: p.notes ?? undefined,
     })),
+  }
+}
+
+function mapQuote(q: Json): Quote {
+  return {
+    kmIda: Number(q.km_ida ?? 0),
+    kmVuelta: Number(q.km_vuelta ?? 0),
+    kmTotal: Number(q.km_total ?? 0),
+    etaMinutes: Number(q.duracion_ida_min ?? 0),
+    returnMinutes: Number(q.duracion_vuelta_min ?? 0),
+    waitMinutes: Number(q.espera_min ?? 0),
+    totalHours: Number(q.horas_totales ?? 0),
+    tariffBase: Number(q.tarifa_base ?? 0),
+    tariffPerKm: Number(q.tarifa_por_km ?? 0),
+    tariffPerHour: Number(q.tarifa_por_hora ?? 0),
+    costBase: Number(q.costo_base ?? 0),
+    costKm: Number(q.costo_km ?? 0),
+    costTime: Number(q.costo_tiempo ?? 0),
+    driverCost: Number(q.costo_chofer ?? 0),
+    margin: Number(q.margen ?? 0),
+    suggestedPrice: Number(q.precio_sugerido ?? 0),
+    depositRequired: Number(q.sena_requerida ?? 0),
   }
 }
 
@@ -240,6 +287,9 @@ function legacySolicitudPayload(payload: Json): Json {
       piso: origen.piso ?? origen.floor ?? null,
       ascensor: Boolean(origen.ascensor ?? origen.elevator),
       notas: origen.notas ?? null,
+      place_id: origen.place_id ?? origen.placeId ?? null,
+      lat: origen.lat ?? null,
+      lng: origen.lng ?? null,
     }
   }
   const destino = payload.destino ?? payload.destination
@@ -251,6 +301,9 @@ function legacySolicitudPayload(payload: Json): Json {
       piso: destino.piso ?? destino.floor ?? null,
       ascensor: Boolean(destino.ascensor ?? destino.elevator),
       notas: destino.notas ?? null,
+      place_id: destino.place_id ?? destino.placeId ?? null,
+      lat: destino.lat ?? null,
+      lng: destino.lng ?? null,
     }
   }
 
@@ -293,6 +346,9 @@ function legacySolicitudPayload(payload: Json): Json {
   if (km != null && km !== '') out.km_estimados = Number(km)
   const horas = payload.horas_estimadas ?? payload.estimated_hours
   if (horas != null && horas !== '') out.horas_estimadas = Number(horas)
+  const espera = payload.espera_min ?? payload.wait_minutes
+  if (espera != null && espera !== '') out.espera_min = Number(espera)
+  if (payload.recotizar != null) out.recotizar = Boolean(payload.recotizar)
   if (payload.motivo_cancelacion != null) out.motivo_cancelacion = payload.motivo_cancelacion
 
   return out
@@ -310,6 +366,70 @@ export const api = {
     const raw = await http<{ email: string; nombre: string; rol: Role }>('/me')
     return { email: raw.email, nombre: raw.nombre, role: raw.rol }
   },
+
+  // Geolocalización (Google Maps, resuelto por el backend)
+  searchPlaces: async (query: string, signal?: AbortSignal): Promise<PlaceSuggestion[]> => {
+    const qs = new URLSearchParams({ q: query })
+    const rows = await http<Json[]>(`/geo/places?${qs}`, { signal })
+    return rows.map((p) => ({
+      placeId: String(p.place_id),
+      primary: String(p.primary ?? ''),
+      secondary: p.secondary ?? undefined,
+      lat: p.lat != null ? Number(p.lat) : undefined,
+      lng: p.lng != null ? Number(p.lng) : undefined,
+    }))
+  },
+  getPlace: async (placeId: string): Promise<PlaceDetail> => {
+    const p = await http<Json>(`/geo/places/${encodeURIComponent(placeId)}`)
+    return {
+      placeId: String(p.place_id),
+      address: String(p.direccion ?? ''),
+      lat: Number(p.lat),
+      lng: Number(p.lng),
+      locality: p.localidad ?? undefined,
+      partido: p.partido ?? undefined,
+      province: p.provincia ?? undefined,
+    }
+  },
+  route: async (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }): Promise<RouteEstimate> => {
+    const r = await http<Json>('/geo/route', {
+      method: 'POST',
+      body: JSON.stringify({ origen: origin, destino: destination }),
+    })
+    return {
+      kmIda: Number(r.km_ida),
+      kmVuelta: Number(r.km_vuelta),
+      kmTotal: Number(r.km_total),
+      etaMinutes: Number(r.duracion_ida_min),
+      returnMinutes: Number(r.duracion_vuelta_min),
+    }
+  },
+  quote: async (id: string, params: { driverId: string; waitMinutes?: number }): Promise<Quote> => {
+    const qs = new URLSearchParams({ driver_id: params.driverId })
+    if (params.waitMinutes != null) qs.set('espera_min', String(params.waitMinutes))
+    return mapQuote(await http<Json>(`/requests/${encodeURIComponent(id)}/quote?${qs}`))
+  },
+  previewQuote: async (payload: {
+    kmIda: number
+    etaMinutes?: number
+    waitMinutes?: number
+    tariffBase: number
+    tariffPerKm: number
+    tariffPerHour: number
+  }): Promise<Quote> =>
+    mapQuote(
+      await http<Json>('/pricing/preview', {
+        method: 'POST',
+        body: JSON.stringify({
+          km_ida: payload.kmIda,
+          duracion_ida_min: payload.etaMinutes ?? null,
+          espera_min: payload.waitMinutes ?? null,
+          tarifa_base: payload.tariffBase,
+          tarifa_por_km: payload.tariffPerKm,
+          tarifa_por_hora: payload.tariffPerHour,
+        }),
+      }),
+    ),
 
   // Choferes
   listDrivers: async (): Promise<Driver[]> => (await http<Json[]>('/drivers')).map(mapDriver),
@@ -347,8 +467,18 @@ export const api = {
     ),
   updateDriverRates: async (
     id: string,
-    payload: { base_rate: number; rate_per_km: number; rate_per_hour: number; factors: { label: string; amount: number }[] },
-  ): Promise<Driver> => mapDriver(await http<Json>(`/drivers/${encodeURIComponent(id)}/rates`, { method: 'PUT', body: JSON.stringify(payload) })),
+    payload: { baseRate: number; ratePerKm: number; ratePerHour: number },
+  ): Promise<Driver> =>
+    mapDriver(
+      await http<Json>(`/drivers/${encodeURIComponent(id)}/rates`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          tarifa_base: payload.baseRate,
+          tarifa_por_km: payload.ratePerKm,
+          tarifa_por_hora: payload.ratePerHour,
+        }),
+      }),
+    ),
 
   // Vehiculos
   listVehicles: async (): Promise<Vehicle[]> => (await http<Json[]>('/vehicles')).map(mapVehicle),

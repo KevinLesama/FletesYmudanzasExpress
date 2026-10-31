@@ -25,11 +25,9 @@ import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import { tripEarnings } from '../mockData'
 import { DEMO_DATE, fmtLong } from '../format'
+import { currentUser } from '../supabase'
 import type { Driver, ShiftRequest } from '../types'
-
-const DEMO_DRIVER_ID = 'JA'
 
 const nowTime = () => new Date().toTimeString().slice(0, 5)
 
@@ -45,18 +43,39 @@ function shiftDate(date: string, delta: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Desglose del viaje con las tarifas que quedaron guardadas al cotizarlo.
+ * El total es el que calculó el backend (costo_chofer); las lineas solo
+ * muestran de donde sale ese numero.
+ */
+function earningsFromTrip(trip: ShiftRequest) {
+  const tariffs = trip.tariffs
+  const kmTotal = trip.totalKm ?? 0
+  const hours = trip.estimatedHours ?? 0
+  const lines = [
+    { label: 'Tarifa base', value: tariffs?.base ?? 0 },
+    { label: `Kilometraje (${kmTotal} km)`, value: Math.round(kmTotal * (tariffs?.perKm ?? 0)) },
+    { label: `Tiempo (${hours.toString().replace('.', ',')} h)`, value: Math.round(hours * (tariffs?.perHour ?? 0)) },
+  ]
+  return { lines, total: trip.driverCost ?? 0 }
+}
+
 export function ChoferPage() {
+  const user = currentUser()
   const [date, setDate] = useState(DEMO_DATE)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [incidentOpen, setIncidentOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const tripsState = useAsync(() => api.listRequests({ driver_id: DEMO_DRIVER_ID }), [])
   const driversState = useAsync(() => api.listDrivers(), [])
-  const trips: ShiftRequest[] = tripsState.data ?? []
   const drivers: Driver[] = driversState.data ?? []
-  const driver = drivers.find((d) => d.id === DEMO_DRIVER_ID)
+  const driver = drivers.find((d) => user?.email && d.email.toLowerCase() === user.email.toLowerCase())
+  const tripsState = useAsync(
+    () => (driver ? api.listRequests({ driver_id: driver.id }) : Promise.resolve([] as ShiftRequest[])),
+    [driver?.id],
+  )
+  const trips: ShiftRequest[] = tripsState.data ?? []
   const vehicles = useAsync(() => api.listVehicles(), [])
 
   const dayTrips = useMemo(() => trips.filter((t) => t.date === date), [trips, date])
@@ -139,7 +158,7 @@ export function ChoferPage() {
           driverName={driver?.name}
           vehicleName={selectedVehicleName}
           onClose={() => setSelectedId(null)}
-          earnings={driver ? tripEarnings(driver, selected.estimatedKm ?? 0, selected.estimatedHours ?? 0) : undefined}
+          earnings={selected ? earningsFromTrip(selected) : undefined}
           onMarkLlegada={() => markLlegada(selected)}
           onMarkFin={() => markFin(selected)}
           onAddIncident={(inc) => runAction(() => api.addIncident(selected.id, inc), 'Incidente reportado')}

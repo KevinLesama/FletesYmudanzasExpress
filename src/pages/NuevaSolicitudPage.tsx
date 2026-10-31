@@ -18,12 +18,13 @@ import {
 } from '@mui/material'
 import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-material'
 import { AppShell } from '../components/AppShell'
+import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
 import { StatusChip } from '../components/StatusChip'
 import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import type { Client } from '../types'
+import type { Client, PlaceDetail } from '../types'
 import { brand } from '../theme'
 
 export function NuevaSolicitudPage() {
@@ -53,6 +54,13 @@ export function NuevaSolicitudPage() {
   const [destFloor, setDestFloor] = useState('')
   const [destElevator, setDestElevator] = useState<'Sí' | 'No'>('No')
 
+  // Lugares elegidos en el autocompletado. Con placeId + coordenadas el backend
+  // resuelve la direccion real y calcula el recorrido con Google Maps.
+  const [originPlace, setOriginPlace] = useState<PlaceDetail | null>(null)
+  const [destPlace, setDestPlace] = useState<PlaceDetail | null>(null)
+  const [originGeoOk, setOriginGeoOk] = useState(false)
+  const [destGeoOk, setDestGeoOk] = useState(false)
+
   // cargo
   const [cargoDesc, setCargoDesc] = useState('1 heladera, 1 sillón de 2 cuerpos desmontable y 10 cajas')
   const [cargoQty, setCargoQty] = useState('')
@@ -69,9 +77,39 @@ export function NuevaSolicitudPage() {
     }
   }, [clientMode, selectedClientId, clients])
 
+  const changeOriginAddress = (v: string) => {
+    setOriginAddress(v)
+    if (originPlace && v !== originPlace.address) setOriginPlace(null)
+  }
+  const changeDestAddress = (v: string) => {
+    setDestAddress(v)
+    if (destPlace && v !== destPlace.address) setDestPlace(null)
+  }
+
+  // El barrio solo se autocompleta si el usuario todavia no lo escribio.
+  const pickOrigin = (place: PlaceDetail) => {
+    setOriginPlace(place)
+    setOriginAddress(place.address)
+    setOriginBarrio((prev) => prev || place.locality || place.partido || '')
+  }
+  const pickDest = (place: PlaceDetail) => {
+    setDestPlace(place)
+    setDestAddress(place.address)
+    setDestBarrio((prev) => prev || place.locality || place.partido || '')
+  }
+
   const clientReady = clientMode === 'existente' ? selectedClientId !== '' : newName.trim() !== '' && newPhone.trim() !== ''
+  const placeReady = (geoOk: boolean, place: PlaceDetail | null, address: string) => !geoOk || place !== null || address.trim() === ''
   const serviceReady =
-    date !== '' && arriveFrom !== '' && arriveTo !== '' && originAddress.trim() !== '' && originFloor.trim() !== '' && destAddress.trim() !== '' && destFloor.trim() !== ''
+    date !== '' &&
+    arriveFrom !== '' &&
+    arriveTo !== '' &&
+    originAddress.trim() !== '' &&
+    originFloor.trim() !== '' &&
+    destAddress.trim() !== '' &&
+    destFloor.trim() !== '' &&
+    placeReady(originGeoOk, originPlace, originAddress) &&
+    placeReady(destGeoOk, destPlace, destAddress)
   const cargoReady = cargoDesc.trim() !== '' && cargoQty.trim() !== ''
 
   const canNext = useMemo(() => [clientReady, serviceReady, cargoReady][step], [step, clientReady, serviceReady, cargoReady])
@@ -116,12 +154,18 @@ export function NuevaSolicitudPage() {
           barrio: originBarrio,
           floor: originFloor,
           elevator: originElevator === 'Sí',
+          placeId: originPlace?.placeId,
+          lat: originPlace?.lat,
+          lng: originPlace?.lng,
         },
         destination: {
           address: destAddress,
           barrio: destBarrio,
           floor: destFloor,
           elevator: destElevator === 'Sí',
+          placeId: destPlace?.placeId,
+          lat: destPlace?.lat,
+          lng: destPlace?.lng,
         },
         cargo: {
           items: [],
@@ -239,7 +283,11 @@ export function NuevaSolicitudPage() {
                   <StepLocation
                     title="Origen · Retiro"
                     address={originAddress}
-                    onAddress={setOriginAddress}
+                    onAddress={changeOriginAddress}
+                    onSelect={pickOrigin}
+                    onGeoStatus={setOriginGeoOk}
+                    geoOk={originGeoOk}
+                    selected={originPlace !== null}
                     barrio={originBarrio}
                     onBarrio={setOriginBarrio}
                     floor={originFloor}
@@ -250,7 +298,11 @@ export function NuevaSolicitudPage() {
                   <StepLocation
                     title="Destino · Entrega"
                     address={destAddress}
-                    onAddress={setDestAddress}
+                    onAddress={changeDestAddress}
+                    onSelect={pickDest}
+                    onGeoStatus={setDestGeoOk}
+                    geoOk={destGeoOk}
+                    selected={destPlace !== null}
                     barrio={destBarrio}
                     onBarrio={setDestBarrio}
                     floor={destFloor}
@@ -258,6 +310,7 @@ export function NuevaSolicitudPage() {
                     elevator={destElevator}
                     onElevator={setDestElevator}
                   />
+
                 </Stack>
               </>
             )}
@@ -365,6 +418,10 @@ function StepLocation({
   title,
   address,
   onAddress,
+  onSelect,
+  onGeoStatus,
+  geoOk,
+  selected,
   barrio,
   onBarrio,
   floor,
@@ -375,6 +432,10 @@ function StepLocation({
   title: string
   address: string
   onAddress: (v: string) => void
+  onSelect: (place: PlaceDetail) => void
+  onGeoStatus: (available: boolean) => void
+  geoOk: boolean
+  selected: boolean
   barrio: string
   onBarrio: (v: string) => void
   floor: string
@@ -387,6 +448,7 @@ function StepLocation({
       {txt} {required && <Box component="span" sx={{ color: brand.orangeInk }}>*</Box>}
     </Typography>
   )
+  const needsSelection = geoOk && !selected && address.trim() !== ''
   return (
     <Box>
       <Typography sx={{ fontSize: 13, fontWeight: 800, mb: 1.5 }}>
@@ -394,7 +456,22 @@ function StepLocation({
       </Typography>
       <Stack spacing={1.5}>
         {label('Dirección', true)}
-        <TextField size="small" fullWidth value={address} onChange={(e) => onAddress(e.target.value)} placeholder="Ingresá la dirección." />
+        <PlaceAutocomplete
+          label="Dirección"
+          showLabel={false}
+          value={address}
+          onValueChange={onAddress}
+          onSelect={onSelect}
+          onGeoStatus={onGeoStatus}
+          selected={selected}
+          placeholder="Buscá calle y número…"
+          required
+          helperText={
+            needsSelection
+              ? 'Elegí una dirección del listado para calcular el recorrido.'
+              : 'Escribí al menos 3 letras y elegí una sugerencia.'
+          }
+        />
         <TextField size="small" fullWidth label="Barrio" value={barrio} onChange={(e) => onBarrio(e.target.value)} placeholder="Ingresá el barrio." />
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <TextField size="small" fullWidth label="Piso" value={floor} onChange={(e) => onFloor(e.target.value)} placeholder="Indicá el piso." />
