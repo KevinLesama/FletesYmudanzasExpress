@@ -16,6 +16,7 @@ from app.schemas import (
     ArrivedIn,
     AvailabilityOut,
     ClientIn,
+    ClientLoginIn,
     ClientOut,
     DriverFactorsIn,
     DriverIn,
@@ -56,6 +57,16 @@ clients_router = APIRouter(prefix="/clients", tags=["clients"])
 def list_clients(db: Session = Depends(get_db)) -> list[ClientOut]:
     clients = db.scalars(select(Client).order_by(Client.name)).all()
     return [serializers.serialize_client(c) for c in clients]
+
+
+@clients_router.post("/login", response_model=ClientOut)
+def login_client(payload: ClientLoginIn, db: Session = Depends(get_db)) -> ClientOut:
+    client = db.scalar(
+        select(Client).where(Client.name == payload.name.strip(), Client.phone == payload.phone.strip())
+    )
+    if client is None:
+        raise HTTPException(status_code=401, detail="No encontramos una cuenta con esos datos.")
+    return serializers.serialize_client(client)
 
 
 @clients_router.post("", response_model=ClientOut, status_code=201)

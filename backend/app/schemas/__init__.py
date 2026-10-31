@@ -24,6 +24,11 @@ class ClientIn(BaseModel):
     phone: str = Field(min_length=1)
 
 
+class ClientLoginIn(BaseModel):
+    name: str = Field(min_length=1)
+    phone: str = Field(min_length=1)
+
+
 class ClientOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
