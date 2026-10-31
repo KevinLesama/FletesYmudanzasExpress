@@ -37,9 +37,7 @@ export class ApiError extends Error {
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const session = supabase ? (await supabase.auth.getSession()).data.session : null
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
   if (session) headers.set('Authorization', `Bearer ${session.access_token}`)
@@ -51,7 +49,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, 'No pudimos conectar con el servidor. Verificá que el backend esté en ejecución.')
   }
   if (response.status === 401) {
-    await supabase.auth.signOut()
+    await supabase?.auth.signOut()
     window.location.href = R.ingreso
   }
   if (!response.ok) {
@@ -269,6 +267,11 @@ function legacySolicitudPayload(payload: Json): Json {
 
   const clienteId = payload.cliente_id ?? payload.client_id
   if (clienteId != null && clienteId !== '') out.cliente_id = Number(clienteId)
+
+  const contactName = payload.contacto_nombre ?? payload.contact_name
+  const contactPhone = payload.contacto_telefono ?? payload.contact_phone
+  if (contactName) out.contacto_nombre = String(contactName)
+  if (contactPhone) out.contacto_telefono = String(contactPhone)
 
   const fecha = payload.fecha ?? payload.date
   if (fecha) out.fecha = fecha
@@ -562,6 +565,8 @@ export const api = {
   getRequest: async (id: string): Promise<ShiftRequest> => mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}`)),
   createRequest: async (payload: Json): Promise<ShiftRequest> =>
     mapRequest(await http<Json>('/requests', { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) })),
+  createPublicRequest: async (payload: Json): Promise<ShiftRequest> =>
+    mapRequest(await http<Json>('/public/requests', { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) })),
   updateRequest: async (id: string, payload: Json): Promise<ShiftRequest> =>
     mapRequest(
       await http<Json>(`/requests/${encodeURIComponent(id)}`, {

@@ -127,8 +127,10 @@ class Solicitud(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     codigo: Mapped[str] = mapped_column(Text, nullable=False, server_default=FetchedValue())
-    cliente_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    cliente_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     cliente_rol: Mapped[str] = mapped_column(Text, nullable=False, default="cliente")
+    solicitante_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    solicitante_telefono: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[str] = mapped_column(Text, nullable=False, default="pendiente")
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     hora_desde: Mapped[time] = mapped_column(Time, nullable=False)

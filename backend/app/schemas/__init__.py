@@ -195,7 +195,9 @@ class CargaIn(BaseModel):
 
 
 class SolicitudIn(BaseModel):
-    cliente_id: int
+    cliente_id: int | None = None
+    contacto_nombre: str | None = None
+    contacto_telefono: str | None = None
     fecha: DateType
     hora_desde: TimeType
     hora_hasta: TimeType
@@ -247,7 +249,7 @@ class SolicitudOut(BaseModel):
 
     id: int
     codigo: str
-    cliente_id: int
+    cliente_id: int | None = None
     cliente_rol: str
     estado: SolicitudEstado
     fecha: DateType

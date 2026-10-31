@@ -59,8 +59,8 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
     sena_requerida = float(pricing.sena(precio_final))
 
     cliente = getattr(solicitud, "cliente", None)
-    client_name = getattr(cliente, "nombre", None) or solicitud.notas or ""
-    phone = getattr(cliente, "telefono", None) or ""
+    client_name = getattr(cliente, "nombre", None) or solicitud.solicitante_nombre or ""
+    phone = getattr(cliente, "telefono", None) or solicitud.solicitante_telefono or ""
 
     cargo_items = [
         {"name": i.descripcion, "units": i.cantidad, "note": i.nota}

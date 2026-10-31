@@ -46,6 +46,11 @@ export function IngresoPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
+    if (!supabase) {
+      setError('El acceso no está configurado. Faltan las variables de Supabase.')
+      setSubmitting(false)
+      return
+    }
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
     if (authError) {
       // No se muestra el mensaje de GoTrue para no filtrar si el email existe.

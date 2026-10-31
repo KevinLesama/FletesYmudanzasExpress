@@ -24,6 +24,7 @@ from app.routers.api import (
     me_router,
     payments_router,
     pricing_router,
+    public_requests_router,
     requests_router,
     vehicles_router,
 )
@@ -61,6 +62,7 @@ for router in (
     clients_router,
     drivers_router,
     vehicles_router,
+    public_requests_router,
     requests_router,
     payments_router,
     availability_router,

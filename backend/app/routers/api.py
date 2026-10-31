@@ -408,6 +408,7 @@ def update_vehicle(vehicle_id: int, payload: VehiculoUpdate, db: Session = Depen
 requests_router = APIRouter(
     prefix="/requests", tags=["requests"], dependencies=[Depends(get_current_user)]
 )
+public_requests_router = APIRouter(prefix="/public/requests", tags=["public-requests"])
 
 
 def _get_request_or_404(db: Session, request_ref: str | int) -> Solicitud:
@@ -570,8 +571,25 @@ def list_requests(
     dependencies=[Depends(require_role("administrador"))],
 )
 def create_request(payload: SolicitudIn, db: Session = Depends(get_db)) -> dict:
-    cliente = db.get(Usuario, payload.cliente_id)
-    if cliente is None or cliente.rol != "cliente":
+    return _create_request(payload, db, require_client=True)
+
+
+@public_requests_router.post("", status_code=201)
+def create_public_request(payload: SolicitudIn, db: Session = Depends(get_db)) -> dict:
+    if payload.cliente_id is not None:
+        raise HTTPException(status_code=400, detail="Las solicitudes públicas no aceptan cliente_id.")
+    if not payload.contacto_nombre or not payload.contacto_nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre de contacto es obligatorio.")
+    if not payload.contacto_telefono or not payload.contacto_telefono.strip():
+        raise HTTPException(status_code=422, detail="El teléfono de contacto es obligatorio.")
+    return _create_request(payload, db, require_client=False)
+
+
+def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) -> dict:
+    cliente = db.get(Usuario, payload.cliente_id) if payload.cliente_id is not None else None
+    if require_client and (cliente is None or cliente.rol != "cliente"):
+        raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+    if cliente is not None and cliente.rol != "cliente":
         raise HTTPException(status_code=404, detail="Cliente no encontrado.")
 
     settings = get_settings()
@@ -617,8 +635,10 @@ def create_request(payload: SolicitudIn, db: Session = Depends(get_db)) -> dict:
             horas_estimadas = float(horas) if horas > 0 else None
 
     solicitud = Solicitud(
-        cliente_id=cliente.id,
+        cliente_id=cliente.id if cliente else None,
         cliente_rol="cliente",
+        solicitante_nombre=payload.contacto_nombre.strip() if payload.contacto_nombre else None,
+        solicitante_telefono=payload.contacto_telefono.strip() if payload.contacto_telefono else None,
         estado="pendiente",
         fecha=payload.fecha,
         hora_desde=payload.hora_desde,

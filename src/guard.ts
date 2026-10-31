@@ -15,6 +15,10 @@ export const STAFF_ROLES: Role[] = ['administrador']
  * en `/api/me`. Asi un cambio de permisos aplica al instante.
  */
 export async function requireAuth(roles?: Role[]): Promise<boolean> {
+  if (!supabase) {
+    window.location.href = R.ingreso
+    return false
+  }
   const {
     data: { session },
   } = await supabase.auth.getSession()

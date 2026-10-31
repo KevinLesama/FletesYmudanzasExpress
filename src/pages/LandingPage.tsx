@@ -6,25 +6,22 @@ import {
   LocalShipping,
   LockOutlined,
   LocationOn,
-  Logout,
   Route,
 } from '@mui/icons-material'
-import { Alert, Box, Button, Chip, Divider, IconButton, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Divider, Stack, TextField, Typography } from '@mui/material'
 import { api } from '../api'
 import { Toast, type ToastState } from '../components/Toast'
 import { color } from '../design/tokens'
 import { brand } from '../theme'
-import type { Client } from '../types'
 
-type LandingStep = 'login' | 'request' | 'sent'
+type LandingStep = 'request' | 'sent'
 
-type LoginFormProps = Readonly<{
+type ContactFormProps = Readonly<{
   name: string
   phone: string
   busy: boolean
   setName: (value: string) => void
   setPhone: (value: string) => void
-  onSubmit: (event: React.FormEvent) => void
 }>
 
 type RequestFormProps = Readonly<{
@@ -49,8 +46,7 @@ type RequestFormProps = Readonly<{
 const today = new Date().toISOString().slice(0, 10)
 
 export function LandingPage() {
-  const [step, setStep] = useState<LandingStep>('login')
-  const [client, setClient] = useState<Client | null>(null)
+  const [step, setStep] = useState<LandingStep>('request')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [date, setDate] = useState(today)
@@ -63,28 +59,13 @@ export function LandingPage() {
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
 
-  const login = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setBusy(true)
-    try {
-      const loggedClient = await api.loginClient({ name: name.trim(), phone: phone.trim() })
-      setClient(loggedClient)
-      setStep('request')
-      setToast(null)
-    } catch (error) {
-      setToast({ message: error instanceof Error ? error.message : 'No pudimos validar tus datos.', tone: 'error' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const submitRequest = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!client) return
     setBusy(true)
     try {
-      await api.createRequest({
-        client_id: client.id,
+      await api.createPublicRequest({
+        contact_name: name.trim(),
+        contact_phone: phone.trim(),
         date,
         arrival_from: arrivalFrom,
         arrival_to: arrivalTo,
@@ -103,12 +84,6 @@ export function LandingPage() {
     }
   }
 
-  const logout = () => {
-    setClient(null)
-    setStep('login')
-    setToast(null)
-  }
-
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: brand.cream, color: brand.navy }}>
       <Box component="header" sx={{ maxWidth: 1180, mx: 'auto', px: { xs: 2.5, md: 5 }, py: 2.5 }}>
@@ -122,14 +97,6 @@ export function LandingPage() {
               <Typography sx={{ color: brand.muted, fontSize: 12.5, mt: 0.4 }}>Tu mudanza, bien coordinada</Typography>
             </Box>
           </Stack>
-          {client && (
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Chip label={client.name} size="small" sx={{ bgcolor: '#fff', border: `1px solid ${brand.border}`, fontWeight: 700 }} />
-              <IconButton aria-label="Cerrar sesión" onClick={logout} size="small" sx={{ color: brand.navy }}>
-                <Logout fontSize="small" />
-              </IconButton>
-            </Stack>
-          )}
         </Stack>
       </Box>
 
@@ -153,15 +120,14 @@ export function LandingPage() {
           </Box>
 
           <Box sx={{ bgcolor: '#fff', border: `1px solid ${brand.border}`, borderRadius: 4, p: { xs: 2.5, md: 4 }, boxShadow: '0 12px 30px rgba(19,43,74,0.06)' }}>
-            {step === 'login' && <LoginForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} onSubmit={login} />}
-            {step === 'request' && <RequestForm date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} cargo={cargo} notes={notes} busy={busy} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
-            {step === 'sent' && <SuccessState client={client} onNewRequest={() => setStep('request')} />}
+            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} cargo={cargo} notes={notes} busy={busy} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
+            {step === 'sent' && <SuccessState onNewRequest={() => setStep('request')} />}
           </Box>
         </Box>
 
         <Divider sx={{ my: { xs: 6, md: 10 }, borderColor: brand.border }} />
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 3, md: 8 }} justifyContent="center">
-          <Feature icon={<LockOutlined />} title="Acceso de cliente" text="Tus datos ya están registrados y no necesitás volver a cargarlos." />
+          <Feature icon={<LockOutlined />} title="Solicitud sin cuenta" text="Dejanos tus datos de contacto y te escribimos para coordinar." />
           <Feature icon={<CalendarMonth />} title="Coordinación simple" text="Elegí el día y una franja horaria para que podamos organizar el servicio." />
           <Feature icon={<LocalShipping />} title="Equipo preparado" text="Revisamos cada pedido antes de confirmar el viaje." />
         </Stack>
@@ -171,25 +137,19 @@ export function LandingPage() {
   )
 }
 
-function LoginForm({ name, phone, busy, setName, setPhone, onSubmit }: LoginFormProps) {
-  return <Box component="form" onSubmit={onSubmit}>
-    <Typography variant="h5">Ingresá para solicitar tu flete</Typography>
-    <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Usamos los datos de tu cuenta para asociar la solicitud.</Typography>
-    <Stack spacing={2} sx={{ mt: 3 }}>
-      <TextField label="Nombre y apellido" value={name} onChange={(event) => setName(event.target.value)} required fullWidth />
-      <TextField label="Teléfono" value={phone} onChange={(event) => setPhone(event.target.value)} required fullWidth placeholder="11 5555-0000" />
-      <Button type="submit" variant="contained" size="large" disabled={busy} endIcon={<ArrowForward />} sx={{ minHeight: 48, mt: 1 }}>
-        {busy ? 'Validando...' : 'Continuar'}
-      </Button>
-    </Stack>
-  </Box>
+function ContactForm({ name, phone, busy, setName, setPhone }: ContactFormProps) {
+  return <Stack spacing={2}>
+    <TextField label="Nombre y apellido" value={name} onChange={(event) => setName(event.target.value)} required fullWidth />
+    <TextField label="Teléfono" value={phone} onChange={(event) => setPhone(event.target.value)} required fullWidth placeholder="11 5555-0000" />
+  </Stack>
 }
 
-function RequestForm({ date, arrivalFrom, arrivalTo, origin, destination, cargo, notes, busy, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setCargo, setNotes, onSubmit }: RequestFormProps) {
+function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destination, cargo, notes, busy, setName, setPhone, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
   return <Box component="form" onSubmit={onSubmit}>
-    <Typography variant="h5">¿Qué necesitás trasladar?</Typography>
-    <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Completá los datos del servicio y enviá tu pedido.</Typography>
+    <Typography variant="h5">Solicitá tu flete</Typography>
+    <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Dejanos tus datos y completá el recorrido. No necesitás crear una cuenta.</Typography>
     <Stack spacing={2} sx={{ mt: 3 }}>
+      <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} />
       <TextField label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} required InputLabelProps={{ shrink: true }} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
         <TextField label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} required fullWidth InputLabelProps={{ shrink: true }} />
@@ -206,10 +166,10 @@ function RequestForm({ date, arrivalFrom, arrivalTo, origin, destination, cargo,
   </Box>
 }
 
-function SuccessState({ client, onNewRequest }: Readonly<{ client: Client | null; onNewRequest: () => void }>) {
+function SuccessState({ onNewRequest }: Readonly<{ onNewRequest: () => void }>) {
   return <Stack spacing={2} alignItems="flex-start">
     <CheckCircleOutline sx={{ color: color.green, fontSize: 42 }} />
-    <Typography variant="h5">Ya recibimos tu solicitud{client ? `, ${client.name.split(' ')[0]}` : ''}.</Typography>
+    <Typography variant="h5">Ya recibimos tu solicitud.</Typography>
     <Typography sx={{ color: color.ink, lineHeight: 1.6 }}>El equipo va a revisar disponibilidad y se va a poner en contacto para confirmar los detalles del servicio.</Typography>
     <Alert severity="success" sx={{ width: '100%' }}>No se generó ningún pago en este paso.</Alert>
     <Button variant="outlined" onClick={onNewRequest} endIcon={<ArrowForward />}>Solicitar otro flete</Button>
