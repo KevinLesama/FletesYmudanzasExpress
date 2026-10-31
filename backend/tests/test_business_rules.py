@@ -101,6 +101,15 @@ def test_availability_endpoint(client: TestClient, seeded: dict) -> None:
     assert body["vehicle_available"] is True
 
 
+def test_client_login_returns_existing_client_without_creating_one(client: TestClient, seeded: dict) -> None:
+    response = client.post("/api/clients/login", json={"name": "Kevin", "phone": "11 3291-5140"})
+    assert response.status_code == 200
+    assert response.json()["id"] == seeded["client_id"]
+
+    invalid = client.post("/api/clients/login", json={"name": "Kevin", "phone": "11 0000-0000"})
+    assert invalid.status_code == 401
+
+
 def test_cancel_releases_vehicle(client: TestClient, seeded: dict) -> None:
     request = _create(client, seeded)
     client.post(

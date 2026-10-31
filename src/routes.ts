@@ -1,4 +1,5 @@
 export const R = {
+  landing: '/landing',
   ingreso: '/ingreso',
   agenda: '/agenda',
   solicitudes: '/solicitudes',

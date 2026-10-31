@@ -42,6 +42,11 @@ class ClienteIn(BaseModel):
     email: str | None = None
 
 
+class ClientLoginIn(BaseModel):
+    name: str = Field(min_length=1)
+    phone: str = Field(min_length=1)
+
+
 class ClienteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -38,6 +38,7 @@ from app.schemas import (
     VehiculoIn,
     VehiculoOut,
     VehiculoUpdate,
+    ClientLoginIn,
 )
 from app.services import business, pricing, serializers
 from app.services.scraping import get_geo_service
@@ -195,13 +196,11 @@ def pricing_preview(payload: CotizacionPreviewIn) -> CotizacionOut:
 # Clientes (usuarios con rol cliente)
 # --------------------------------------------------------------------------- #
 clients_router = APIRouter(
-    prefix="/clients",
-    tags=["clients"],
-    dependencies=[Depends(get_current_user), Depends(require_role("administrador"))],
+    prefix="/clients", tags=["clients"]
 )
 
 
-@clients_router.get("", response_model=list[ClienteOut])
+@clients_router.get("", response_model=list[ClienteOut], dependencies=[Depends(get_current_user), Depends(require_role("administrador"))])
 def list_clients(db: Session = Depends(get_db)) -> list[ClienteOut]:
     clientes = db.scalars(
         select(Usuario).where(Usuario.rol == "cliente").order_by(Usuario.nombre)
@@ -209,7 +208,21 @@ def list_clients(db: Session = Depends(get_db)) -> list[ClienteOut]:
     return [serializers.serialize_client(c) for c in clientes]
 
 
-@clients_router.post("", response_model=ClienteOut, status_code=201)
+@clients_router.post("/login", response_model=ClienteOut)
+def login_client(payload: ClientLoginIn, db: Session = Depends(get_db)) -> ClienteOut:
+    cliente = db.scalar(
+        select(Usuario).where(
+            Usuario.rol == "cliente",
+            Usuario.nombre == payload.name.strip(),
+            Usuario.telefono == payload.phone.strip(),
+        )
+    )
+    if cliente is None:
+        raise HTTPException(status_code=401, detail="No encontramos una cuenta con esos datos.")
+    return serializers.serialize_client(cliente)
+
+
+@clients_router.post("", response_model=ClienteOut, status_code=201, dependencies=[Depends(get_current_user), Depends(require_role("administrador"))])
 def create_client(payload: ClienteIn, db: Session = Depends(get_db)) -> ClienteOut:
     existing = db.scalar(
         select(Usuario).where(Usuario.rol == "cliente", Usuario.nombre == payload.nombre, Usuario.telefono == payload.telefono)

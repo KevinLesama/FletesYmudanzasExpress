@@ -540,6 +540,8 @@ export const api = {
 
   // Clientes
   listClients: async (): Promise<Client[]> => (await http<Json[]>('/clients')).map(mapClient),
+  loginClient: async (payload: { name: string; phone: string }): Promise<Client> =>
+    mapClient(await http<Json>('/clients/login', { method: 'POST', body: JSON.stringify(payload) })),
   createClient: async (payload: { name: string; phone: string }): Promise<Client> =>
     mapClient(
       await http<Json>('/clients', {

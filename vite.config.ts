@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 const PAGES: Record<string, string> = {
   '/': '/ingreso.html',
+  '/landing': '/landing.html',
   '/ingreso': '/ingreso.html',
   '/agenda': '/agenda.html',
   '/solicitudes': '/solicitudes.html',
@@ -17,6 +18,7 @@ const PAGES: Record<string, string> = {
 }
 
 const PAGE_HTML = [
+  'landing.html',
   'ingreso.html',
   'agenda.html',
   'solicitudes.html',
