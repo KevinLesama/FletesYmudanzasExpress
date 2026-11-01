@@ -41,6 +41,7 @@ export interface RemitoPhoto {
 }
 
 export interface Vehicle {
+  vehicleId: string
   id: string
   type: string
   capacityKg: number

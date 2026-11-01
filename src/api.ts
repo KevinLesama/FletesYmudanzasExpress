@@ -114,6 +114,7 @@ function mapVehicle(v: Json): Vehicle {
   else status = 'Disponible'
 
   return {
+    vehicleId: String(v.id),
     id: v.patente ?? String(v.id),
     type: v.tipo ?? v.type ?? '',
     capacityKg: Number(v.capacidad_kg ?? v.capacity_kg ?? 0),
