@@ -6,18 +6,15 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   IconButton,
   InputAdornment,
-  InputLabel,
   MenuItem,
-  Select,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material'
 import { Check, ChevronLeft, ChevronRight, Close, WarningAmber } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
+import { CampoSelect, CampoTexto } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
@@ -215,17 +212,14 @@ function IncidentDialog({
       </DialogTitle>
       <DialogContent sx={{ px: 3, pt: 2 }}>
         <Stack spacing={2}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Tipo</InputLabel>
-            <Select label="Tipo" value={type} onChange={(e) => setType(e.target.value)}>
+          <CampoSelect label="Tipo" size="small" value={type} onChange={(e) => setType(e.target.value)}>
               <MenuItem value="Demora">Demora</MenuItem>
               <MenuItem value="Tránsito">Problema de tránsito</MenuItem>
               <MenuItem value="Acceso">Dificultad de acceso</MenuItem>
               <MenuItem value="Daño">Daño o susto en la carga</MenuItem>
               <MenuItem value="Otro">Otro</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField
+          </CampoSelect>
+          <CampoTexto
             label="Descripción"
             value={description}
             onChange={(e) => setDescription(e.target.value)}

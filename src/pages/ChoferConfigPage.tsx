@@ -5,11 +5,11 @@ import {
   Divider,
   InputAdornment,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material'
 import { InfoOutlined, Paid, RestartAlt, Save } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
+import { CampoTexto } from '../components/FormFields'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
@@ -167,7 +167,7 @@ export function ChoferConfigPage() {
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>Tarifa del viaje</Typography>
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
+              <CampoTexto
                 label="Tarifa base por viaje"
                 value={config.baseRate}
                 onChange={(e) => setNum('baseRate', e.target.value)}
@@ -176,7 +176,7 @@ export function ChoferConfigPage() {
                 helperText="Sueldo base del servicio"
                 InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
               />
-              <TextField
+              <CampoTexto
                 label="Adicional por km"
                 value={config.ratePerKm}
                 onChange={(e) => setNum('ratePerKm', e.target.value)}
@@ -185,7 +185,7 @@ export function ChoferConfigPage() {
                 helperText="Se aplica sobre los km totales (ida y vuelta)"
                 InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
               />
-              <TextField
+              <CampoTexto
                 label="Adicional por hora"
                 value={config.ratePerHour}
                 onChange={(e) => setNum('ratePerHour', e.target.value)}

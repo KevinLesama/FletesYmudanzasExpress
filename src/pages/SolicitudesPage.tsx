@@ -3,10 +3,7 @@ import {
   Box,
   Button,
   Chip,
-  FormControl,
-  InputLabel,
   MenuItem,
-  Select,
   Stack,
   Table,
   TableBody,
@@ -21,6 +18,7 @@ import {
 import { Add, ArrowForward, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { CampoSelect } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { api } from '../api'
@@ -134,26 +132,20 @@ export function SolicitudesPage() {
           inputProps={SEARCH_INPUT_PROPS}
           InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
         />
-        <FormControl size="small">
-          <InputLabel>Filtrar por fecha</InputLabel>
-          <Select label="Filtrar por fecha" value={date} onChange={(e) => setDate(e.target.value)}>
+        <CampoSelect label="Filtrar por fecha" size="small" value={date} onChange={(e) => setDate(e.target.value)}>
             {dateOptions.map((o) => (
               <MenuItem key={o.value} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
-          </Select>
-        </FormControl>
-        <FormControl size="small">
-          <InputLabel>Filtrar por estado</InputLabel>
-          <Select label="Filtrar por estado" value={status} onChange={(e) => setStatus(e.target.value)}>
+        </CampoSelect>
+        <CampoSelect label="Filtrar por estado" size="small" value={status} onChange={(e) => setStatus(e.target.value)}>
             {statusOptions.map((o) => (
               <MenuItem key={o.value} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
-          </Select>
-        </FormControl>
+        </CampoSelect>
         <Button startIcon={<FilterAltOff />} onClick={clearFilters} sx={{ color: brand.navy, fontWeight: 700 }}>
           Limpiar filtros
         </Button>

@@ -7,7 +7,6 @@ import {
   MenuItem,
   Stack,
   Switch,
-  TextField,
   Typography,
 } from '@mui/material'
 import type { SvgIconProps } from '@mui/material/SvgIcon'
@@ -23,6 +22,7 @@ import {
   TabletMac,
 } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
+import { CampoSelect, CampoTexto } from '../components/FormFields'
 import { Toast, type ToastState } from '../components/Toast'
 import { useQuery } from '../routes'
 import { color, radius, type } from '../design/tokens'
@@ -277,7 +277,7 @@ export function AjustesPage() {
             alignItems: 'start',
           }}
         >
-          <TextField
+          <CampoTexto
             label="Nombre y apellido"
             size="small"
             fullWidth
@@ -285,26 +285,26 @@ export function AjustesPage() {
             onChange={(event) => setNameDraft(event.target.value)}
             onBlur={commitName}
           />
-          <TextField
+          <CampoTexto
             label="Cargo"
             size="small"
             fullWidth
             value={settings.profile.role}
             onChange={(event) => persist({ profile: { ...settings.profile, role: event.target.value } })}
           />
-          <TextField
+          <CampoTexto
             label="Email"
             size="small"
             fullWidth
             type="email"
             value={emailDraft}
             error={Boolean(emailError)}
-            helperText={emailError || 'Se usa para ingresar y para las notificaciones.'}
+            mensaje={emailError}
+            helperText={!emailError ? 'Se usa para ingresar y para las notificaciones.' : undefined}
             onChange={(event) => setEmailDraft(event.target.value)}
             onBlur={commitEmail}
           />
-          <TextField
-            select
+          <CampoSelect
             label="Zona horaria"
             size="small"
             fullWidth
@@ -319,7 +319,7 @@ export function AjustesPage() {
                 {zone.label}
               </MenuItem>
             ))}
-          </TextField>
+          </CampoSelect>
         </Box>
       </>
     ),
@@ -376,8 +376,7 @@ export function AjustesPage() {
         />
 
         <Box sx={{ mt: 2.5, maxWidth: 340 }}>
-          <TextField
-            select
+          <CampoSelect
             label="Cerrar sesión por inactividad"
             size="small"
             fullWidth
@@ -393,7 +392,7 @@ export function AjustesPage() {
                 {option.label}
               </MenuItem>
             ))}
-          </TextField>
+          </CampoSelect>
         </Box>
 
         <Box sx={{ mt: 3 }}>

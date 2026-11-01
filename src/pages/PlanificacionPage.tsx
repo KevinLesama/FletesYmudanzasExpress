@@ -8,13 +8,9 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  FormControl,
   InputAdornment,
-  InputLabel,
   MenuItem,
-  Select,
   Stack,
-  TextField,
   Typography,
   IconButton,
   useTheme,
@@ -45,6 +41,7 @@ import {
   RouteOutlined,
 } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
+import { CampoSelect, CampoTexto } from '../components/FormFields'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
@@ -298,9 +295,9 @@ export function PlanificacionPage() {
         <Stack direction="row" alignItems="center" spacing={1}>
           <Schedule sx={{ fontSize: 17, color: '#64707C' }} />
         </Stack>
-        <TextField size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} />
-        <TextField size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} />
-        <TextField
+        <CampoTexto size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} />
+        <CampoTexto size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} />
+        <CampoTexto
           size="small"
           type="number"
           label="Espera (carga y descarga)"
@@ -317,12 +314,9 @@ export function PlanificacionPage() {
       </Stack>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
-        <FormControl size="small" fullWidth>
-          <InputLabel>Chofer</InputLabel>
-          <Select label="Chofer" value={driverId} onChange={(e) => setDriverId(e.target.value)}>
+        <CampoSelect label="Chofer" size="small" value={driverId} onChange={(e) => setDriverId(e.target.value)}>
             {availableDrivers.map((d) => driverOption(d))}
-          </Select>
-        </FormControl>
+        </CampoSelect>
         <SearchableSelect
           label="Vehículo"
           value={selectedVehicle ?? null}
@@ -393,7 +387,7 @@ export function PlanificacionPage() {
           {priceOverridden && <StatusChip label="Precio manual" />}
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <TextField
+          <CampoTexto
             size="small"
             label="Precio final"
             value={price}
@@ -854,7 +848,7 @@ function DepositDialog({
         </Box>
 
         <Stack spacing={2}>
-          <TextField
+          <CampoTexto
             label="Importe recibido"
             value={amount}
             onChange={(e) => {
@@ -863,34 +857,25 @@ function DepositDialog({
             }}
             fullWidth
             error={!!error}
-            helperText={error}
+            mensaje={error}
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           />
-          <TextField label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" />
+          <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" />
           <Stack direction="row" spacing={1.5}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Concepto</InputLabel>
-              <Select label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value as 'Seña' | 'Saldo')}>
+            <CampoSelect label="Concepto" size="small" value={concept} onChange={(e) => setConcept(e.target.value as 'Seña' | 'Saldo')}>
                 <MenuItem value="Seña">Seña</MenuItem>
                 <MenuItem value="Saldo">Saldo</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Medio</InputLabel>
-              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as 'Transferencia' | 'Efectivo')}>
+            </CampoSelect>
+            <CampoSelect label="Medio" size="small" value={method} onChange={(e) => setMethod(e.target.value as 'Transferencia' | 'Efectivo')}>
                 <MenuItem value="Transferencia">Transferencia</MenuItem>
                 <MenuItem value="Efectivo">Efectivo</MenuItem>
-              </Select>
-            </FormControl>
+            </CampoSelect>
           </Stack>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Recibido por</InputLabel>
-            <Select label="Recibido por" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value as ReceivedBy)}>
+          <CampoSelect label="Recibido por" size="small" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value as ReceivedBy)}>
               <MenuItem value="Administración">Administración</MenuItem>
               <MenuItem value="Chofer">Chofer</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
+          </CampoSelect>
+          <CampoTexto label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2.5, md: 3 }, pb: 3, justifyContent: 'space-between' }}>
