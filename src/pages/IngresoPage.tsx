@@ -1,33 +1,40 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
   Button,
+  Card,
+  Collapse,
+  Fade,
+  FormHelperText,
   IconButton,
   InputAdornment,
-  Stack,
   TextField,
   Typography,
+  useMediaQuery,
   useTheme,
 } from '@mui/material'
+import type { Theme } from '@mui/material/styles'
 import {
+  ArrowBack,
   ArrowForward,
-  LocalShipping,
-  Lock,
+  LockOutlined,
   LockReset,
   MailOutline,
-  Shield,
   Visibility,
   VisibilityOff,
-  MyLocation,
-  LocationOn,
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { api } from '../api'
-import { brand } from '../theme'
+import { Brand } from '../components/Brand'
+import { motion, radius, space, type } from '../design/tokens'
 import { supabase } from '../supabase'
 
 type AuthMode = 'login' | 'request' | 'update'
+type LoginField = 'email' | 'password'
+type LoginFieldFeedback = Partial<Record<LoginField, string | true>>
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const AUTH_MODE_COPY: Record<AuthMode, { kicker: string; title: string; description: string; submitting: string; submit: string }> = {
   login: {
@@ -53,6 +60,135 @@ const AUTH_MODE_COPY: Record<AuthMode, { kicker: string; title: string; descript
   },
 }
 
+function buildFieldSx(theme: Theme, prefersReducedMotion: boolean) {
+  const fieldBg = theme.palette.background.paper
+  const fieldText = theme.palette.text.primary
+  const borderTransition = prefersReducedMotion ? 'none' : 'border-color 150ms ease'
+  const autofill = {
+    WebkitBoxShadow: `0 0 0 1000px ${fieldBg} inset`,
+    boxShadow: `0 0 0 1000px ${fieldBg} inset`,
+    WebkitTextFillColor: fieldText,
+    caretColor: fieldText,
+    borderRadius: 0,
+    transition: 'background-color 9999s ease-out 0s',
+  }
+
+  return {
+    '& .MuiOutlinedInput-root': {
+      height: 54,
+      fontSize: type.lead,
+      '&.MuiInputBase-adornedStart': { paddingLeft: 1.75 },
+      borderRadius: `${radius.md}px`,
+    },
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'divider',
+      borderWidth: '1px',
+      transition: borderTransition,
+    },
+    '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'divider',
+    },
+    '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'secondary.dark',
+      borderWidth: '1px',
+    },
+    '& .MuiOutlinedInput-input:focus-visible': { outline: 'none' },
+    '& .MuiOutlinedInput-input': {
+      fontSize: type.lead,
+      flex: 1,
+      minWidth: 0,
+      width: 0,
+      px: 0,
+      pr: 1.5,
+      py: 0,
+      backgroundColor: 'transparent',
+      borderRadius: 0,
+      '&:-webkit-autofill': autofill,
+      '&:-webkit-autofill:hover': autofill,
+      '&:-webkit-autofill:focus': autofill,
+      '&:-webkit-autofill:active': autofill,
+      '&:autofill': autofill,
+      '&:autofill:hover': autofill,
+      '&:autofill:focus': autofill,
+    },
+    '& .MuiOutlinedInput-input::placeholder': { opacity: 1, color: 'text.disabled' },
+    '& .MuiOutlinedInput-root.Mui-error .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'error.main',
+      borderWidth: '1px',
+    },
+    '& .MuiOutlinedInput-root.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'error.main',
+      borderWidth: '1px',
+    },
+  }
+}
+
+function AnimatedAlert({
+  message,
+  severity,
+  duracionError,
+}: {
+  message: string | null
+  severity: 'error' | 'success'
+  duracionError: number
+}) {
+  const [lastMessage, setLastMessage] = useState(message)
+
+  useEffect(() => {
+    if (message) setLastMessage(message)
+  }, [message])
+
+  return (
+    <Collapse
+      in={Boolean(message)}
+      timeout={duracionError}
+      sx={{ mt: 2, '&.MuiCollapse-hidden': { mt: 0 } }}
+    >
+      <Fade in={Boolean(message)} timeout={duracionError}>
+        <Alert
+          severity={severity}
+          role={severity === 'error' ? 'alert' : 'status'}
+          sx={{
+            bgcolor: severity === 'error' ? 'error.light' : 'success.light',
+            border: 1,
+            borderColor: severity === 'error' ? 'error.main' : 'success.main',
+            color: severity === 'error' ? 'error.dark' : 'success.dark',
+            '& .MuiAlert-icon': { color: severity === 'error' ? 'error.main' : 'success.main' },
+          }}
+        >
+          {lastMessage}
+        </Alert>
+      </Fade>
+    </Collapse>
+  )
+}
+
+function FieldMessage({
+  id,
+  message,
+  duracionError,
+}: {
+  id: string
+  message: string | null
+  duracionError: number
+}) {
+  const [lastMessage, setLastMessage] = useState(message)
+
+  useEffect(() => {
+    if (message) setLastMessage(message)
+  }, [message])
+
+  return (
+    <Collapse in={Boolean(message)} timeout={duracionError}>
+      <Fade in={Boolean(message)} timeout={duracionError}>
+        <FormHelperText error id={id} sx={{ pt: 0.5, mx: 0, fontSize: type.caption }}>
+          {lastMessage}
+        </FormHelperText>
+      </Fade>
+    </Collapse>
+  )
+}
+
 export function IngresoPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -66,7 +202,13 @@ export function IngresoPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [fieldFeedback, setFieldFeedback] = useState<LoginFieldFeedback>({})
   const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const sinAnimacion = isMobile || prefersReducedMotion
+  const duracionError = sinAnimacion ? 0 : 200
+  const fieldSx = useMemo(() => buildFieldSx(theme, prefersReducedMotion), [theme, prefersReducedMotion])
 
   const go = (href: string) => {
     window.location.href = href
@@ -93,8 +235,30 @@ export function IngresoPage() {
     setSubmitting(false)
   }
 
+  const clearLoginFeedback = (field: LoginField) => {
+    setError(null)
+    setFieldFeedback((prev) => {
+      const next = { ...prev }
+      if (field === 'email' || prev.email === true) delete next.email
+      if (field === 'password' || prev.password === true) delete next.password
+      return next
+    })
+  }
+
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault()
+    const nextFeedback: LoginFieldFeedback = {}
+    if (!email.trim()) nextFeedback.email = 'Ingresá tu correo electrónico.'
+    else if (!EMAIL_PATTERN.test(email.trim())) nextFeedback.email = 'El formato del correo no es válido.'
+    if (!password) nextFeedback.password = 'Ingresá tu contraseña.'
+
+    if (Object.keys(nextFeedback).length > 0) {
+      setFieldFeedback(nextFeedback)
+      setError(null)
+      return
+    }
+
+    setFieldFeedback({})
     setSubmitting(true)
     setError(null)
     if (!supabase) {
@@ -105,6 +269,7 @@ export function IngresoPage() {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
     if (authError) {
       // No se muestra el mensaje de GoTrue para no filtrar si el email existe.
+      setFieldFeedback({ email: true, password: true })
       setError('No pudimos iniciar sesión. Revisá el email y la contraseña.')
       setSubmitting(false)
       return
@@ -144,6 +309,22 @@ export function IngresoPage() {
     setSubmitting(false)
   }
 
+  const validateRequestEmail = (e: React.FormEvent) => {
+    e.preventDefault()
+    const nextFeedback: LoginFieldFeedback = {}
+    if (!email.trim()) nextFeedback.email = 'Ingresá tu correo.'
+    else if (!EMAIL_PATTERN.test(email.trim())) nextFeedback.email = 'El formato del correo no es válido.'
+
+    if (Object.keys(nextFeedback).length > 0) {
+      setFieldFeedback(nextFeedback)
+      setError(null)
+      return
+    }
+
+    setFieldFeedback({})
+    void requestPasswordReset(e)
+  }
+
   const updatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -180,353 +361,355 @@ export function IngresoPage() {
     setSubmitting(false)
   }
 
-  const formSubmit = { login: signIn, request: requestPasswordReset, update: updatePassword }[mode]
+  const formSubmit = { login: signIn, request: validateRequestEmail, update: updatePassword }[mode]
   const modeCopy = AUTH_MODE_COPY[mode]
 
   return (
     <Box
       sx={{
         minHeight: '100vh',
-        bgcolor: theme.palette.background.default,
+        '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
+        bgcolor: 'background.default',
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        pt: { xs: 10, sm: 12 },
+        pb: 4,
+        px: 2,
       }}
     >
       <Box
         sx={{
-          flexGrow: 1,
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1.05fr 1fr' },
-          maxWidth: 1200,
-          mx: 'auto',
           width: '100%',
-          px: { xs: 2.5, md: 6 },
-          py: { xs: 3, md: 6 },
-          gap: { md: 6 },
+          maxWidth: 440,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
         }}
       >
-        {/* ---- Brand / hero ---- */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', py: { md: 2 } }}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Box
-              sx={{
-                width: 42,
-                height: 42,
-                borderRadius: 2,
-                bgcolor: brand.navy,
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <LocalShipping fontSize="small" />
-            </Box>
-            <Box>
-              <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
-                Fletes Express
-              </Typography>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#64707C' }}>Gestión de viajes</Typography>
-            </Box>
-          </Stack>
-
-          <Box sx={{ mt: { xs: 4, md: 7 } }}>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Box sx={{ width: 34, height: 2, borderRadius: 4, bgcolor: brand.orange }} />
-              <Typography
-                sx={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  letterSpacing: '0.16em',
-                  color: brand.orangeInk,
-                }}
-              >
-                ORGANIZACIÓN PARA TODO EL EQUIPO
-              </Typography>
-            </Stack>
-            <Typography
-              component="h1"
-              sx={{
-                mt: 1.5,
-                fontFamily: "'Manrope', sans-serif",
-                fontWeight: 800,
-                fontSize: { xs: 30, md: 40 },
-                lineHeight: 1.12,
-                letterSpacing: '-0.03em',
-                color: brand.navy,
-              }}
-            >
-              La coordinación de tus viajes, en orden
-            </Typography>
-            <Typography sx={{ mt: 1.5, color: 'text.secondary', fontSize: { xs: 14, md: 15.5 }, maxWidth: 470 }}>
-              Planificá cada servicio y mantené choferes, vehículos y horarios en sintonía.
-            </Typography>
+        <Box
+          component="header"
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%',
+            mb: `${space.xxl}px`,
+            flexShrink: 0,
+          }}
+        >
+          <Box sx={{ flexShrink: 0 }}>
+            <Brand subtitle="" size="login" />
           </Box>
-
-          {/* Illustration card */}
           <Box
             sx={{
-              mt: 4,
-              display: { xs: 'none', md: 'block' },
-              position: 'relative',
-              bgcolor: '#FFFFFF',
-              border: '1px solid #E9E6DF',
-              borderRadius: 4,
-              p: 3,
-              maxWidth: 520,
-              overflow: 'hidden',
+              mt: `${space.xl}px`,
+              display: 'flex',
+              alignItems: 'center',
+              width: '100%',
+              gap: `${space.lg}px`,
+              flexShrink: 0,
             }}
           >
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#64707C', letterSpacing: '0.1em' }}>
-                RUTA COORDINADA
-              </Typography>
-              <Stack direction="row" alignItems="center" spacing={0.7}>
-                <Box sx={{ width: 8, height: 8, borderRadius: 50, bgcolor: '#4E9A6C' }} />
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#5C6B7A' }}>Listo para planificar</Typography>
-              </Stack>
-            </Stack>
-
-            <Box sx={{ position: 'relative', my: 4, ml: 2, mr: 2 }}>
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: 20,
-                  right: 20,
-                  top: -58,
-                  borderTop: '2px dashed #D8D3C8',
-                }}
-              />
-              <Stack direction="row" spacing={5} sx={{ position: 'relative' }}>
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ bgcolor: '#FFFFFF' }}>
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      bgcolor: brand.navy,
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <MyLocation sx={{ fontSize: 17 }} />
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#64707C' }}>PUNTO DE ORIGEN</Typography>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Palermo</Typography>
-                  </Box>
-                </Stack>
-
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    border: '2px solid #E9E6DF',
-                    bgcolor: brand.navy,
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    alignSelf: 'center',
-                  }}
-                >
-                  <LocalShipping sx={{ fontSize: 19 }} />
-                </Box>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      bgcolor: '#F0F2F5',
-                      color: brand.navy,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <LocationOn sx={{ fontSize: 17 }} />
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#64707C' }}>PUNTO DE DESTINO</Typography>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Saavedra</Typography>
-                  </Box>
-                </Stack>
-              </Stack>
-            </Box>
-
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Shield sx={{ fontSize: 15, color: '#64707C' }} />
-              <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>Acceso exclusivo para el equipo</Typography>
-            </Stack>
+            <Box aria-hidden="true" sx={{ height: '1px', flex: 1, bgcolor: 'divider' }} />
+            <Typography
+              component="p"
+              sx={{
+                m: 0,
+                fontSize: type.body,
+                fontWeight: 500,
+                lineHeight: 1.4,
+                color: 'text.secondary',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Gestión de viajes
+            </Typography>
+            <Box aria-hidden="true" sx={{ height: '1px', flex: 1, bgcolor: 'divider' }} />
           </Box>
         </Box>
 
-        {/* ---- Login form ---- */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Box
-            component="form"
-            onSubmit={formSubmit}
-            sx={{
-              width: '100%',
-              maxWidth: 420,
-              bgcolor: '#FFFFFF',
-              border: '1px solid #E9E6DF',
-              borderRadius: 4,
-              p: { xs: 3, md: 4 },
-              boxShadow: '0 2px 6px rgba(19,43,74,0.03)',
-            }}
-          >
-            <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orangeInk }}>
+        <Card
+          component="main"
+          sx={{
+            width: '100%',
+            p: { xs: 2.5, sm: 4 },
+            borderRadius: `${radius.lg}px`,
+            flexShrink: 0,
+          }}
+        >
+          <Box component="form" onSubmit={formSubmit} noValidate>
+            <Typography
+              variant="overline"
+              sx={{
+                display: 'block',
+                fontWeight: 800,
+                lineHeight: 1.4,
+                letterSpacing: '0.14em',
+                color: 'secondary.dark',
+              }}
+            >
               {modeCopy.kicker}
             </Typography>
-            <Typography sx={{ mt: 0.5, fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 24 }}>
+            <Typography
+              component="h1"
+              variant="h4"
+              sx={{ mt: 0.5, color: 'text.primary', fontSize: type.display }}
+            >
               {modeCopy.title}
             </Typography>
-            <Typography sx={{ mt: 0.5, color: 'text.secondary', fontSize: 13.5 }}>
+            <Typography sx={{ mt: 1, fontSize: type.body, lineHeight: 1.5, color: 'text.secondary' }}>
               {modeCopy.description}
             </Typography>
 
-            {mode !== 'update' && <TextField
-              fullWidth
-              label="Correo electrónico"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              margin="normal"
-              variant="outlined"
-              placeholder="nombre@fletesexpress.com.ar"
-              sx={{ mt: 3 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <MailOutline sx={{ fontSize: 18, color: '#64707C' }} />
-                  </InputAdornment>
-                ),
-              }}
-            />}
-            {mode === 'login' && <TextField
-              fullWidth
-              label="Contraseña"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              margin="normal"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock sx={{ fontSize: 18, color: '#64707C' }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      onClick={() => setShowPassword((s) => !s)}
-                      edge="end"
-                      sx={{ color: '#64707C' }}
-                    >
-                      {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />}
-            {mode === 'update' && <>
-              <TextField
-                fullWidth
-                label="Nueva contraseña"
-                required
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                margin="normal"
-                type={showNewPassword ? 'text' : 'password'}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockReset sx={{ fontSize: 18, color: '#64707C' }} />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label={showNewPassword ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'}
-                        onClick={() => setShowNewPassword((s) => !s)}
-                        edge="end"
-                        sx={{ color: '#64707C' }}
-                      >
-                        {showNewPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <TextField
-                fullWidth
-                label="Repetí la nueva contraseña"
-                required
-                autoComplete="new-password"
-                value={passwordConfirmation}
-                onChange={(e) => setPasswordConfirmation(e.target.value)}
-                margin="normal"
-                type="password"
-              />
-            </>}
+            <AnimatedAlert
+              message={error}
+              severity="error"
+              duracionError={duracionError}
+            />
+            <AnimatedAlert
+              message={message}
+              severity="success"
+              duracionError={duracionError}
+            />
 
-            {error && (
-              <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
-                {error}
-              </Alert>
+            {mode !== 'update' && (
+              <Box sx={{ mt: error || message ? 1.5 : 2.5 }}>
+                <Typography
+                  component="label"
+                  htmlFor="login-email"
+                  sx={{ display: 'block', mb: 1, fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
+                >
+                  Correo electrónico
+                </Typography>
+                <TextField
+                  id="login-email"
+                  fullWidth
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    clearLoginFeedback('email')
+                  }}
+                  placeholder="nombre@fletesexpress.com.ar"
+                  error={Boolean(fieldFeedback.email)}
+                  inputProps={{ 'aria-describedby': 'login-email-helper' }}
+                  sx={fieldSx}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ ml: 0, mr: 0.75, width: 20, flexShrink: 0 }}>
+                        <MailOutline sx={{ fontSize: 20, color: 'text.secondary' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <FieldMessage
+                  id="login-email-helper"
+                  message={typeof fieldFeedback.email === 'string' ? fieldFeedback.email : null}
+                  duracionError={duracionError}
+                />
+              </Box>
             )}
-            {message && (
-              <Alert severity="success" sx={{ mt: 2, borderRadius: 2 }}>
-                {message}
-              </Alert>
+
+            {mode === 'login' && (
+              <Box sx={{ mt: 3 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                    mb: 1,
+                  }}
+                >
+                  <Typography
+                    component="label"
+                    htmlFor="login-password"
+                    sx={{ fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
+                  >
+                    Contraseña
+                  </Typography>
+                  <Button
+                    type="button"
+                    onClick={() => resetForm('request')}
+                    sx={{
+                      position: 'relative',
+                      minWidth: 0,
+                      minHeight: 20,
+                      mr: 0,
+                      px: 0,
+                      py: 0,
+                      fontSize: type.caption,
+                      lineHeight: '20px',
+                      color: 'secondary.dark',
+                      transition: `color ${motion.fast}`,
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        left: '-8px',
+                        right: '-8px',
+                        top: '-12px',
+                        bottom: '-12px',
+                      },
+                      '&:hover': { color: 'secondary.main', bgcolor: 'transparent' },
+                    }}
+                  >
+                    Recuperar contraseña
+                  </Button>
+                </Box>
+                <TextField
+                  id="login-password"
+                  fullWidth
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    clearLoginFeedback('password')
+                  }}
+                  placeholder="••••••••"
+                  type={showPassword ? 'text' : 'password'}
+                  error={Boolean(fieldFeedback.password)}
+                  inputProps={{ 'aria-describedby': 'login-password-helper' }}
+                  sx={fieldSx}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ ml: 0, mr: 0.75, width: 20, flexShrink: 0 }}>
+                        <LockOutlined sx={{ fontSize: 20, color: 'text.secondary' }} />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                          onClick={() => setShowPassword((s) => !s)}
+                          edge="end"
+                          sx={{ p: 1.5, color: 'text.secondary' }}
+                        >
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <FieldMessage
+                  id="login-password-helper"
+                  message={typeof fieldFeedback.password === 'string' ? fieldFeedback.password : null}
+                  duracionError={duracionError}
+                />
+              </Box>
+            )}
+
+            {mode === 'update' && (
+              <>
+                <Box sx={{ mt: error || message ? 1.5 : 2.5 }}>
+                  <Typography
+                    component="label"
+                    htmlFor="new-password"
+                    sx={{ display: 'block', mb: 1, fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
+                  >
+                    Nueva contraseña
+                  </Typography>
+                  <TextField
+                    id="new-password"
+                    fullWidth
+                    required
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    type={showNewPassword ? 'text' : 'password'}
+                    sx={fieldSx}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start" sx={{ ml: 0, mr: 0.75, width: 20, flexShrink: 0 }}>
+                          <LockReset sx={{ fontSize: 20, color: 'text.secondary' }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={showNewPassword ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'}
+                            onClick={() => setShowNewPassword((s) => !s)}
+                            edge="end"
+                            sx={{ p: 1.5, color: 'text.secondary' }}
+                          >
+                            {showNewPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Box>
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography
+                    component="label"
+                    htmlFor="password-confirmation"
+                    sx={{ display: 'block', mb: 1, fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
+                  >
+                    Repetí la nueva contraseña
+                  </Typography>
+                  <TextField
+                    id="password-confirmation"
+                    fullWidth
+                    required
+                    autoComplete="new-password"
+                    value={passwordConfirmation}
+                    onChange={(e) => setPasswordConfirmation(e.target.value)}
+                    type="password"
+                    sx={fieldSx}
+                  />
+                </Box>
+              </>
             )}
 
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              size="large"
               disabled={submitting}
-              sx={{ mt: 2.5, py: 1.3 }}
+              sx={{
+                mt: 2,
+                height: 56,
+                fontSize: type.lead,
+                borderRadius: `${radius.md}px`,
+              }}
               endIcon={<ArrowForward />}
             >
               {submitting ? modeCopy.submitting : modeCopy.submit}
             </Button>
-            {mode === 'login' && <Button
-              type="button"
-              variant="text"
-              onClick={() => resetForm('request')}
-              sx={{ mt: 1, width: '100%', color: brand.navy, fontWeight: 600 }}
-            >
-              Recuperar contraseña
-            </Button>}
-            {mode !== 'login' && <Button
-              type="button"
-              variant="text"
-              onClick={() => resetForm('login')}
-              sx={{ mt: 1, width: '100%', color: brand.navy, fontWeight: 600 }}
-            >
-              Volver al ingreso
-            </Button>}
+            {mode !== 'login' && (
+              <Button
+                type="button"
+                onClick={() => resetForm('login')}
+                variant="text"
+                startIcon={<ArrowBack />}
+                sx={{
+                  mt: 1,
+                  width: '100%',
+                  minHeight: 44,
+                  borderRadius: `${radius.md}px`,
+                  color: 'primary.main',
+                  fontWeight: 600,
+                }}
+              >
+                Volver al ingreso
+              </Button>
+            )}
           </Box>
-        </Box>
-      </Box>
+        </Card>
 
-      <Box sx={{ textAlign: 'center', py: 2.5 }}>
-        <Typography sx={{ fontSize: 12, color: '#64707C' }}>
+        <Typography
+          sx={{
+            mt: { xs: 'clamp(14px, 2.5vh, 26px)', sm: 2 },
+            textAlign: 'center',
+            fontSize: type.caption,
+            color: 'text.secondary',
+          }}
+        >
           Fletes Express <span style={{ opacity: 0.5 }}>•</span> Acceso privado
         </Typography>
       </Box>
