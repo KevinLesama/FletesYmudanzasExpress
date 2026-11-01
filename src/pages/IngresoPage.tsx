@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -6,7 +6,6 @@ import {
   Card,
   Collapse,
   Fade,
-  FormHelperText,
   IconButton,
   InputAdornment,
   TextField,
@@ -14,7 +13,6 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import type { Theme } from '@mui/material/styles'
 import {
   ArrowBack,
   ArrowForward,
@@ -28,6 +26,7 @@ import {
 import { R } from '../routes'
 import { api } from '../api'
 import { Brand } from '../components/Brand'
+import { EtiquetaCampo, MensajeCampo } from '../components/FormFields'
 import { motion, radius, space, type } from '../design/tokens'
 import { supabase } from '../supabase'
 
@@ -59,69 +58,6 @@ const AUTH_MODE_COPY: Record<AuthMode, { kicker: string; title: string; descript
     submitting: 'Actualizando…',
     submit: 'Actualizar contraseña',
   },
-}
-
-function buildFieldSx(theme: Theme, prefersReducedMotion: boolean) {
-  const fieldBg = theme.palette.background.paper
-  const fieldText = theme.palette.text.primary
-  const borderTransition = prefersReducedMotion ? 'none' : 'border-color 150ms ease'
-  const autofill = {
-    WebkitBoxShadow: `0 0 0 1000px ${fieldBg} inset`,
-    boxShadow: `0 0 0 1000px ${fieldBg} inset`,
-    WebkitTextFillColor: fieldText,
-    caretColor: fieldText,
-    borderRadius: 0,
-    transition: 'background-color 9999s ease-out 0s',
-  }
-
-  return {
-    '& .MuiOutlinedInput-root': {
-      height: 54,
-      fontSize: type.lead,
-      '&.MuiInputBase-adornedStart': { paddingLeft: 1.75 },
-      borderRadius: `${radius.md}px`,
-    },
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'divider',
-      borderWidth: '1px',
-      transition: borderTransition,
-    },
-    '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'divider',
-    },
-    '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'secondary.dark',
-      borderWidth: '1px',
-    },
-    '& .MuiOutlinedInput-input:focus-visible': { outline: 'none' },
-    '& .MuiOutlinedInput-input': {
-      fontSize: type.lead,
-      flex: 1,
-      minWidth: 0,
-      width: 0,
-      px: 0,
-      pr: 1.5,
-      py: 0,
-      backgroundColor: 'transparent',
-      borderRadius: 0,
-      '&:-webkit-autofill': autofill,
-      '&:-webkit-autofill:hover': autofill,
-      '&:-webkit-autofill:focus': autofill,
-      '&:-webkit-autofill:active': autofill,
-      '&:autofill': autofill,
-      '&:autofill:hover': autofill,
-      '&:autofill:focus': autofill,
-    },
-    '& .MuiOutlinedInput-input::placeholder': { opacity: 1, color: 'text.disabled' },
-    '& .MuiOutlinedInput-root.Mui-error .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'error.main',
-      borderWidth: '1px',
-    },
-    '& .MuiOutlinedInput-root.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'error.main',
-      borderWidth: '1px',
-    },
-  }
 }
 
 function AnimatedAlert({
@@ -165,38 +101,6 @@ function AnimatedAlert({
   )
 }
 
-function FieldMessage({
-  id,
-  message,
-  duracionError,
-}: {
-  id: string
-  message: string | null
-  duracionError: number
-}) {
-  const [lastMessage, setLastMessage] = useState(message)
-
-  useEffect(() => {
-    if (message) setLastMessage(message)
-  }, [message])
-
-  return (
-    <Collapse in={Boolean(message)} timeout={duracionError}>
-      <Fade in={Boolean(message)} timeout={duracionError}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, pt: 0.5 }}>
-          <ErrorOutline
-            aria-hidden="true"
-            sx={{ mt: '2px', fontSize: 16, color: 'error.main', flexShrink: 0 }}
-          />
-          <FormHelperText error id={id} sx={{ m: 0, fontSize: type.caption }}>
-            {lastMessage}
-          </FormHelperText>
-        </Box>
-      </Fade>
-    </Collapse>
-  )
-}
-
 export function IngresoPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -216,7 +120,6 @@ export function IngresoPage() {
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const sinAnimacion = isMobile || prefersReducedMotion
   const duracionError = sinAnimacion ? 0 : 200
-  const fieldSx = useMemo(() => buildFieldSx(theme, prefersReducedMotion), [theme, prefersReducedMotion])
 
   const go = (href: string) => {
     window.location.href = href
@@ -498,13 +401,7 @@ export function IngresoPage() {
 
             {mode !== 'update' && (
               <Box sx={{ mt: error || message ? 1.5 : 2.5 }}>
-                <Typography
-                  component="label"
-                  htmlFor="login-email"
-                  sx={{ display: 'block', mb: 1, fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
-                >
-                  Correo electrónico
-                </Typography>
+                <EtiquetaCampo text="Correo electrónico" htmlFor="login-email" />
                 <TextField
                   id="login-email"
                   fullWidth
@@ -518,8 +415,9 @@ export function IngresoPage() {
                   }}
                   placeholder="nombre@fletesexpress.com.ar"
                   error={Boolean(fieldFeedback.email)}
-                  inputProps={{ 'aria-describedby': 'login-email-helper' }}
-                  sx={fieldSx}
+                  inputProps={{
+                    'aria-describedby': typeof fieldFeedback.email === 'string' ? 'login-email-helper' : undefined,
+                  }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start" sx={{ ml: 0, mr: 0.75, width: 20, flexShrink: 0 }}>
@@ -528,10 +426,10 @@ export function IngresoPage() {
                     ),
                   }}
                 />
-                <FieldMessage
+                <MensajeCampo
                   id="login-email-helper"
-                  message={typeof fieldFeedback.email === 'string' ? fieldFeedback.email : null}
-                  duracionError={duracionError}
+                  mensaje={typeof fieldFeedback.email === 'string' ? fieldFeedback.email : null}
+                  sinAnimacion={sinAnimacion}
                 />
               </Box>
             )}
@@ -547,13 +445,7 @@ export function IngresoPage() {
                     mb: 1,
                   }}
                 >
-                  <Typography
-                    component="label"
-                    htmlFor="login-password"
-                    sx={{ fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
-                  >
-                    Contraseña
-                  </Typography>
+                  <EtiquetaCampo text="Contraseña" htmlFor="login-password" />
                   <Button
                     type="button"
                     onClick={() => resetForm('request')}
@@ -595,8 +487,9 @@ export function IngresoPage() {
                   placeholder="••••••••"
                   type={showPassword ? 'text' : 'password'}
                   error={Boolean(fieldFeedback.password)}
-                  inputProps={{ 'aria-describedby': 'login-password-helper' }}
-                  sx={fieldSx}
+                  inputProps={{
+                    'aria-describedby': typeof fieldFeedback.password === 'string' ? 'login-password-helper' : undefined,
+                  }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start" sx={{ ml: 0, mr: 0.75, width: 20, flexShrink: 0 }}>
@@ -617,10 +510,10 @@ export function IngresoPage() {
                     ),
                   }}
                 />
-                <FieldMessage
+                <MensajeCampo
                   id="login-password-helper"
-                  message={typeof fieldFeedback.password === 'string' ? fieldFeedback.password : null}
-                  duracionError={duracionError}
+                  mensaje={typeof fieldFeedback.password === 'string' ? fieldFeedback.password : null}
+                  sinAnimacion={sinAnimacion}
                 />
               </Box>
             )}
@@ -628,13 +521,7 @@ export function IngresoPage() {
             {mode === 'update' && (
               <>
                 <Box sx={{ mt: error || message ? 1.5 : 2.5 }}>
-                  <Typography
-                    component="label"
-                    htmlFor="new-password"
-                    sx={{ display: 'block', mb: 1, fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
-                  >
-                    Nueva contraseña
-                  </Typography>
+                  <EtiquetaCampo text="Nueva contraseña" htmlFor="new-password" />
                   <TextField
                     id="new-password"
                     fullWidth
@@ -643,7 +530,6 @@ export function IngresoPage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     type={showNewPassword ? 'text' : 'password'}
-                    sx={fieldSx}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start" sx={{ ml: 0, mr: 0.75, width: 20, flexShrink: 0 }}>
@@ -666,13 +552,7 @@ export function IngresoPage() {
                   />
                 </Box>
                 <Box sx={{ mt: 1.5 }}>
-                  <Typography
-                    component="label"
-                    htmlFor="password-confirmation"
-                    sx={{ display: 'block', mb: 1, fontSize: type.body, fontWeight: 500, color: 'text.secondary' }}
-                  >
-                    Repetí la nueva contraseña
-                  </Typography>
+                  <EtiquetaCampo text="Repetí la nueva contraseña" htmlFor="password-confirmation" />
                   <TextField
                     id="password-confirmation"
                     fullWidth
@@ -681,7 +561,6 @@ export function IngresoPage() {
                     value={passwordConfirmation}
                     onChange={(e) => setPasswordConfirmation(e.target.value)}
                     type="password"
-                    sx={fieldSx}
                   />
                 </Box>
               </>

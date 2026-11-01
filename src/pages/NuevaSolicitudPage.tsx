@@ -3,8 +3,6 @@ import {
   Box,
   Button,
   Collapse,
-  Fade,
-  FormHelperText,
   MenuItem,
   Select,
   Stepper,
@@ -18,8 +16,9 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { ArrowBack, Check, ErrorOutline, InfoOutlined, ArrowForward } from '@mui/icons-material'
+import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
+import { EtiquetaCampo, MensajeCampo } from '../components/FormFields'
 import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
 import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
@@ -40,34 +39,6 @@ const ESPACIO = {
   card: 2.5,
 } as const
 
-const fieldSx = {
-  '& .MuiOutlinedInput-root:not(.MuiInputBase-multiline)': {
-    height: 48,
-    borderRadius: `${radius.md}px`,
-    fontSize: typeScale.lead,
-  },
-  '& .MuiOutlinedInput-root.MuiInputBase-multiline': {
-    minHeight: 48,
-    borderRadius: `${radius.md}px`,
-    fontSize: typeScale.lead,
-  },
-  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider', borderWidth: '1px' },
-  '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-    borderColor: 'divider',
-    borderWidth: '1px',
-  },
-  '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
-    borderColor: 'secondary.dark',
-    borderWidth: '1px',
-  },
-  '& .MuiOutlinedInput-root.Mui-error .MuiOutlinedInput-notchedOutline, & .MuiOutlinedInput-root.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
-    borderColor: 'error.main',
-    borderWidth: '1px',
-  },
-  '& .MuiOutlinedInput-input': { fontSize: typeScale.lead },
-  '& .MuiOutlinedInput-input::placeholder': { opacity: 1, color: 'text.disabled' },
-}
-
 const actionButtonSx = {
   height: 40,
   minHeight: 40,
@@ -75,16 +46,6 @@ const actionButtonSx = {
   fontSize: typeScale.body,
   fontWeight: 700,
   textTransform: 'none',
-}
-
-const fieldLabelSx = {
-  display: 'block',
-  mb: ESPACIO.label,
-  fontSize: typeScale.body,
-  lineHeight: 1.3,
-  fontWeight: 500,
-  color: 'text.primary',
-  opacity: 0.72,
 }
 
 const sectionTitleSx = {
@@ -97,47 +58,6 @@ const sectionTitleSx = {
 
 function TituloSeccion({ text }: { text: string }) {
   return <Typography sx={sectionTitleSx}>{text}</Typography>
-}
-
-function FieldLabel({ text, htmlFor, id }: { text: string; htmlFor?: string; id?: string }) {
-  const content = text
-  return htmlFor ? (
-    <Typography component="label" htmlFor={htmlFor} id={id} sx={fieldLabelSx}>{content}</Typography>
-  ) : (
-    <Typography id={id} sx={fieldLabelSx}>{content}</Typography>
-  )
-}
-
-function FieldMessage({
-  id,
-  message,
-  duracionError,
-}: {
-  id: string
-  message: string | null
-  duracionError: number
-}) {
-  const [lastMessage, setLastMessage] = useState(message)
-
-  useEffect(() => {
-    if (message) setLastMessage(message)
-  }, [message])
-
-  return (
-    <Collapse in={Boolean(message)} timeout={duracionError} sx={{ mt: message ? ESPACIO.label : 0 }}>
-      <Fade in={Boolean(message)} timeout={duracionError}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: ESPACIO.label }}>
-          <ErrorOutline
-            aria-hidden="true"
-            sx={{ mt: '2px', fontSize: 16, color: 'error.main', flexShrink: 0 }}
-          />
-          <FormHelperText error id={id} sx={{ m: 0, fontSize: typeScale.caption }}>
-            {lastMessage}
-          </FormHelperText>
-        </Box>
-      </Fade>
-    </Collapse>
-  )
 }
 
 const toggleAcentoSx = {
@@ -326,10 +246,6 @@ export function NuevaSolicitudPage() {
   const handleNext = () => {
     if (validateCurrentStep()) setStep((current) => current + 1)
   }
-  const label = (txt: string, htmlFor?: string) => (
-    <FieldLabel text={txt} htmlFor={htmlFor} />
-  )
-
   const save = async () => {
     setSaving(true)
     try {
@@ -486,7 +402,7 @@ export function NuevaSolicitudPage() {
                 {clientMode === 'existente' ? (
                   <Box>
                     <Box>
-                      {label('Seleccionar cliente', 'existing-client')}
+                      <EtiquetaCampo text="Seleccionar cliente" htmlFor="existing-client" />
                       <Select
                         id="existing-client"
                         size="small"
@@ -498,7 +414,7 @@ export function NuevaSolicitudPage() {
                           setSelectedClientId(e.target.value)
                           clearFieldError('existing-client')
                         }}
-                        sx={{ ...fieldSx, width: '100%' }}
+                        sx={{ width: '100%' }}
                       >
                         {clients.map((c) => (
                           <MenuItem key={c.id} value={String(c.id)}>
@@ -506,13 +422,13 @@ export function NuevaSolicitudPage() {
                           </MenuItem>
                         ))}
                       </Select>
-                      <FieldMessage id="existing-client-error" message={visibleFieldErrors['existing-client']} duracionError={duracionError} />
+                      <MensajeCampo id="existing-client-error" mensaje={visibleFieldErrors['existing-client']} sinAnimacion={sinAnimacion} />
                     </Box>
                   </Box>
                 ) : (
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={ESPACIO.campo} alignItems="flex-start">
                     <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
-                      {label('Nombre y apellido', 'new-client-name')}
+                      <EtiquetaCampo text="Nombre y apellido" htmlFor="new-client-name" />
                       <TextField
                         id="new-client-name"
                         value={newName}
@@ -526,12 +442,11 @@ export function NuevaSolicitudPage() {
                         fullWidth
                         size="small"
                         placeholder="Ingresá el nombre del cliente."
-                        sx={fieldSx}
                       />
-                      <FieldMessage id="new-client-name-error" message={visibleFieldErrors['new-client-name']} duracionError={duracionError} />
+                      <MensajeCampo id="new-client-name-error" mensaje={visibleFieldErrors['new-client-name']} sinAnimacion={sinAnimacion} />
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
-                      {label('Teléfono', 'new-client-phone')}
+                      <EtiquetaCampo text="Teléfono" htmlFor="new-client-phone" />
                       <TextField
                         id="new-client-phone"
                         value={newPhone}
@@ -545,10 +460,9 @@ export function NuevaSolicitudPage() {
                         fullWidth
                         size="small"
                         placeholder="11 5555-0000"
-                        sx={fieldSx}
                         inputProps={{ maxLength: 20, inputMode: 'tel' }}
                       />
-                      <FieldMessage id="new-client-phone-error" message={visibleFieldErrors['new-client-phone']} duracionError={duracionError} />
+                      <MensajeCampo id="new-client-phone-error" mensaje={visibleFieldErrors['new-client-phone']} sinAnimacion={sinAnimacion} />
                     </Box>
                   </Stack>
                 )}
@@ -563,7 +477,7 @@ export function NuevaSolicitudPage() {
                     <TituloSeccion text="Fecha y horario" />
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, columnGap: ESPACIO.grupo, rowGap: ESPACIO.campo }}>
                       <Box>
-                        <FieldLabel text="Fecha solicitada" htmlFor="service-date" />
+                        <EtiquetaCampo text="Fecha solicitada" htmlFor="service-date" />
                         <TextField
                           id="service-date"
                           type="date"
@@ -577,12 +491,11 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['service-date'] ? 'service-date-error' : undefined}
                           size="small"
                           fullWidth
-                          sx={fieldSx}
                         />
-                        <FieldMessage id="service-date-error" message={visibleFieldErrors['service-date']} duracionError={duracionError} />
+                        <MensajeCampo id="service-date-error" mensaje={visibleFieldErrors['service-date']} sinAnimacion={sinAnimacion} />
                       </Box>
                       <Box>
-                        <FieldLabel text="Llegada desde" htmlFor="arrival-from" />
+                        <EtiquetaCampo text="Llegada desde" htmlFor="arrival-from" />
                         <TextField
                           id="arrival-from"
                           type="time"
@@ -596,12 +509,11 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['arrival-from'] ? 'arrival-from-error' : undefined}
                           size="small"
                           fullWidth
-                          sx={fieldSx}
                         />
-                        <FieldMessage id="arrival-from-error" message={visibleFieldErrors['arrival-from']} duracionError={duracionError} />
+                        <MensajeCampo id="arrival-from-error" mensaje={visibleFieldErrors['arrival-from']} sinAnimacion={sinAnimacion} />
                       </Box>
                       <Box>
-                        <FieldLabel text="Llegada hasta" htmlFor="arrival-until" />
+                        <EtiquetaCampo text="Llegada hasta" htmlFor="arrival-until" />
                         <TextField
                           id="arrival-until"
                           type="time"
@@ -615,9 +527,8 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['arrival-until'] ? 'arrival-until-error' : undefined}
                           size="small"
                           fullWidth
-                          sx={fieldSx}
                         />
-                        <FieldMessage id="arrival-until-error" message={visibleFieldErrors['arrival-until']} duracionError={duracionError} />
+                        <MensajeCampo id="arrival-until-error" mensaje={visibleFieldErrors['arrival-until']} sinAnimacion={sinAnimacion} />
                       </Box>
                     </Box>
                   </Stack>
@@ -699,7 +610,7 @@ export function NuevaSolicitudPage() {
                     <TituloSeccion text="Detalles de la carga" />
                     <Stack spacing={ESPACIO.campo}>
                     <Box>
-                      <FieldLabel text="Descripción de la carga" htmlFor="cargo-description" />
+                      <EtiquetaCampo text="Descripción de la carga" htmlFor="cargo-description" />
                       <TextField
                         id="cargo-description"
                         value={cargoDesc}
@@ -714,13 +625,12 @@ export function NuevaSolicitudPage() {
                         minRows={3}
                         fullWidth
                         size="small"
-                        sx={fieldSx}
                       />
-                      <FieldMessage id="cargo-description-error" message={visibleFieldErrors['cargo-description']} duracionError={duracionError} />
+                      <MensajeCampo id="cargo-description-error" mensaje={visibleFieldErrors['cargo-description']} sinAnimacion={sinAnimacion} />
                     </Box>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, columnGap: ESPACIO.grupo, rowGap: ESPACIO.campo }}>
                       <Box>
-                        <FieldLabel text="Cantidad aproximada (bultos)" htmlFor="cargo-quantity" />
+                        <EtiquetaCampo text="Cantidad aproximada (bultos)" htmlFor="cargo-quantity" />
                         <TextField
                           id="cargo-quantity"
                           value={cargoQty}
@@ -735,14 +645,13 @@ export function NuevaSolicitudPage() {
                           inputProps={{ inputMode: 'numeric', min: 1 }}
                           size="small"
                           fullWidth
-                          sx={fieldSx}
                         />
-                        <FieldMessage id="cargo-quantity-error" message={visibleFieldErrors['cargo-quantity']} duracionError={duracionError} />
+                        <MensajeCampo id="cargo-quantity-error" mensaje={visibleFieldErrors['cargo-quantity']} sinAnimacion={sinAnimacion} />
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        {label('¿Hay objetos frágiles?')}
+                        <EtiquetaCampo text="¿Hay objetos frágiles?" htmlFor="cargo-fragile" id="cargo-fragile-label" />
                         <Box sx={{ height: 48, display: 'flex', alignItems: 'flex-end' }}>
-                        <ToggleButtonGroup value={fragile} exclusive onChange={(_, v) => v && setFragile(v)} size="small" fullWidth sx={toggleAcentoSx}>
+                        <ToggleButtonGroup id="cargo-fragile" aria-labelledby="cargo-fragile-label" value={fragile} exclusive onChange={(_, v) => v && setFragile(v)} size="small" fullWidth sx={toggleAcentoSx}>
                           <ToggleButton value="Sí">Sí</ToggleButton>
                           <ToggleButton value="No">No</ToggleButton>
                         </ToggleButtonGroup>
@@ -750,8 +659,8 @@ export function NuevaSolicitudPage() {
                       </Box>
                     </Box>
                     <Box>
-                      <FieldLabel text="Observaciones (opcional)" htmlFor="cargo-notes" />
-                      <TextField id="cargo-notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} fullWidth size="small" sx={fieldSx} />
+                      <EtiquetaCampo text="Observaciones (opcional)" htmlFor="cargo-notes" />
+                      <TextField id="cargo-notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} fullWidth size="small" />
                     </Box>
                     </Stack>
                   </Stack>
@@ -899,12 +808,12 @@ function StepLocation({
     }
   }
   return (
-    <Box sx={fieldSx}>
+    <Box>
       <TituloSeccion text={title} />
       <Stack spacing={ESPACIO.campo}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.85fr) minmax(0, 1fr)' }, columnGap: ESPACIO.grupo, rowGap: ESPACIO.campo }}>
           <Box>
-            <FieldLabel text="Dirección" />
+            <EtiquetaCampo text="Dirección" htmlFor={addressId} />
             <Box
               id={addressId}
               onBlur={handleContainerBlur(addressId)}
@@ -936,15 +845,15 @@ function StepLocation({
                   : 'Escribí al menos 3 letras y elegí una sugerencia.'}
               />
             </Box>
-            <FieldMessage id={`${addressId}-error`} message={errors[addressId]} duracionError={duracionError} />
+            <MensajeCampo id={`${addressId}-error`} mensaje={errors[addressId]} sinAnimacion={duracionError === 0} />
           </Box>
         <Box>
-          <FieldLabel text="Barrio" htmlFor={`${idPrefix}-neighborhood`} />
-          <TextField id={`${idPrefix}-neighborhood`} size="small" fullWidth value={barrio} onChange={(e) => onBarrio(e.target.value)} placeholder="Ej: Villa Crespo" sx={fieldSx} />
+          <EtiquetaCampo text="Barrio" htmlFor={`${idPrefix}-neighborhood`} />
+          <TextField id={`${idPrefix}-neighborhood`} size="small" fullWidth value={barrio} onChange={(e) => onBarrio(e.target.value)} placeholder="Ej: Villa Crespo" />
         </Box>
         </Box>
         <Box>
-          <FieldLabel text={PREGUNTA_NIVEL_CALLE} id={`${idPrefix}-street-level-label`} />
+          <EtiquetaCampo text={PREGUNTA_NIVEL_CALLE} htmlFor={streetLevelId} id={`${idPrefix}-street-level-label`} />
           <Box
             id={streetLevelId}
             onBlur={handleContainerBlur(streetLevelId)}
@@ -970,7 +879,7 @@ function StepLocation({
               <ToggleButton value="No" sx={{ flexGrow: 1 }}>No</ToggleButton>
             </ToggleButtonGroup>
           </Box>
-          <FieldMessage id={`${streetLevelId}-error`} message={errors[streetLevelId]} duracionError={duracionError} />
+          <MensajeCampo id={`${streetLevelId}-error`} mensaje={errors[streetLevelId]} sinAnimacion={duracionError === 0} />
           <Collapse
             in={requierePisoYAscensor(aNivelDeCalle)}
             timeout={duracionError}
@@ -979,7 +888,7 @@ function StepLocation({
             <Box sx={{ pt: ESPACIO.campo }}>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={ESPACIO.campo} alignItems="flex-start">
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <FieldLabel text="¿Hay ascensor?" id={`${idPrefix}-elevator-label`} />
+                  <EtiquetaCampo text="¿Hay ascensor?" htmlFor={elevatorId} id={`${idPrefix}-elevator-label`} />
                   <Box sx={{ height: 48, display: 'flex', alignItems: 'flex-end' }}>
                     <Box
                       id={elevatorId}
@@ -1005,10 +914,10 @@ function StepLocation({
                       </ToggleButtonGroup>
                     </Box>
                   </Box>
-                  <FieldMessage id={`${elevatorId}-error`} message={errors[elevatorId]} duracionError={duracionError} />
+                  <MensajeCampo id={`${elevatorId}-error`} mensaje={errors[elevatorId]} sinAnimacion={duracionError === 0} />
                 </Box>
                 <Box sx={{ width: { xs: '100%', md: 140 }, flexShrink: 0 }}>
-                  <FieldLabel text="Piso" htmlFor={floorId} />
+                  <EtiquetaCampo text="Piso" htmlFor={floorId} />
                   <TextField
                     id={floorId}
                     size="small"
@@ -1022,9 +931,8 @@ function StepLocation({
                     error={Boolean(errors[floorId])}
                     aria-describedby={errors[floorId] ? `${floorId}-error` : undefined}
                     placeholder="Ej: 3"
-                    sx={fieldSx}
                   />
-                  <FieldMessage id={`${floorId}-error`} message={errors[floorId]} duracionError={duracionError} />
+                  <MensajeCampo id={`${floorId}-error`} mensaje={errors[floorId]} sinAnimacion={duracionError === 0} />
                 </Box>
               </Stack>
             </Box>
