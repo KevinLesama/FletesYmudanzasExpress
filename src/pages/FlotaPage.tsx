@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Alert,
   Avatar,
@@ -318,21 +318,71 @@ function RecordDialog({
   const [vehicleStatus, setVehicleStatus] = useState<VehicleStatus>(initialV?.status ?? 'Disponible')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<'name' | 'phone' | 'email' | 'id' | 'type' | 'capacity', string>>({
+    name: '',
+    phone: '',
+    email: '',
+    id: '',
+    type: '',
+    capacity: '',
+  })
+  const fieldRefs = {
+    name: useRef<HTMLInputElement>(null),
+    phone: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    id: useRef<HTMLInputElement>(null),
+    type: useRef<HTMLInputElement>(null),
+    capacity: useRef<HTMLInputElement>(null),
+  }
 
   const editing = !!state.data
-  const canSave = isDriver
-    ? name.trim() !== '' && phone.trim() !== '' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-    : id.trim() !== '' && type.trim() !== '' && Number(capacity) > 0
+  const validateField = (field: keyof typeof fieldErrors, value: string) => {
+    if (field === 'name' && !value.trim()) return 'Ingresá el nombre y apellido.'
+    if (field === 'phone') {
+      const digitCount = value.replace(/\D/g, '').length
+      if (digitCount < 8 || digitCount > 13) return 'Ingresá un teléfono válido (entre 8 y 13 dígitos).'
+    }
+    if (field === 'email') {
+      if (!value.trim()) return 'Ingresá el correo.'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) return 'El formato del correo no es válido.'
+    }
+    if (field === 'id' && !value.trim()) return 'Ingresá el identificador.'
+    if (field === 'type' && !value.trim()) return 'Ingresá el tipo de vehículo.'
+    if (field === 'capacity' && !(Number(value) > 0)) return 'Ingresá una capacidad mayor a 0.'
+    return ''
+  }
+  const clearFieldError = (field: keyof typeof fieldErrors) => {
+    setFieldErrors((previous) => ({ ...previous, [field]: '' }))
+  }
+  const validateAndSetFieldError = (field: keyof typeof fieldErrors, value: string) => {
+    setFieldErrors((previous) => ({ ...previous, [field]: validateField(field, value) }))
+  }
 
   const save = async () => {
+    const nextFieldErrors = {
+      name: validateField('name', name),
+      phone: validateField('phone', phone),
+      email: validateField('email', email),
+      id: validateField('id', id),
+      type: validateField('type', type),
+      capacity: validateField('capacity', capacity),
+    }
+    setFieldErrors(nextFieldErrors)
+    const invalidFields = isDriver ? ['name', 'phone', 'email'] as const : ['id', 'type', 'capacity'] as const
+    const firstInvalidField = invalidFields.find((field) => nextFieldErrors[field])
+    if (firstInvalidField) {
+      fieldRefs[firstInvalidField].current?.focus()
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
       if (isDriver) {
         if (editing) {
-          await api.updateDriver(initialD!.id, { name, phone, email: email.trim(), status: driverStatus })
+          await api.updateDriver(initialD!.id, { name, phone: phone.trim(), email: email.trim(), status: driverStatus })
         } else {
-          await api.createDriver({ name, phone, email: email.trim(), status: driverStatus })
+          await api.createDriver({ name, phone: phone.trim(), email: email.trim(), status: driverStatus })
         }
         onSaved('Cambios guardados')
       } else {
@@ -390,9 +440,50 @@ function RecordDialog({
         )}
         {isDriver ? (
           <Stack spacing={2}>
-            <TextField label="Nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" placeholder="Nombre completo" />
-            <TextField label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth size="small" placeholder="11 5555-0000" />
-            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth size="small" placeholder="chofer@ejemplo.com" />
+            <TextField
+              label="Nombre y apellido"
+              value={name}
+              onChange={(e) => { setName(e.target.value); clearFieldError('name') }}
+              onBlur={() => validateAndSetFieldError('name', name)}
+              inputRef={fieldRefs.name}
+              error={!!fieldErrors.name}
+              helperText={fieldErrors.name || undefined}
+              fullWidth
+              size="small"
+              placeholder="Nombre completo"
+            />
+            <TextField
+              label="Teléfono"
+              value={phone}
+              onChange={(e) => {
+                const rawValue = e.target.value
+                const withoutPlus = rawValue.replace(/[^\d\s()-]/g, '')
+                const filteredValue = `${rawValue.startsWith('+') ? '+' : ''}${withoutPlus}`.slice(0, 20)
+                setPhone(filteredValue)
+                clearFieldError('phone')
+              }}
+              onBlur={() => validateAndSetFieldError('phone', phone)}
+              inputRef={fieldRefs.phone}
+              error={!!fieldErrors.phone}
+              helperText={fieldErrors.phone || undefined}
+              fullWidth
+              size="small"
+              placeholder="11 5555-0000"
+              inputProps={{ maxLength: 20, inputMode: 'tel' }}
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); clearFieldError('email') }}
+              onBlur={() => validateAndSetFieldError('email', email)}
+              inputRef={fieldRefs.email}
+              error={!!fieldErrors.email}
+              helperText={fieldErrors.email || undefined}
+              fullWidth
+              size="small"
+              placeholder="chofer@ejemplo.com"
+            />
             <FormControl size="small" fullWidth>
               <InputLabel>Estado</InputLabel>
               <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}>
@@ -403,12 +494,38 @@ function RecordDialog({
           </Stack>
         ) : (
           <Stack spacing={2}>
-            <TextField label="Identificador" value={id} onChange={(e) => setId(e.target.value)} fullWidth size="small" placeholder="MOV-08" />
-            <TextField label="Tipo de vehículo" value={type} onChange={(e) => setType(e.target.value)} fullWidth size="small" placeholder="Furgón grande" />
+            <TextField
+              label="Identificador"
+              value={id}
+              onChange={(e) => { setId(e.target.value); clearFieldError('id') }}
+              onBlur={() => validateAndSetFieldError('id', id)}
+              inputRef={fieldRefs.id}
+              error={!!fieldErrors.id}
+              helperText={fieldErrors.id || undefined}
+              fullWidth
+              size="small"
+              placeholder="MOV-08"
+            />
+            <TextField
+              label="Tipo de vehículo"
+              value={type}
+              onChange={(e) => { setType(e.target.value); clearFieldError('type') }}
+              onBlur={() => validateAndSetFieldError('type', type)}
+              inputRef={fieldRefs.type}
+              error={!!fieldErrors.type}
+              helperText={fieldErrors.type || undefined}
+              fullWidth
+              size="small"
+              placeholder="Furgón grande"
+            />
             <TextField
               label="Capacidad registrada (kg)"
               value={capacity}
-              onChange={(e) => setCapacity(e.target.value.replace(/[^\d]/g, ''))}
+              onChange={(e) => { setCapacity(e.target.value.replace(/[^\d]/g, '')); clearFieldError('capacity') }}
+              onBlur={() => validateAndSetFieldError('capacity', capacity)}
+              inputRef={fieldRefs.capacity}
+              error={!!fieldErrors.capacity}
+              helperText={fieldErrors.capacity || undefined}
               fullWidth
               size="small"
               InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }}
@@ -426,7 +543,7 @@ function RecordDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
         <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>Cancelar</Button>
-        <Button variant="contained" startIcon={<Check />} disabled={!canSave || saving} onClick={save}>
+        <Button variant="contained" startIcon={<Check />} disabled={saving} onClick={save}>
           {saving ? 'Guardando...' : 'Guardar'}
         </Button>
       </DialogActions>
