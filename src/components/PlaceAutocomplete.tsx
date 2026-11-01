@@ -252,7 +252,7 @@ export function PlaceAutocomplete({
         </Paper>
       </Popper>
 
-      <Box aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}>
+      <Box aria-live="polite" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>
         {announce}
       </Box>
     </Box>

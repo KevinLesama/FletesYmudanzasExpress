@@ -183,8 +183,9 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
     <Box
       sx={{
         display: 'flex',
-        minHeight: '100vh',
-        ...(fillLayout && { height: '100dvh', minHeight: 0, overflow: 'hidden' }),
+        height: isMobile ? undefined : '100dvh',
+        minHeight: isMobile ? '100vh' : 0,
+        overflow: isMobile ? undefined : 'hidden',
       }}
     >
       {!isMobile && (
@@ -194,9 +195,11 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
           open
           sx={{
             width: SIDEBAR_W,
+            height: '100%',
             flexShrink: 0,
             '& .MuiDrawer-paper': {
               width: SIDEBAR_W,
+              height: '100%',
               boxSizing: 'border-box',
               borderRight: '1px solid #EDEAE3',
               bgcolor: '#FFFFFF',
@@ -211,9 +214,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         sx={{
           flexGrow: 1,
           minWidth: 0,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          ...(fillLayout && { minHeight: 0, overflow: 'hidden' }),
+          overflow: 'hidden',
         }}
       >
         {!isMobile && (
@@ -226,6 +230,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               display: 'flex',
               alignItems: 'center',
               gap: 1,
+              flexShrink: 0,
             }}
           >
             <Stack direction="row" alignItems="center" spacing={0.6} sx={{ flexGrow: 1 }}>
@@ -273,7 +278,15 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
             pt: { xs: 9.5, md: 3.5 },
             px: { xs: 2, md: 4 },
             pb: { xs: 12, md: 4 },
-            ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }),
+            ...(!isMobile && {
+              boxSizing: 'border-box',
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflowX: 'hidden',
+              overflowY: fillLayout ? 'hidden' : 'auto',
+            }),
           }}
         >
           <Box
@@ -281,6 +294,7 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               maxWidth: 1180,
               mx: 'auto',
               width: '100%',
+              minWidth: 0,
               ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
             }}
           >
