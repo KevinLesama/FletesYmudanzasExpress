@@ -442,6 +442,7 @@ export function NuevaSolicitudPage() {
                         fullWidth
                         size="small"
                         placeholder="Ingresá el nombre del cliente."
+                        autoComplete="off"
                       />
                       <MensajeCampo id="new-client-name-error" mensaje={visibleFieldErrors['new-client-name']} sinAnimacion={sinAnimacion} />
                     </Box>
@@ -461,6 +462,7 @@ export function NuevaSolicitudPage() {
                         size="small"
                         placeholder="11 5555-0000"
                         inputProps={{ maxLength: 20, inputMode: 'tel' }}
+                        autoComplete="off"
                       />
                       <MensajeCampo id="new-client-phone-error" mensaje={visibleFieldErrors['new-client-phone']} sinAnimacion={sinAnimacion} />
                     </Box>
@@ -491,6 +493,7 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['service-date'] ? 'service-date-error' : undefined}
                           size="small"
                           fullWidth
+                          autoComplete="off"
                         />
                         <MensajeCampo id="service-date-error" mensaje={visibleFieldErrors['service-date']} sinAnimacion={sinAnimacion} />
                       </Box>
@@ -509,6 +512,7 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['arrival-from'] ? 'arrival-from-error' : undefined}
                           size="small"
                           fullWidth
+                          autoComplete="off"
                         />
                         <MensajeCampo id="arrival-from-error" mensaje={visibleFieldErrors['arrival-from']} sinAnimacion={sinAnimacion} />
                       </Box>
@@ -527,6 +531,7 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['arrival-until'] ? 'arrival-until-error' : undefined}
                           size="small"
                           fullWidth
+                          autoComplete="off"
                         />
                         <MensajeCampo id="arrival-until-error" mensaje={visibleFieldErrors['arrival-until']} sinAnimacion={sinAnimacion} />
                       </Box>
@@ -660,7 +665,7 @@ export function NuevaSolicitudPage() {
                     </Box>
                     <Box>
                       <EtiquetaCampo text="Observaciones (opcional)" htmlFor="cargo-notes" />
-                      <TextField id="cargo-notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} fullWidth size="small" />
+                      <TextField id="cargo-notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} fullWidth size="small" autoComplete="off" />
                     </Box>
                     </Stack>
                   </Stack>
@@ -849,7 +854,7 @@ function StepLocation({
           </Box>
         <Box>
           <EtiquetaCampo text="Barrio" htmlFor={`${idPrefix}-neighborhood`} />
-          <TextField id={`${idPrefix}-neighborhood`} size="small" fullWidth value={barrio} onChange={(e) => onBarrio(e.target.value)} placeholder="Ej: Villa Crespo" />
+          <TextField id={`${idPrefix}-neighborhood`} size="small" fullWidth value={barrio} onChange={(e) => onBarrio(e.target.value)} placeholder="Ej: Villa Crespo" autoComplete="off" />
         </Box>
         </Box>
         <Box>
@@ -931,6 +936,7 @@ function StepLocation({
                     error={Boolean(errors[floorId])}
                     aria-describedby={errors[floorId] ? `${floorId}-error` : undefined}
                     placeholder="Ej: 3"
+                    autoComplete="off"
                   />
                   <MensajeCampo id={`${floorId}-error`} mensaje={errors[floorId]} sinAnimacion={duracionError === 0} />
                 </Box>

@@ -407,7 +407,7 @@ export function IngresoPage() {
                   fullWidth
                   type="email"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value)

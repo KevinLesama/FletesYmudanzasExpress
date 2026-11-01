@@ -161,9 +161,14 @@ export const theme = createTheme({
           },
         },
         notchedOutline: { borderColor: color.border, borderWidth: '1px' },
-        input: {
+        input: ({ theme }) => ({
           '&::placeholder': { color: color.mutedSoft, opacity: 1 },
-        },
+          '&:-webkit-autofill, &:hover:-webkit-autofill, &:focus:-webkit-autofill, &:active:-webkit-autofill': {
+            WebkitBoxShadow: `0 0 0 100px ${theme.palette.background.paper} inset`,
+            WebkitTextFillColor: theme.palette.text.primary,
+            caretColor: theme.palette.text.primary,
+          },
+        }),
       },
     },
     MuiInputLabel: {

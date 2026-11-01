@@ -295,8 +295,8 @@ export function PlanificacionPage() {
         <Stack direction="row" alignItems="center" spacing={1}>
           <Schedule sx={{ fontSize: 17, color: '#64707C' }} />
         </Stack>
-        <CampoTexto size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} />
-        <CampoTexto size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} />
+        <CampoTexto size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} autoComplete="off" />
+        <CampoTexto size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} autoComplete="off" />
         <CampoTexto
           size="small"
           type="number"
@@ -858,9 +858,10 @@ function DepositDialog({
             fullWidth
             error={!!error}
             mensaje={error}
+            autoComplete="off"
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           />
-          <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" />
+          <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" autoComplete="off" />
           <Stack direction="row" spacing={1.5}>
             <CampoSelect label="Concepto" size="small" value={concept} onChange={(e) => setConcept(e.target.value as 'Seña' | 'Saldo')}>
                 <MenuItem value="Seña">Seña</MenuItem>
@@ -875,7 +876,7 @@ function DepositDialog({
               <MenuItem value="Administración">Administración</MenuItem>
               <MenuItem value="Chofer">Chofer</MenuItem>
           </CampoSelect>
-          <CampoTexto label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
+          <CampoTexto label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" autoComplete="off" />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2.5, md: 3 }, pb: 3, justifyContent: 'space-between' }}>

@@ -327,9 +327,10 @@ function PaymentDialog({
             fullWidth
             error={!!error}
             mensaje={error}
+            autoComplete="off"
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           />
-          <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" />
+          <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" autoComplete="off" />
           <CampoSelect label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value as PaymentConcept)} size="small">
             <MenuItem value="Seña">Seña</MenuItem>
             <MenuItem value="Saldo">Saldo</MenuItem>
@@ -344,7 +345,7 @@ function PaymentDialog({
               <MenuItem value="Chofer">Chofer</MenuItem>
             </CampoSelect>
           </Stack>
-          <CampoTexto label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
+          <CampoTexto label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" autoComplete="off" />
         </Stack>
 
         <Typography sx={{ mt: 1.5, fontSize: 12.5, color: '#64707C' }}>

@@ -448,6 +448,7 @@ function RecordDialog({
               fullWidth
               size="small"
               placeholder="Nombre completo"
+              autoComplete="off"
             />
             <CampoTexto
               label="Teléfono"
@@ -464,6 +465,7 @@ function RecordDialog({
               size="small"
               placeholder="11 5555-0000"
               inputProps={{ maxLength: 20, inputMode: 'tel' }}
+              autoComplete="off"
             />
             <CampoTexto
               label="Email"
@@ -477,6 +479,7 @@ function RecordDialog({
               fullWidth
               size="small"
               placeholder="chofer@ejemplo.com"
+              autoComplete="off"
             />
             <CampoSelect
               label="Estado"
@@ -501,6 +504,7 @@ function RecordDialog({
               fullWidth
               size="small"
               placeholder="MOV-08"
+              autoComplete="off"
             />
             <CampoTexto
               label="Tipo de vehículo"
@@ -513,6 +517,7 @@ function RecordDialog({
               fullWidth
               size="small"
               placeholder="Furgón grande"
+              autoComplete="off"
             />
             <CampoTexto
               label="Capacidad registrada (kg)"
@@ -524,6 +529,7 @@ function RecordDialog({
               mensaje={fieldErrors.capacity}
               fullWidth
               size="small"
+              autoComplete="off"
               InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }}
             />
             <CampoSelect

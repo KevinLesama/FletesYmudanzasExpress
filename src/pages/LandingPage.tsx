@@ -150,15 +150,15 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
     <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Dejanos tus datos y completá el recorrido. No necesitás crear una cuenta.</Typography>
     <Stack spacing={2} sx={{ mt: 3 }}>
       <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} />
-      <TextField label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} required InputLabelProps={{ shrink: true }} />
+      <TextField label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} required autoComplete="off" InputLabelProps={{ shrink: true }} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-        <TextField label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} required fullWidth InputLabelProps={{ shrink: true }} />
-        <TextField label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} required fullWidth InputLabelProps={{ shrink: true }} />
+        <TextField label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} required fullWidth autoComplete="off" InputLabelProps={{ shrink: true }} />
+        <TextField label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} required fullWidth autoComplete="off" InputLabelProps={{ shrink: true }} />
       </Stack>
       <TextField label="¿Desde dónde retiramos?" value={origin} onChange={(event) => setOrigin(event.target.value)} required fullWidth InputProps={{ startAdornment: <LocationOn sx={{ color: brand.orangeInk, mr: 1 }} /> }} />
       <TextField label="¿A dónde lo llevamos?" value={destination} onChange={(event) => setDestination(event.target.value)} required fullWidth InputProps={{ startAdornment: <LocationOn sx={{ color: brand.navy, mr: 1 }} /> }} />
       <TextField label="¿Qué hay que trasladar?" value={cargo} onChange={(event) => setCargo(event.target.value)} required multiline minRows={2} fullWidth />
-      <TextField label="Observaciones (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth />
+      <TextField label="Observaciones (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth autoComplete="off" />
       <Button type="submit" variant="contained" size="large" disabled={busy} endIcon={<ArrowForward />} sx={{ minHeight: 48, mt: 1 }}>
         {busy ? 'Enviando...' : 'Enviar solicitud'}
       </Button>
