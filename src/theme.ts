@@ -143,13 +143,27 @@ export const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
+          height: 48,
           borderRadius: radius.md,
           backgroundColor: color.paper,
+          '&.MuiInputBase-multiline': { height: 'auto', minHeight: 48 },
           '&:hover .MuiOutlinedInput-notchedOutline': {
             borderColor: color.mutedSoft,
+            borderWidth: '1px',
+          },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: color.navy,
+            borderWidth: '1px',
+          },
+          '&.Mui-error .MuiOutlinedInput-notchedOutline, &.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: color.red,
+            borderWidth: '1px',
           },
         },
-        notchedOutline: { borderColor: color.border },
+        notchedOutline: { borderColor: color.border, borderWidth: '1px' },
+        input: {
+          '&::placeholder': { color: color.mutedSoft, opacity: 1 },
+        },
       },
     },
     MuiInputLabel: {
