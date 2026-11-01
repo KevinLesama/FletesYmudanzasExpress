@@ -382,7 +382,7 @@ function RecordDialog({
           </IconButton>
         </Stack>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 2.5 }}>
+      <DialogContent sx={{ px: 3, pt: 1.5, '&:first-of-type': { pt: 1.5 } }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -392,7 +392,7 @@ function RecordDialog({
           <Stack spacing={2}>
             <TextField label="Nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" placeholder="Nombre completo" />
             <TextField label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth size="small" placeholder="11 5555-0000" />
-            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth size="small" placeholder="chofer@ejemplo.com" required />
+            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth size="small" placeholder="chofer@ejemplo.com" />
             <FormControl size="small" fullWidth>
               <InputLabel>Estado</InputLabel>
               <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}>
