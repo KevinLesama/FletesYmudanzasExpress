@@ -33,6 +33,7 @@ import { ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
+import { filtrarTelefono, validarTelefono } from '../utils/telefono'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { usePagedList } from '../usePagedList'
@@ -339,8 +340,7 @@ function RecordDialog({
   const validateField = (field: keyof typeof fieldErrors, value: string) => {
     if (field === 'name' && !value.trim()) return 'Ingresá el nombre y apellido.'
     if (field === 'phone') {
-      const digitCount = value.replace(/\D/g, '').length
-      if (digitCount < 8 || digitCount > 13) return 'Ingresá un teléfono válido (entre 8 y 13 dígitos).'
+      return validarTelefono(value) ?? ''
     }
     if (field === 'email') {
       if (!value.trim()) return 'Ingresá el correo.'
@@ -456,10 +456,7 @@ function RecordDialog({
               label="Teléfono"
               value={phone}
               onChange={(e) => {
-                const rawValue = e.target.value
-                const withoutPlus = rawValue.replace(/[^\d\s()-]/g, '')
-                const filteredValue = `${rawValue.startsWith('+') ? '+' : ''}${withoutPlus}`.slice(0, 20)
-                setPhone(filteredValue)
+                setPhone(filtrarTelefono(e.target.value))
                 clearFieldError('phone')
               }}
               onBlur={() => validateAndSetFieldError('phone', phone)}
