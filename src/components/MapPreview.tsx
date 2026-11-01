@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Box,
+  Button,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -16,6 +17,22 @@ import ZoomOutIcon from '@mui/icons-material/ZoomOut'
 import OpenInFullIcon from '@mui/icons-material/OpenInFull'
 import CloseIcon from '@mui/icons-material/Close'
 import { color, motion, shadow } from '../design/tokens'
+import type { TripForMapReason } from '../tripForMap'
+import type { ShiftRequest } from '../types'
+
+export interface MapPreviewProps {
+  trip?: ShiftRequest | null
+  reason?: TripForMapReason | null
+  onClear?: () => void
+  onOpenDetail?: () => void
+}
+
+const REASON_LABEL: Record<TripForMapReason, string> = {
+  seleccionado: 'Seleccionado',
+  'en-curso': 'En curso',
+  proximo: 'Próximo',
+  ultimo: 'Último viaje',
+}
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 2.5
@@ -215,7 +232,7 @@ function ZoomControls({
  * height. The controls are real (zoom scales the preview, expand opens a
  * dialog); the geography is illustrative until a map provider is connected.
  */
-export function MapPreview() {
+export function MapPreview({ trip, reason, onClear, onOpenDetail }: MapPreviewProps) {
   const [zoom, setZoom] = useState(MIN_ZOOM)
   const [expanded, setExpanded] = useState(false)
 
@@ -238,6 +255,39 @@ export function MapPreview() {
       >
         <MapCanvas zoom={zoom} label="Vista previa del mapa de Buenos Aires" />
         <ZoomControls zoom={zoom} onZoomIn={zoomIn} onZoomOut={zoomOut} onExpand={() => setExpanded(true)} />
+        {trip && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              right: 42,
+              p: 0.75,
+              borderRadius: 2,
+              border: `1px solid ${color.border}`,
+              bgcolor: color.paper,
+            }}
+          >
+            <Typography noWrap sx={{ fontSize: 12, fontWeight: 700, color: color.navy }}>
+              {trip.client}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: color.muted }}>
+              {reason ? REASON_LABEL[reason] : ''}
+            </Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {onOpenDetail && (
+                <Button size="small" onClick={onOpenDetail} sx={{ minWidth: 0, px: 0.5, py: 0 }}>
+                  Ver detalle
+                </Button>
+              )}
+              {reason === 'seleccionado' && onClear && (
+                <Button size="small" onClick={onClear} sx={{ minWidth: 0, px: 0.5, py: 0, color: color.muted }}>
+                  Limpiar
+                </Button>
+              )}
+            </Stack>
+          </Box>
+        )}
         <Box
           sx={{
             position: 'absolute',

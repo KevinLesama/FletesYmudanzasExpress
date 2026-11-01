@@ -85,6 +85,7 @@ export interface RouteEstimate {
   kmTotal: number
   etaMinutes: number
   returnMinutes: number
+  geometry?: [number, number][]
 }
 
 // Desglose que devuelve el backend. El frontend NO calcula plata: solo muestra.

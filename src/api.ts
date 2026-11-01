@@ -405,6 +405,9 @@ export const api = {
       kmTotal: Number(r.km_total),
       etaMinutes: Number(r.duracion_ida_min),
       returnMinutes: Number(r.duracion_vuelta_min),
+      geometry: Array.isArray(r.geometry)
+        ? r.geometry.map((point: number[]) => [Number(point[0]), Number(point[1])] as [number, number])
+        : undefined,
     }
   },
   quote: async (id: string, params: { driverId: string; waitMinutes?: number }): Promise<Quote> => {
