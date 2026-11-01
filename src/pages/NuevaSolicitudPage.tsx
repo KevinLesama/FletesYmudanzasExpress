@@ -405,8 +405,9 @@ export function NuevaSolicitudPage() {
       <AppShell
         active="solicitudes"
         breadcrumb={['Gestión', 'Solicitudes', 'Nueva solicitud']}
+        kicker="Gestión de pedidos"
         title="Nueva solicitud"
-        description={isMobile ? 'Completá los datos para revisar disponibilidad y condiciones.' : undefined}
+        description="Completá los datos para revisar disponibilidad y condiciones."
       >
         <Box sx={{ width: '100%', maxWidth: ANCHO_FORMULARIO, mx: 'auto', mt: -ESPACIO.label }}>
           {isMobile ? (
