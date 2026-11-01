@@ -6,11 +6,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   InputAdornment,
-  InputLabel,
   MenuItem,
-  Select,
   Stack,
   Table,
   TableBody,
@@ -26,6 +23,7 @@ import {
 import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search, WarningAmber } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { CampoSelect, CampoTexto } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
@@ -199,22 +197,16 @@ export function PagosPage() {
             inputProps={SEARCH_INPUT_PROPS}
             InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
           />
-          <FormControl size="small">
-            <InputLabel>Fecha</InputLabel>
-            <Select label="Fecha" value={date} onChange={(e) => setDate(e.target.value)}>
+          <CampoSelect label="Fecha" size="small" value={date} onChange={(e) => setDate(e.target.value)}>
               <MenuItem value="all">Todas las fechas</MenuItem>
               <MenuItem value="2026-09-24">24/09/2026</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small">
-            <InputLabel>Estado</InputLabel>
-            <Select label="Estado" value={status} onChange={(e) => setStatus(e.target.value)}>
+          </CampoSelect>
+          <CampoSelect label="Estado" size="small" value={status} onChange={(e) => setStatus(e.target.value)}>
               <MenuItem value="all">Todos los estados</MenuItem>
               <MenuItem value="Sin pagos">Sin pagos</MenuItem>
               <MenuItem value="Parcial">Parcial</MenuItem>
               <MenuItem value="Cobrado">Cobrado</MenuItem>
-            </Select>
-          </FormControl>
+          </CampoSelect>
         </Box>
 
         {summaryState.loading ? (
@@ -325,7 +317,7 @@ function PaymentDialog({
         </Box>
 
         <Stack spacing={2}>
-          <TextField
+          <CampoTexto
             label="Importe"
             value={amount}
             onChange={(e) => {
@@ -334,34 +326,25 @@ function PaymentDialog({
             }}
             fullWidth
             error={!!error}
-            helperText={error}
+            mensaje={error}
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           />
-          <TextField label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" />
-          <FormControl size="small" fullWidth>
-            <InputLabel>Concepto</InputLabel>
-            <Select label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value as PaymentConcept)}>
-              <MenuItem value="Seña">Seña</MenuItem>
-              <MenuItem value="Saldo">Saldo</MenuItem>
-            </Select>
-          </FormControl>
+          <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" />
+          <CampoSelect label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value as PaymentConcept)} size="small">
+            <MenuItem value="Seña">Seña</MenuItem>
+            <MenuItem value="Saldo">Saldo</MenuItem>
+          </CampoSelect>
           <Stack direction="row" spacing={1.5}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Medio</InputLabel>
-              <Select label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
-                <MenuItem value="Transferencia">Transferencia</MenuItem>
-                <MenuItem value="Efectivo">Efectivo</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Recibido por</InputLabel>
-              <Select label="Recibido por" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value as ReceivedBy)}>
-                <MenuItem value="Administración">Administración</MenuItem>
-                <MenuItem value="Chofer">Chofer</MenuItem>
-              </Select>
-            </FormControl>
+            <CampoSelect label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} size="small">
+              <MenuItem value="Transferencia">Transferencia</MenuItem>
+              <MenuItem value="Efectivo">Efectivo</MenuItem>
+            </CampoSelect>
+            <CampoSelect label="Recibido por" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value as ReceivedBy)} size="small">
+              <MenuItem value="Administración">Administración</MenuItem>
+              <MenuItem value="Chofer">Chofer</MenuItem>
+            </CampoSelect>
           </Stack>
-          <TextField label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
+          <CampoTexto label="Observaciones (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={2} size="small" />
         </Stack>
 
         <Typography sx={{ mt: 1.5, fontSize: 12.5, color: '#64707C' }}>

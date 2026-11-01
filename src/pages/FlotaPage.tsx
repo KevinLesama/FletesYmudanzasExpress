@@ -1,21 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Alert,
   Avatar,
   Box,
   Button,
-  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Fade,
-  FormControl,
-  FormHelperText,
   InputAdornment,
-  InputLabel,
   MenuItem,
-  Select,
   Stack,
   Tab,
   Tabs,
@@ -24,15 +18,15 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  TextField,
   Typography,
   IconButton,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, Check, Close, Edit, ErrorOutline, InfoOutlined, LocalShipping, Person } from '@mui/icons-material'
+import { Add, Check, Close, Edit, InfoOutlined, LocalShipping, Person } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { CampoSelect, CampoTexto } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
@@ -50,30 +44,6 @@ type DialogState =
   | { mode: 'driver'; data: Driver | null }
   | { mode: 'vehicle'; data: Vehicle | null }
   | null
-
-function FieldErrorMessage({ id, message }: { id: string; message: string }) {
-  const [lastMessage, setLastMessage] = useState(message)
-
-  useEffect(() => {
-    if (message) setLastMessage(message)
-  }, [message])
-
-  return (
-    <Collapse in={Boolean(message)} timeout={200} sx={{ mt: message ? 0.5 : 0 }}>
-      <Fade in={Boolean(message)} timeout={200}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
-          <ErrorOutline
-            aria-hidden="true"
-            sx={{ mt: '2px', fontSize: 16, color: 'error.main', flexShrink: 0 }}
-          />
-          <FormHelperText error id={id} sx={{ m: 0 }}>
-            {lastMessage}
-          </FormHelperText>
-        </Box>
-      </Fade>
-    </Collapse>
-  )
-}
 
 export function FlotaPage() {
   const theme = useTheme()
@@ -459,7 +429,7 @@ function RecordDialog({
           </IconButton>
         </Stack>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 1.5, '&:first-of-type': { pt: 1.5 } }}>
+      <DialogContent sx={{ px: 3 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -467,119 +437,105 @@ function RecordDialog({
         )}
         {isDriver ? (
           <Stack spacing={2}>
-            <Box>
-              <TextField
-                label="Nombre y apellido"
-                value={name}
-                onChange={(e) => { setName(e.target.value); clearFieldError('name') }}
-                onBlur={() => validateAndSetFieldError('name', name)}
-                inputRef={fieldRefs.name}
-                error={!!fieldErrors.name}
-                aria-describedby={fieldErrors.name ? 'driver-name-error' : undefined}
-                fullWidth
-                size="small"
-                placeholder="Nombre completo"
-              />
-              <FieldErrorMessage id="driver-name-error" message={fieldErrors.name} />
-            </Box>
-            <Box>
-              <TextField
-                label="Teléfono"
-                value={phone}
-                onChange={(e) => {
-                  setPhone(filtrarTelefono(e.target.value))
-                  clearFieldError('phone')
-                }}
-                onBlur={() => validateAndSetFieldError('phone', phone)}
-                inputRef={fieldRefs.phone}
-                error={!!fieldErrors.phone}
-                aria-describedby={fieldErrors.phone ? 'driver-phone-error' : undefined}
-                fullWidth
-                size="small"
-                placeholder="11 5555-0000"
-                inputProps={{ maxLength: 20, inputMode: 'tel' }}
-              />
-              <FieldErrorMessage id="driver-phone-error" message={fieldErrors.phone} />
-            </Box>
-            <Box>
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); clearFieldError('email') }}
-                onBlur={() => validateAndSetFieldError('email', email)}
-                inputRef={fieldRefs.email}
-                error={!!fieldErrors.email}
-                aria-describedby={fieldErrors.email ? 'driver-email-error' : undefined}
-                fullWidth
-                size="small"
-                placeholder="chofer@ejemplo.com"
-              />
-              <FieldErrorMessage id="driver-email-error" message={fieldErrors.email} />
-            </Box>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Estado</InputLabel>
-              <Select label="Estado" value={driverStatus} onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}>
-                <MenuItem value="Activo">Activo</MenuItem>
-                <MenuItem value="Inactivo">Inactivo</MenuItem>
-              </Select>
-            </FormControl>
+            <CampoTexto
+              label="Nombre y apellido"
+              value={name}
+              onChange={(e) => { setName(e.target.value); clearFieldError('name') }}
+              onBlur={() => validateAndSetFieldError('name', name)}
+              inputRef={fieldRefs.name}
+              error={!!fieldErrors.name}
+              mensaje={fieldErrors.name}
+              fullWidth
+              size="small"
+              placeholder="Nombre completo"
+            />
+            <CampoTexto
+              label="Teléfono"
+              value={phone}
+              onChange={(e) => {
+                setPhone(filtrarTelefono(e.target.value))
+                clearFieldError('phone')
+              }}
+              onBlur={() => validateAndSetFieldError('phone', phone)}
+              inputRef={fieldRefs.phone}
+              error={!!fieldErrors.phone}
+              mensaje={fieldErrors.phone}
+              fullWidth
+              size="small"
+              placeholder="11 5555-0000"
+              inputProps={{ maxLength: 20, inputMode: 'tel' }}
+            />
+            <CampoTexto
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); clearFieldError('email') }}
+              onBlur={() => validateAndSetFieldError('email', email)}
+              inputRef={fieldRefs.email}
+              error={!!fieldErrors.email}
+              mensaje={fieldErrors.email}
+              fullWidth
+              size="small"
+              placeholder="chofer@ejemplo.com"
+            />
+            <CampoSelect
+              label="Estado"
+              value={driverStatus}
+              onChange={(e) => setDriverStatus(e.target.value as DriverStatus)}
+              size="small"
+            >
+              <MenuItem value="Activo">Activo</MenuItem>
+              <MenuItem value="Inactivo">Inactivo</MenuItem>
+            </CampoSelect>
           </Stack>
         ) : (
           <Stack spacing={2}>
-            <Box>
-              <TextField
-                label="Identificador"
-                value={id}
-                onChange={(e) => { setId(e.target.value); clearFieldError('id') }}
-                onBlur={() => validateAndSetFieldError('id', id)}
-                inputRef={fieldRefs.id}
-                error={!!fieldErrors.id}
-                aria-describedby={fieldErrors.id ? 'vehicle-id-error' : undefined}
-                fullWidth
-                size="small"
-                placeholder="MOV-08"
-              />
-              <FieldErrorMessage id="vehicle-id-error" message={fieldErrors.id} />
-            </Box>
-            <Box>
-              <TextField
-                label="Tipo de vehículo"
-                value={type}
-                onChange={(e) => { setType(e.target.value); clearFieldError('type') }}
-                onBlur={() => validateAndSetFieldError('type', type)}
-                inputRef={fieldRefs.type}
-                error={!!fieldErrors.type}
-                aria-describedby={fieldErrors.type ? 'vehicle-type-error' : undefined}
-                fullWidth
-                size="small"
-                placeholder="Furgón grande"
-              />
-              <FieldErrorMessage id="vehicle-type-error" message={fieldErrors.type} />
-            </Box>
-            <Box>
-              <TextField
-                label="Capacidad registrada (kg)"
-                value={capacity}
-                onChange={(e) => { setCapacity(e.target.value.replace(/[^\d]/g, '')); clearFieldError('capacity') }}
-                onBlur={() => validateAndSetFieldError('capacity', capacity)}
-                inputRef={fieldRefs.capacity}
-                error={!!fieldErrors.capacity}
-                aria-describedby={fieldErrors.capacity ? 'vehicle-capacity-error' : undefined}
-                fullWidth
-                size="small"
-                InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }}
-              />
-              <FieldErrorMessage id="vehicle-capacity-error" message={fieldErrors.capacity} />
-            </Box>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Estado</InputLabel>
-              <Select label="Estado" value={vehicleStatus} onChange={(e) => setVehicleStatus(e.target.value as VehicleStatus)}>
-                <MenuItem value="Disponible">Disponible</MenuItem>
-                <MenuItem value="Asignado">Asignado</MenuItem>
-                <MenuItem value="En taller">En taller</MenuItem>
-              </Select>
-            </FormControl>
+            <CampoTexto
+              label="Identificador"
+              value={id}
+              onChange={(e) => { setId(e.target.value); clearFieldError('id') }}
+              onBlur={() => validateAndSetFieldError('id', id)}
+              inputRef={fieldRefs.id}
+              error={!!fieldErrors.id}
+              mensaje={fieldErrors.id}
+              fullWidth
+              size="small"
+              placeholder="MOV-08"
+            />
+            <CampoTexto
+              label="Tipo de vehículo"
+              value={type}
+              onChange={(e) => { setType(e.target.value); clearFieldError('type') }}
+              onBlur={() => validateAndSetFieldError('type', type)}
+              inputRef={fieldRefs.type}
+              error={!!fieldErrors.type}
+              mensaje={fieldErrors.type}
+              fullWidth
+              size="small"
+              placeholder="Furgón grande"
+            />
+            <CampoTexto
+              label="Capacidad registrada (kg)"
+              value={capacity}
+              onChange={(e) => { setCapacity(e.target.value.replace(/[^\d]/g, '')); clearFieldError('capacity') }}
+              onBlur={() => validateAndSetFieldError('capacity', capacity)}
+              inputRef={fieldRefs.capacity}
+              error={!!fieldErrors.capacity}
+              mensaje={fieldErrors.capacity}
+              fullWidth
+              size="small"
+              InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }}
+            />
+            <CampoSelect
+              label="Estado"
+              value={vehicleStatus}
+              onChange={(e) => setVehicleStatus(e.target.value as VehicleStatus)}
+              size="small"
+            >
+              <MenuItem value="Disponible">Disponible</MenuItem>
+              <MenuItem value="Asignado">Asignado</MenuItem>
+              <MenuItem value="En taller">En taller</MenuItem>
+            </CampoSelect>
           </Stack>
         )}
       </DialogContent>
