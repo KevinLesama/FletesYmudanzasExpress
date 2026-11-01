@@ -18,6 +18,7 @@ import type { Theme } from '@mui/material/styles'
 import {
   ArrowBack,
   ArrowForward,
+  ErrorOutline,
   LockOutlined,
   LockReset,
   MailOutline,
@@ -147,6 +148,7 @@ function AnimatedAlert({
       <Fade in={Boolean(message)} timeout={duracionError}>
         <Alert
           severity={severity}
+          icon={severity === 'error' ? <ErrorOutline /> : undefined}
           role={severity === 'error' ? 'alert' : 'status'}
           sx={{
             bgcolor: severity === 'error' ? 'error.light' : 'success.light',
@@ -181,9 +183,15 @@ function FieldMessage({
   return (
     <Collapse in={Boolean(message)} timeout={duracionError}>
       <Fade in={Boolean(message)} timeout={duracionError}>
-        <FormHelperText error id={id} sx={{ pt: 0.5, mx: 0, fontSize: type.caption }}>
-          {lastMessage}
-        </FormHelperText>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, pt: 0.5 }}>
+          <ErrorOutline
+            aria-hidden="true"
+            sx={{ mt: '2px', fontSize: 16, color: 'error.main', flexShrink: 0 }}
+          />
+          <FormHelperText error id={id} sx={{ m: 0, fontSize: type.caption }}>
+            {lastMessage}
+          </FormHelperText>
+        </Box>
       </Fade>
     </Collapse>
   )
@@ -363,6 +371,19 @@ export function IngresoPage() {
 
   const formSubmit = { login: signIn, request: validateRequestEmail, update: updatePassword }[mode]
   const modeCopy = AUTH_MODE_COPY[mode]
+  const botonAccionSx = {
+    height: 56,
+    minHeight: 56,
+    boxSizing: 'border-box',
+    py: 1.5,
+    borderRadius: `${radius.md}px`,
+    fontSize: type.lead,
+    fontWeight: 700,
+    '& .MuiButton-startIcon svg, & .MuiButton-endIcon svg': {
+      width: 20,
+      height: 20,
+    },
+  }
 
   return (
     <Box
@@ -672,10 +693,8 @@ export function IngresoPage() {
               variant="contained"
               disabled={submitting}
               sx={{
+                ...botonAccionSx,
                 mt: 2,
-                height: 56,
-                fontSize: type.lead,
-                borderRadius: `${radius.md}px`,
               }}
               endIcon={<ArrowForward />}
             >
@@ -685,15 +704,20 @@ export function IngresoPage() {
               <Button
                 type="button"
                 onClick={() => resetForm('login')}
-                variant="text"
+                fullWidth
+                variant="outlined"
                 startIcon={<ArrowBack />}
                 sx={{
+                  ...botonAccionSx,
                   mt: 1,
-                  width: '100%',
-                  minHeight: 44,
-                  borderRadius: `${radius.md}px`,
                   color: 'primary.main',
-                  fontWeight: 600,
+                  borderColor: 'divider',
+                  borderWidth: '1px',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                    borderColor: 'divider',
+                    borderWidth: '1px',
+                  },
                 }}
               >
                 Volver al ingreso
