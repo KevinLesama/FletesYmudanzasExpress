@@ -19,7 +19,7 @@ import {
   useMediaQuery,
 } from '@mui/material'
 import { Add, ArrowForward, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
-import { AppShell } from '../components/AppShell'
+import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
@@ -88,7 +88,7 @@ export function SolicitudesPage() {
   return (
     <AppShell
       active="solicitudes"
-      breadcrumb={['Gestión', 'Solicitudes']}
+      breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes']}
       kicker="Gestión de pedidos"
       title="Solicitudes"
       description="Revisá los pedidos y organizá cada servicio."

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Box, Button, useMediaQuery, useTheme } from '@mui/material'
 import { Add } from '@mui/icons-material'
-import { AppShell } from '../components/AppShell'
+import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { AgendaToolbar, EMPTY_FILTERS, type AgendaFilters, type AgendaView } from '../components/AgendaToolbar'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
@@ -73,7 +73,7 @@ export function AgendaPage() {
   return (
     <AppShell
       active="agenda"
-      breadcrumb={['Operación', 'Agenda']}
+      breadcrumb={[SECCION_BREADCRUMB, 'Agenda']}
       title="Agenda de viajes"
       fill
       description={trips.length === 0 ? 'Sin viajes en la vista' : `${tripCountLabel} en la vista`}

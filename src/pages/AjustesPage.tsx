@@ -22,7 +22,7 @@ import {
   PhoneIphone,
   TabletMac,
 } from '@mui/icons-material'
-import { AppShell } from '../components/AppShell'
+import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { Toast, type ToastState } from '../components/Toast'
 import { useQuery } from '../routes'
 import { color, radius, type } from '../design/tokens'
@@ -518,7 +518,7 @@ export function AjustesPage() {
   return (
     <AppShell
       active="ajustes"
-      breadcrumb={['Cuenta', 'Ajustes']}
+      breadcrumb={[SECCION_BREADCRUMB, 'Ajustes']}
       title="Ajustes"
       description="Tu cuenta, las notificaciones y la seguridad del equipo."
     >

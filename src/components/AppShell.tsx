@@ -19,7 +19,6 @@ import {
   LocationOn,
   LockOutlined,
   NotificationsNone,
-  ChevronRight,
   PersonOutline,
 } from '@mui/icons-material'
 import { R } from '../routes'
@@ -29,6 +28,9 @@ import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
 import { loadSettings } from '../settingsStore'
+
+const SEPARADOR_BREADCRUMB = '·'
+export const SECCION_BREADCRUMB = 'Operación'
 
 export type NavKey = 'agenda' | 'solicitudes' | 'flota' | 'pagos' | 'ajustes'
 
@@ -237,7 +239,12 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
               {breadcrumb.map((part, i) => (
                 <Stack key={part} direction="row" alignItems="center" spacing={0.6}>
                   {i > 0 && (
-                    <ChevronRight sx={{ fontSize: 15, color: '#8A929B' }} />
+                    <Typography
+                      aria-hidden="true"
+                      sx={{ mx: 1, fontSize: 12.5, lineHeight: 1, color: 'text.disabled' }}
+                    >
+                      {SEPARADOR_BREADCRUMB}
+                    </Typography>
                   )}
                   <Typography
                     sx={{

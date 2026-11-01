@@ -24,7 +24,7 @@ import {
   useMediaQuery,
 } from '@mui/material'
 import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search, WarningAmber } from '@mui/icons-material'
-import { AppShell } from '../components/AppShell'
+import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
@@ -157,7 +157,7 @@ export function PagosPage() {
     <>
       <AppShell
         active="pagos"
-        breadcrumb={['Operación', 'Pagos']}
+        breadcrumb={[SECCION_BREADCRUMB, 'Pagos']}
         kicker="Control de cobros"
         title="Pagos"
         description="Registro manual · transferencias y efectivo"

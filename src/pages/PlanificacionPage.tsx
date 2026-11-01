@@ -44,7 +44,7 @@ import {
   WarningAmber,
   RouteOutlined,
 } from '@mui/icons-material'
-import { AppShell } from '../components/AppShell'
+import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
@@ -270,7 +270,7 @@ export function PlanificacionPage() {
 
   if (requestState.loading || catalogState.loading) {
     return (
-      <AppShell active="solicitudes" breadcrumb={['Gestión', 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
+      <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
           <LoadingState label="Cargando solicitud..." />
         </Box>
@@ -280,7 +280,7 @@ export function PlanificacionPage() {
 
   if (requestState.error || !request) {
     return (
-      <AppShell active="solicitudes" breadcrumb={['Gestión', 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
+      <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
           <ErrorState message={requestState.error ?? 'No encontramos la solicitud solicitada.'} onRetry={requestState.reload} />
         </Box>
@@ -468,7 +468,7 @@ export function PlanificacionPage() {
     <>
       <AppShell
         active="solicitudes"
-        breadcrumb={['Gestión', 'Solicitudes', 'Detalle y planificación']}
+        breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']}
         kicker="Solicitud"
         title={`${requestId} · Detalle y planificación`}
         description={

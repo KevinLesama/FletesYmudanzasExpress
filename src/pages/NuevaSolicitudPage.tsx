@@ -19,7 +19,7 @@ import {
   useMediaQuery,
 } from '@mui/material'
 import { ArrowBack, Check, ErrorOutline, InfoOutlined, ArrowForward } from '@mui/icons-material'
-import { AppShell } from '../components/AppShell'
+import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
 import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
@@ -404,7 +404,7 @@ export function NuevaSolicitudPage() {
     <>
       <AppShell
         active="solicitudes"
-        breadcrumb={['Gestión', 'Solicitudes', 'Nueva solicitud']}
+        breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Nueva solicitud']}
         kicker="Gestión de pedidos"
         title="Nueva solicitud"
         description="Completá los datos para revisar disponibilidad y condiciones."
