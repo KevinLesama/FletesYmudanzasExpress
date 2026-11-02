@@ -11,8 +11,6 @@ import {
   InputAdornment,
   MenuItem,
   Stack,
-  Tab,
-  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -28,6 +26,7 @@ import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { CampoSelect, CampoTexto } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
+import { SegmentedControl } from '../components/SegmentedControl'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
 import { filtrarTelefono, validarTelefono } from '../utils/telefono'
@@ -123,14 +122,17 @@ export function FlotaPage() {
         </Box>
 
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, overflow: 'hidden' }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            sx={{ px: 2, borderBottom: '1px solid #EDEAE3', '& .MuiTab-root': { py: 1.6 } }}
-          >
-            <Tab label={`Choferes (${drivers.length})`} />
-            <Tab label={`Vehículos (${vehicles.length})`} />
-          </Tabs>
+          <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #EDEAE3' }}>
+            <SegmentedControl
+              value={tab}
+              onChange={setTab}
+              ariaLabel="Choferes y vehículos"
+              options={[
+                { value: 0, label: `Choferes (${drivers.length})` },
+                { value: 1, label: `Vehículos (${vehicles.length})` },
+              ]}
+            />
+          </Box>
 
           {tab === 0 &&
             (isMobile ? (

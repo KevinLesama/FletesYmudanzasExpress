@@ -10,8 +10,6 @@ import {
   StepLabel,
   Stack,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
   useTheme,
   useMediaQuery,
@@ -20,6 +18,7 @@ import { ArrowBack, Check, InfoOutlined, ArrowForward } from '@mui/icons-materia
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EtiquetaCampo, MensajeCampo } from '../components/FormFields'
 import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
+import { SegmentedControl } from '../components/SegmentedControl'
 import { Toast, type ToastState } from '../components/Toast'
 import { R } from '../routes'
 import { api } from '../api'
@@ -59,25 +58,6 @@ const sectionTitleSx = {
 
 function TituloSeccion({ text }: { text: string }) {
   return <Typography sx={sectionTitleSx}>{text}</Typography>
-}
-
-const toggleAcentoSx = {
-  '& .MuiToggleButton-root': {
-    height: 36,
-    color: 'text.secondary',
-    bgcolor: 'transparent',
-    '&:hover': { bgcolor: 'action.hover' },
-    '&.Mui-selected': {
-      bgcolor: brand.orangeStrong,
-      color: 'common.white',
-      '&:hover': { bgcolor: brand.orangeInk },
-    },
-    '&.Mui-focusVisible': {
-      outline: '2px solid',
-      outlineColor: 'primary.main',
-      outlineOffset: 2,
-    },
-  },
 }
 
 const PREGUNTA_NIVEL_CALLE = '¿Está a nivel de calle?'
@@ -394,17 +374,17 @@ export function NuevaSolicitudPage() {
             {step === 0 && (
               <>
                 <StepHeading n="01" title="Cliente" subtitle="Datos de contacto para coordinar el servicio." />
-                <ToggleButtonGroup
+                <SegmentedControl
                   value={clientMode}
-                  exclusive
-                  onChange={(_, v) => v && setClientMode(v)}
-                  size="small"
+                  onChange={setClientMode}
+                  ariaLabel="Tipo de cliente"
                   fullWidth
-                  sx={[toggleAcentoSx, { mb: ESPACIO.campo, '& .MuiToggleButton-root': { flex: 1 } }]}
-                >
-                  <ToggleButton value="existente">Cliente existente</ToggleButton>
-                  <ToggleButton value="nuevo">Nuevo cliente</ToggleButton>
-                </ToggleButtonGroup>
+                  options={[
+                    { value: 'existente', label: 'Cliente existente' },
+                    { value: 'nuevo', label: 'Nuevo cliente' },
+                  ]}
+                  sx={{ mb: ESPACIO.campo }}
+                />
 
                 {clientMode === 'existente' ? (
                   <Box>
@@ -664,10 +644,17 @@ export function NuevaSolicitudPage() {
                       <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                         <EtiquetaCampo text="¿Hay objetos frágiles?" htmlFor="cargo-fragile" id="cargo-fragile-label" />
                         <Box sx={{ height: 48, display: 'flex', alignItems: 'flex-end' }}>
-                        <ToggleButtonGroup id="cargo-fragile" aria-labelledby="cargo-fragile-label" value={fragile} exclusive onChange={(_, v) => v && setFragile(v)} size="small" fullWidth sx={toggleAcentoSx}>
-                          <ToggleButton value="Sí">Sí</ToggleButton>
-                          <ToggleButton value="No">No</ToggleButton>
-                        </ToggleButtonGroup>
+                        <SegmentedControl
+                          id="cargo-fragile"
+                          value={fragile}
+                          onChange={setFragile}
+                          ariaLabelledBy="cargo-fragile-label"
+                          fullWidth
+                          options={[
+                            { value: 'Sí', label: 'Sí' },
+                            { value: 'No', label: 'No' },
+                          ]}
+                        />
                         </Box>
                       </Box>
                     </Box>
@@ -872,25 +859,22 @@ function StepLocation({
             onBlur={handleContainerBlur(streetLevelId)}
             sx={errors[streetLevelId] ? { border: '1px solid', borderColor: 'error.main', borderRadius: 1 } : undefined}
           >
-            <ToggleButtonGroup
+            <SegmentedControl
               value={aNivelDeCalle === null ? null : aNivelDeCalle ? 'Sí' : 'No'}
-              exclusive
-              onChange={(_, value: 'Sí' | 'No' | null) => {
-                if (!value) return
+              onChange={(value) => {
                 onNivelDeCalle(value === 'Sí')
                 onFieldChange(streetLevelId)
                 onFieldChange(floorId)
                 onFieldChange(elevatorId)
               }}
-              size="small"
               fullWidth
-              aria-labelledby={`${idPrefix}-street-level-label`}
-              aria-describedby={errors[streetLevelId] ? `${streetLevelId}-error` : undefined}
-              sx={toggleAcentoSx}
-            >
-              <ToggleButton value="Sí" sx={{ flexGrow: 1 }}>Sí</ToggleButton>
-              <ToggleButton value="No" sx={{ flexGrow: 1 }}>No</ToggleButton>
-            </ToggleButtonGroup>
+              ariaLabelledBy={`${idPrefix}-street-level-label`}
+              ariaDescribedBy={errors[streetLevelId] ? `${streetLevelId}-error` : undefined}
+              options={[
+                { value: 'Sí', label: 'Sí' },
+                { value: 'No', label: 'No' },
+              ]}
+            />
           </Box>
           <MensajeCampo id={`${streetLevelId}-error`} mensaje={errors[streetLevelId]} sinAnimacion={duracionError === 0} />
           <Collapse
@@ -908,23 +892,20 @@ function StepLocation({
                       onBlur={handleContainerBlur(elevatorId)}
                       sx={{ width: '100%', ...(errors[elevatorId] ? { border: '1px solid', borderColor: 'error.main', borderRadius: 1 } : {}) }}
                     >
-                      <ToggleButtonGroup
+                      <SegmentedControl
                         value={elevator}
-                        exclusive
-                        onChange={(_, value: 'Sí' | 'No' | null) => {
-                          if (!value) return
+                        onChange={(value) => {
                           onElevator(value)
                           onFieldChange(elevatorId)
                         }}
-                        size="small"
                         fullWidth
-                        aria-labelledby={`${idPrefix}-elevator-label`}
-                        aria-describedby={errors[elevatorId] ? `${elevatorId}-error` : undefined}
-                        sx={toggleAcentoSx}
-                      >
-                        <ToggleButton value="Sí" sx={{ flexGrow: 1 }}>Sí</ToggleButton>
-                        <ToggleButton value="No" sx={{ flexGrow: 1 }}>No</ToggleButton>
-                      </ToggleButtonGroup>
+                        ariaLabelledBy={`${idPrefix}-elevator-label`}
+                        ariaDescribedBy={errors[elevatorId] ? `${elevatorId}-error` : undefined}
+                        options={[
+                          { value: 'Sí', label: 'Sí' },
+                          { value: 'No', label: 'No' },
+                        ]}
+                      />
                     </Box>
                   </Box>
                   <MensajeCampo id={`${elevatorId}-error`} mensaje={errors[elevatorId]} sinAnimacion={duracionError === 0} />

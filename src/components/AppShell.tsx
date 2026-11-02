@@ -147,6 +147,8 @@ interface AppShellProps {
   action?: ReactNode
   /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
   fill?: boolean
+  /** Reduce paddings y alto del encabezado en páginas de tabla compactas. */
+  compacto?: boolean
   mapTrip?: ShiftRequest | null
   mapTrips?: ShiftRequest[]
   mapRequests?: ShiftRequest[]
@@ -166,6 +168,7 @@ export function AppShell({
   header,
   action,
   fill,
+  compacto,
   mapTrip,
   mapTrips,
   mapRequests,
@@ -334,9 +337,9 @@ export function AppShell({
 
         <Box
           sx={{
-            pt: { xs: 9.5, md: 3.5 },
+            pt: { xs: 9.5, md: compacto ? 2.5 : 3.5 },
             px: { xs: 2, md: 4 },
-            pb: { xs: 12, md: 4 },
+            pb: { xs: 12, md: compacto ? 2.5 : 4 },
             ...(!isMobile && {
               boxSizing: 'border-box',
               flex: 1,
@@ -360,7 +363,7 @@ export function AppShell({
             {header ? (
               <Box>{header}</Box>
             ) : (
-              <EncabezadoPagina kicker={kicker} titulo={title} bajada={description} accion={action} />
+              <EncabezadoPagina kicker={kicker} titulo={title} bajada={description} accion={action} compacto={compacto} />
             )}
             {children}
           </Box>

@@ -10,15 +10,14 @@ import {
   Popover,
   Select,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material'
 import { CalendarMonth, ChevronLeft, ChevronRight, Tune } from '@mui/icons-material'
 import { MiniCalendar } from './MiniCalendar'
+import { SegmentedControl } from './SegmentedControl'
 import { ESTADOS_AGENDA } from './AgendaGrid'
-import { color, motion, radius, type } from '../design/tokens'
+import { color, type } from '../design/tokens'
 import { fmtRange } from '../agendaDates'
 import type { Driver, Vehicle } from '../types'
 
@@ -201,39 +200,15 @@ export function AgendaToolbar({
         <Box sx={{ flexGrow: 1 }} />
 
         {showViewSwitch && (
-          <ToggleButtonGroup
-            exclusive
-            size="small"
+          <SegmentedControl
             value={view}
-            onChange={(_, next: AgendaView | null) => next && onViewChange(next)}
-            aria-label="Vista de la agenda"
-            sx={{
-              bgcolor: color.sandDeep,
-              borderRadius: radius.pill,
-              p: 0.4,
-              '& .MuiToggleButtonGroup-grouped': {
-                border: 0,
-                borderRadius: `${radius.pill}px !important`,
-                px: 1.6,
-                py: 0.5,
-                color: color.muted,
-                fontWeight: 700,
-                fontSize: type.caption,
-                textTransform: 'none',
-                transition: `background-color ${motion.fast}, color ${motion.fast}`,
-                '&:hover': { bgcolor: 'rgba(19,43,74,0.06)' },
-                '&.Mui-selected': {
-                  bgcolor: color.paper,
-                  color: color.navy,
-                  boxShadow: '0 1px 2px rgba(19,43,74,0.12)',
-                  '&:hover': { bgcolor: color.paper },
-                },
-              },
-            }}
-          >
-            <ToggleButton value="day">Día</ToggleButton>
-            <ToggleButton value="workWeek">Semana laboral</ToggleButton>
-          </ToggleButtonGroup>
+            onChange={onViewChange}
+            ariaLabel="Vista de la agenda"
+            options={[
+              { value: 'day', label: 'Día' },
+              { value: 'workWeek', label: 'Semana laboral' },
+            ]}
+          />
         )}
 
         <Tooltip title={activeFilters === 0 ? 'Filtros' : `Filtros (${activeFilters} activos)`}>

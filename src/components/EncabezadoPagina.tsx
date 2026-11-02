@@ -7,15 +7,17 @@ interface EncabezadoPaginaProps {
   titulo?: ReactNode
   bajada?: ReactNode
   accion?: ReactNode
+  /** Reduce el alto del encabezado en páginas que necesitan más espacio vertical. */
+  compacto?: boolean
 }
 
-export function EncabezadoPagina({ kicker, titulo, bajada, accion }: EncabezadoPaginaProps) {
+export function EncabezadoPagina({ kicker, titulo, bajada, accion, compacto = false }: EncabezadoPaginaProps) {
   return (
     <Stack
       direction={{ xs: 'column', md: 'row' }}
       spacing={2}
       alignItems={{ xs: 'flex-start', md: 'center' }}
-      sx={{ mb: 2.5, minHeight: { xs: 76, md: 80 } }}
+      sx={{ mb: compacto ? 1.5 : 2.5, minHeight: compacto ? undefined : { xs: 76, md: 80 } }}
     >
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         {kicker && (

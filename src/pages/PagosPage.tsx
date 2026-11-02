@@ -108,7 +108,7 @@ export function PagosPage() {
 
   const paymentGridDesktop = (
     <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, overflow: 'hidden' }}>
-      <Table>
+      <Table sx={{ '& .MuiTableCell-root': { py: 1 } }}>
         <TableHead>
           <TableRow>
             <TableCell>Viaje / cliente</TableCell>
@@ -185,19 +185,20 @@ export function PagosPage() {
     <>
       <AppShell
         active="pagos"
+        compacto
         breadcrumb={[SECCION_BREADCRUMB, 'Pagos']}
         kicker="Control de cobros"
         title="Pagos"
         description="Registro manual · transferencias y efectivo"
         action={
           <Typography sx={{ fontSize: 12.5, color: color.muted, fontWeight: 600 }}>
-            {rows.length} viajes con cobros · importes en ARS
+            {paymentTrips.length} viajes con cobros · importes en ARS
           </Typography>
         }
       >
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5, color: color.muted }}>
-          <InfoOutlined sx={{ fontSize: 15 }} />
-          <Typography sx={{ fontSize: 12, color: color.muted }}>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1, color: color.amberInk }}>
+          <InfoOutlined sx={{ fontSize: 14, color: color.amberInk }} />
+          <Typography sx={{ fontSize: 12, color: color.amberInk, fontWeight: 600 }}>
             Que el cliente haya pagado al chofer no significa que el dinero ya se rindió a la empresa.
           </Typography>
         </Stack>
@@ -207,11 +208,11 @@ export function PagosPage() {
             bgcolor: color.paper,
             border: `1px solid ${color.border}`,
             borderRadius: 3,
-            p: 1.5,
-            mb: 1.5,
+            p: 1.25,
+            mb: 1,
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 2fr) minmax(170px, 1fr) minmax(170px, 1fr)' },
-            gap: 1.5,
+            gap: 1.25,
             alignItems: 'center',
           }}
         >
@@ -225,7 +226,7 @@ export function PagosPage() {
               placeholder="Buscar por viaje o cliente"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              sx={{ ...SEARCH_FIELD_SX, '& .MuiOutlinedInput-root': { height: 48 } }}
+              sx={{ ...SEARCH_FIELD_SX, '& .MuiOutlinedInput-root': { height: 44 } }}
               inputProps={SEARCH_INPUT_PROPS}
               InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
             />
@@ -235,7 +236,7 @@ export function PagosPage() {
             size="small"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            sx={{ '& .MuiOutlinedInput-root': { height: 48 } }}
+            sx={{ '& .MuiOutlinedInput-root': { height: 44 } }}
           >
               <MenuItem value="all">Todas las fechas</MenuItem>
               <MenuItem value="2026-09-24">24/09/2026</MenuItem>
@@ -245,7 +246,7 @@ export function PagosPage() {
             size="small"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            sx={{ '& .MuiOutlinedInput-root': { height: 48 } }}
+            sx={{ '& .MuiOutlinedInput-root': { height: 44 } }}
           >
               <MenuItem value="all">Todos los estados</MenuItem>
               {availableStatuses.has('Parcial') && <MenuItem value="Parcial">Parcial</MenuItem>}
@@ -254,11 +255,11 @@ export function PagosPage() {
         </Box>
 
         {paymentsState.loading ? (
-          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, px: 2, py: 1.5 }}>
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, px: 2, py: 1 }}>
             <Typography sx={{ fontSize: 13, color: color.muted }}>Cargando cobros...</Typography>
           </Box>
         ) : paymentsState.error ? (
-          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, px: 2, py: 1.25 }}>
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, px: 2, py: 1 }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
               <Typography sx={{ fontSize: 13, color: color.red }}>No pudimos cargar los cobros</Typography>
               <Button size="small" onClick={paymentsState.reload} sx={{ color: brand.navy }}>Reintentar</Button>
@@ -280,13 +281,6 @@ export function PagosPage() {
         ) : (
           paymentGridDesktop
         )}
-
-        <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mt: 1.5 }}>
-          <InfoOutlined sx={{ fontSize: 15, color: color.muted, mt: 0.2 }} />
-          <Typography sx={{ fontSize: 12, color: color.muted }}>
-            El registro es manual: no se realiza verificación bancaria. Si el pago lo recibió el chofer, la rendición a la empresa se registra por separado.
-          </Typography>
-        </Stack>
       </AppShell>
 
       {dialogTrip && (
