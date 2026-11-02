@@ -5,14 +5,15 @@ import {
   CheckCircleOutline,
   LocalShipping,
   LockOutlined,
-  LocationOn,
   Route,
 } from '@mui/icons-material'
 import { Alert, Box, Button, Divider, Stack, TextField, Typography } from '@mui/material'
 import { api } from '../api'
+import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
 import { Toast, type ToastState } from '../components/Toast'
 import { color } from '../design/tokens'
 import { brand } from '../theme'
+import type { PlaceDetail } from '../types'
 
 type LandingStep = 'request' | 'sent'
 
@@ -30,6 +31,8 @@ type RequestFormProps = Readonly<{
   arrivalTo: string
   origin: string
   destination: string
+  originPlace: PlaceDetail | null
+  destinationPlace: PlaceDetail | null
   cargo: string
   notes: string
   busy: boolean
@@ -38,6 +41,8 @@ type RequestFormProps = Readonly<{
   setArrivalTo: (value: string) => void
   setOrigin: (value: string) => void
   setDestination: (value: string) => void
+  setOriginPlace: (place: PlaceDetail | null) => void
+  setDestinationPlace: (place: PlaceDetail | null) => void
   setCargo: (value: string) => void
   setNotes: (value: string) => void
   onSubmit: (event: React.FormEvent) => void
@@ -54,6 +59,8 @@ export function LandingPage() {
   const [arrivalTo, setArrivalTo] = useState('11:00')
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
+  const [originPlace, setOriginPlace] = useState<PlaceDetail | null>(null)
+  const [destinationPlace, setDestinationPlace] = useState<PlaceDetail | null>(null)
   const [cargo, setCargo] = useState('')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
@@ -71,8 +78,24 @@ export function LandingPage() {
         arrival_to: arrivalTo,
         service_from: arrivalFrom,
         service_to: arrivalTo,
-        origin: { address: origin, barrio: '', floor: '', elevator: false },
-        destination: { address: destination, barrio: '', floor: '', elevator: false },
+        origin: {
+          address: origin,
+          barrio: originPlace?.locality || originPlace?.partido || '',
+          floor: '',
+          elevator: false,
+          placeId: originPlace?.placeId,
+          lat: originPlace?.lat,
+          lng: originPlace?.lng,
+        },
+        destination: {
+          address: destination,
+          barrio: destinationPlace?.locality || destinationPlace?.partido || '',
+          floor: '',
+          elevator: false,
+          placeId: destinationPlace?.placeId,
+          lat: destinationPlace?.lat,
+          lng: destinationPlace?.lng,
+        },
         cargo: { items: [], approx_units: 0, fragile: false, notes: cargo + (notes ? ` · ${notes}` : '') },
       })
       setStep('sent')
@@ -120,7 +143,7 @@ export function LandingPage() {
           </Box>
 
           <Box sx={{ bgcolor: '#fff', border: `1px solid ${brand.border}`, borderRadius: 4, p: { xs: 2.5, md: 4 }, boxShadow: '0 12px 30px rgba(19,43,74,0.06)' }}>
-            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} cargo={cargo} notes={notes} busy={busy} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
+            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} originPlace={originPlace} destinationPlace={destinationPlace} cargo={cargo} notes={notes} busy={busy} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setOriginPlace={setOriginPlace} setDestinationPlace={setDestinationPlace} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
             {step === 'sent' && <SuccessState onNewRequest={() => setStep('request')} />}
           </Box>
         </Box>
@@ -144,7 +167,16 @@ function ContactForm({ name, phone, busy, setName, setPhone }: ContactFormProps)
   </Stack>
 }
 
-function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destination, cargo, notes, busy, setName, setPhone, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
+function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destination, originPlace, destinationPlace, cargo, notes, busy, setName, setPhone, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setOriginPlace, setDestinationPlace, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
+  const changeOrigin = (value: string) => {
+    setOrigin(value)
+    if (originPlace && value !== originPlace.address) setOriginPlace(null)
+  }
+  const changeDestination = (value: string) => {
+    setDestination(value)
+    if (destinationPlace && value !== destinationPlace.address) setDestinationPlace(null)
+  }
+
   return <Box component="form" onSubmit={onSubmit}>
     <Typography variant="h5">Solicitá tu flete</Typography>
     <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Dejanos tus datos y completá el recorrido. No necesitás crear una cuenta.</Typography>
@@ -155,8 +187,26 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
         <TextField label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} required fullWidth autoComplete="off" InputLabelProps={{ shrink: true }} />
         <TextField label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} required fullWidth autoComplete="off" InputLabelProps={{ shrink: true }} />
       </Stack>
-      <TextField label="¿Desde dónde retiramos?" value={origin} onChange={(event) => setOrigin(event.target.value)} required fullWidth InputProps={{ startAdornment: <LocationOn sx={{ color: brand.orangeInk, mr: 1 }} /> }} />
-      <TextField label="¿A dónde lo llevamos?" value={destination} onChange={(event) => setDestination(event.target.value)} required fullWidth InputProps={{ startAdornment: <LocationOn sx={{ color: brand.navy, mr: 1 }} /> }} />
+      <PlaceAutocomplete
+        label="¿Desde dónde retiramos?"
+        value={origin}
+        onValueChange={changeOrigin}
+        onSelect={setOriginPlace}
+        selected={originPlace !== null}
+        placeholder="Buscá calle y número…"
+        required
+        helperText="Escribí al menos 3 letras y elegí una sugerencia."
+      />
+      <PlaceAutocomplete
+        label="¿A dónde lo llevamos?"
+        value={destination}
+        onValueChange={changeDestination}
+        onSelect={setDestinationPlace}
+        selected={destinationPlace !== null}
+        placeholder="Buscá calle y número…"
+        required
+        helperText="Escribí al menos 3 letras y elegí una sugerencia."
+      />
       <TextField label="¿Qué hay que trasladar?" value={cargo} onChange={(event) => setCargo(event.target.value)} required multiline minRows={2} fullWidth />
       <TextField label="Observaciones (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth autoComplete="off" />
       <Button type="submit" variant="contained" size="large" disabled={busy} endIcon={<ArrowForward />} sx={{ minHeight: 48, mt: 1 }}>
