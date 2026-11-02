@@ -3,15 +3,17 @@ import {
   Alert,
   Box,
   Button,
+  Card,
   IconButton,
   InputAdornment,
-  Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { ArrowBack, LockReset, LocalShipping, MailOutline, Visibility, VisibilityOff } from '@mui/icons-material'
+import { ArrowBack, LockReset, MailOutline, Visibility, VisibilityOff } from '@mui/icons-material'
 import { R } from '../routes'
-import { brand, theme } from '../theme'
+import { Brand } from '../components/Brand'
+import { EtiquetaCampo } from '../components/FormFields'
+import { radius, space, type } from '../design/tokens'
 import { supabase } from '../supabase'
 
 type RecoveryMode = 'request' | 'sent' | 'update'
@@ -41,6 +43,19 @@ export function RecuperarPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const botonAccionSx = {
+    height: 56,
+    minHeight: 56,
+    boxSizing: 'border-box',
+    py: 1.5,
+    borderRadius: `${radius.md}px`,
+    fontSize: type.lead,
+    fontWeight: 700,
+    '& .MuiButton-startIcon svg, & .MuiButton-endIcon svg': {
+      width: 20,
+      height: 20,
+    },
+  }
 
   useEffect(() => {
     if (!supabase) return undefined
@@ -115,79 +130,128 @@ export function RecuperarPage() {
   const { title, description } = RECOVERY_COPY[mode]
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: theme.palette.background.default, display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 2.5, py: 5 }}>
-        <Box sx={{ width: '100%', maxWidth: 430 }}>
-          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 4 }}>
-            <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: brand.navy, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LocalShipping fontSize="small" />
-            </Box>
-            <Box>
-              <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Fletes Express</Typography>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#64707C' }}>Acceso del equipo</Typography>
-            </Box>
-          </Stack>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
+        bgcolor: 'background.default',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        pt: { xs: 10, sm: 12 },
+        pb: 4,
+        px: 2,
+      }}
+    >
+      <Box sx={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+        <Box
+          component="header"
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%',
+            mb: `${space.xxl}px`,
+            flexShrink: 0,
+          }}
+        >
+          <Box sx={{ flexShrink: 0 }}>
+            <Brand subtitle="" size="login" />
+          </Box>
+          <Box sx={{ mt: `${space.xl}px`, display: 'flex', alignItems: 'center', width: '100%', gap: `${space.lg}px`, flexShrink: 0 }}>
+            <Box aria-hidden="true" sx={{ height: '1px', flex: 1, bgcolor: 'divider' }} />
+            <Typography component="p" sx={{ m: 0, fontSize: type.body, fontWeight: 500, lineHeight: 1.4, color: 'text.secondary', textAlign: 'center', whiteSpace: 'nowrap' }}>
+              Gestión de viajes
+            </Typography>
+            <Box aria-hidden="true" sx={{ height: '1px', flex: 1, bgcolor: 'divider' }} />
+          </Box>
+        </Box>
 
-          <Box component="form" onSubmit={isUpdate ? updatePassword : requestReset} sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 4, p: { xs: 3, md: 4 }, boxShadow: '0 2px 6px rgba(19,43,74,0.03)' }}>
-            <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: brand.orangeInk }}>
+        <Card component="main" sx={{ width: '100%', p: { xs: 2.5, sm: 4 }, borderRadius: `${radius.lg}px`, flexShrink: 0 }}>
+          <Box component="form" onSubmit={isUpdate ? updatePassword : requestReset} noValidate>
+            <Typography variant="overline" sx={{ display: 'block', fontWeight: 800, lineHeight: 1.4, letterSpacing: '0.14em', color: 'secondary.dark' }}>
               {isUpdate ? 'NUEVA CONTRASEÑA' : 'RECUPERACIÓN'}
             </Typography>
-            <Typography sx={{ mt: 0.5, fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 24 }}>{title}</Typography>
-            <Typography sx={{ mt: 0.5, color: 'text.secondary', fontSize: 13.5 }}>{description}</Typography>
+            <Typography component="h1" variant="h4" sx={{ mt: 0.5, color: 'text.primary', fontSize: type.display }}>
+              {title}
+            </Typography>
+            <Typography sx={{ mt: 1, fontSize: type.body, lineHeight: 1.5, color: 'text.secondary' }}>{description}</Typography>
 
-            {mode === 'request' && <TextField
-              fullWidth
-              label="Correo electrónico"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              margin="normal"
-              sx={{ mt: 3 }}
-              InputProps={{ startAdornment: <InputAdornment position="start"><MailOutline sx={{ fontSize: 18, color: '#64707C' }} /></InputAdornment> }}
-            />}
+            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+
+            {mode === 'request' && (
+              <Box sx={{ mt: error ? 1.5 : 2.5 }}>
+                <EtiquetaCampo text="Correo electrónico" htmlFor="recovery-email" />
+                <TextField
+                  id="recovery-email"
+                  fullWidth
+                  type="email"
+                  required
+                  autoComplete="username"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="nombre@fletesexpress.com.ar"
+                  InputProps={{ startAdornment: <InputAdornment position="start"><MailOutline sx={{ fontSize: 20, color: 'text.secondary' }} /></InputAdornment> }}
+                />
+              </Box>
+            )}
 
             {mode === 'sent' && (
-              <Alert severity="success" sx={{ mt: 3, borderRadius: 2 }}>
+              <Alert severity="success" sx={{ mt: 2 }}>
                 Revisá también la carpeta de spam. El enlace vence según la configuración de Supabase.
               </Alert>
             )}
 
-            {isUpdate && <>
-              <TextField
-                fullWidth
-                label="Nueva contraseña"
-                type={showPassword ? 'text' : 'password'}
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                margin="normal"
-                sx={{ mt: 3 }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><LockReset sx={{ fontSize: 18, color: '#64707C' }} /></InputAdornment>,
-                  endAdornment: <InputAdornment position="end"><IconButton aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((value) => !value)} edge="end">{showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}</IconButton></InputAdornment>,
-                }}
-              />
-              <TextField fullWidth label="Repetí la nueva contraseña" type="password" required autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} margin="normal" />
-            </>}
+            {isUpdate && (
+              <>
+                <Box sx={{ mt: error ? 1.5 : 2.5 }}>
+                  <EtiquetaCampo text="Nueva contraseña" htmlFor="recovery-password" />
+                  <TextField
+                    id="recovery-password"
+                    fullWidth
+                    required
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    type={showPassword ? 'text' : 'password'}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><LockReset sx={{ fontSize: 20, color: 'text.secondary' }} /></InputAdornment>,
+                      endAdornment: <InputAdornment position="end"><IconButton aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((value) => !value)} edge="end" sx={{ p: 1.5, color: 'text.secondary' }}>{showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}</IconButton></InputAdornment>,
+                    }}
+                  />
+                </Box>
+                <Box sx={{ mt: 1.5 }}>
+                  <EtiquetaCampo text="Repetí la nueva contraseña" htmlFor="recovery-confirmation" />
+                  <TextField id="recovery-confirmation" fullWidth required autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} type="password" />
+                </Box>
+              </>
+            )}
 
-            {error && <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>{error}</Alert>}
-
-            {mode === 'request' && <Button type="submit" fullWidth variant="contained" size="large" disabled={submitting} sx={{ mt: 2.5, py: 1.3 }} endIcon={<LockReset />}>
-              {submitting ? 'Enviando enlace…' : 'Enviar enlace de recuperación'}
-            </Button>}
-            {isUpdate && <Button type="submit" fullWidth variant="contained" size="large" disabled={submitting} sx={{ mt: 2.5, py: 1.3 }} endIcon={<LockReset />}>
-              {submitting ? 'Actualizando…' : 'Actualizar contraseña'}
-            </Button>}
-            {mode === 'sent' && <Button type="button" fullWidth variant="outlined" onClick={resetToRequest} sx={{ mt: 2.5 }}>Volver a solicitar</Button>}
-
-            <Button type="button" variant="text" onClick={() => { window.location.href = R.ingreso }} sx={{ mt: 1, width: '100%', color: brand.navy }} startIcon={<ArrowBack />}>
+            {mode === 'request' && (
+              <Button type="submit" fullWidth variant="contained" disabled={submitting} sx={{ ...botonAccionSx, mt: 2 }} endIcon={<LockReset />}>
+                {submitting ? 'Enviando enlace…' : 'Enviar enlace de recuperación'}
+              </Button>
+            )}
+            {isUpdate && (
+              <Button type="submit" fullWidth variant="contained" disabled={submitting} sx={{ ...botonAccionSx, mt: 2 }} endIcon={<LockReset />}>
+                {submitting ? 'Actualizando…' : 'Actualizar contraseña'}
+              </Button>
+            )}
+            {mode === 'sent' && (
+              <Button type="button" fullWidth variant="outlined" onClick={resetToRequest} sx={{ ...botonAccionSx, mt: 2 }}>
+                Volver a solicitar
+              </Button>
+            )}
+            <Button type="button" fullWidth variant="outlined" onClick={() => { window.location.href = R.ingreso }} startIcon={<ArrowBack />} sx={{ ...botonAccionSx, mt: 1, color: 'primary.main', borderColor: 'divider' }}>
               Volver al ingreso
             </Button>
           </Box>
-        </Box>
+        </Card>
+
+        <Typography sx={{ mt: { xs: 'clamp(14px, 2.5vh, 26px)', sm: 2 }, textAlign: 'center', fontSize: type.caption, color: 'text.secondary' }}>
+          Fletes Express <span style={{ opacity: 0.5 }}>•</span> Acceso privado
+        </Typography>
       </Box>
     </Box>
   )

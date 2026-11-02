@@ -449,7 +449,7 @@ export function IngresoPage() {
                   <EtiquetaCampo text="Contraseña" htmlFor="login-password" />
                   <Button
                     type="button"
-                    onClick={() => resetForm('request')}
+                    onClick={() => { window.location.href = R.recuperar }}
                     sx={{
                       position: 'relative',
                       minWidth: 0,
@@ -580,21 +580,6 @@ export function IngresoPage() {
             >
               {submitting ? modeCopy.submitting : modeCopy.submit}
             </Button>
-            {mode === 'login' && (
-              <Button
-                type="button"
-                onClick={() => { window.location.href = R.recuperar }}
-                fullWidth
-                variant="text"
-                sx={{
-                  ...botonAccionSx,
-                  mt: 1,
-                  color: 'primary.main',
-                }}
-              >
-                Recuperar contraseña
-              </Button>
-            )}
             {mode !== 'login' && (
               <Button
                 type="button"
