@@ -15,7 +15,17 @@ import { color } from '../design/tokens'
 import { DEMO_DATE } from '../format'
 import { addDays, workWeekDays } from '../agendaDates'
 import { loadSettings } from '../settingsStore'
-import { tripForMap } from '../tripForMap'
+import type { ShiftRequest } from '../types'
+
+const WINDOW_DAYS = 7
+
+function isTripInProgress(trip: ShiftRequest): boolean {
+  return String(trip.status) === 'En viaje' || (
+    trip.status === 'Confirmada' &&
+    Boolean(trip.arrivedAt) &&
+    !trip.finishedAt
+  )
+}
 
 export function AgendaPage() {
   const [anchor, setAnchor] = useState(DEMO_DATE)
@@ -91,10 +101,33 @@ export function AgendaPage() {
   }
 
   const selected = allRequests.find((request) => request.id === selectedId) ?? null
-  const mapChoice = useMemo(
-    () => tripForMap(allRequests, mapTripId, timeZone, now),
-    [allRequests, mapTripId, timeZone, now],
+  const today = useMemo(
+    () => new Intl.DateTimeFormat('en-CA', { timeZone }).format(now),
+    [now, timeZone],
   )
+  const upcomingMapTrips = useMemo(() => {
+    const maxDate = addDays(today, WINDOW_DAYS)
+    const filtered = allRequests.filter(
+      (request) =>
+        (filters.driver === 'all' || request.driverId === filters.driver) &&
+        (filters.vehicle === 'all' || request.vehicleId === filters.vehicle) &&
+        (filters.status === 'all' || request.status === filters.status) &&
+        (request.status === 'Confirmada' || isTripInProgress(request)),
+    )
+    const inWindow = filtered.filter(
+      (request) => isTripInProgress(request) || (request.date >= today && request.date <= maxDate),
+    )
+    return inWindow
+      .sort(
+        (a, b) =>
+          Number(isTripInProgress(b)) - Number(isTripInProgress(a)) ||
+          a.date.localeCompare(b.date) ||
+          a.serviceRange[0].localeCompare(b.serviceRange[0]),
+      )
+  }, [allRequests, filters, today])
+  const selectedMapTrip = mapTripId ? allRequests.find((request) => request.id === mapTripId) ?? null : null
+  const mapTrips = selectedMapTrip ? [selectedMapTrip] : upcomingMapTrips
+  const mapChoice = selectedMapTrip ?? upcomingMapTrips[0] ?? null
   const selectedDriverName = selected?.driverId ? drivers.find((driver) => driver.id === selected.driverId)?.name : undefined
   const selectedVehicleName = selected?.vehicleId
     ? `${selected.vehicleId} · ${vehicles.find((vehicle) => vehicle.id === selected.vehicleId)?.type ?? ''}`
@@ -139,12 +172,11 @@ export function AgendaPage() {
       breadcrumb={[SECCION_BREADCRUMB, 'Agenda']}
       title="Agenda de viajes"
       fill
-      mapTrip={mapChoice?.trip}
-      mapReason={mapChoice?.reason}
+      mapTrip={mapChoice}
+      mapTrips={mapTrips}
+      mapReason={selectedMapTrip ? 'seleccionado' : mapChoice && isTripInProgress(mapChoice) ? 'en-curso' : mapChoice ? 'proximo' : null}
       onClearMapTrip={() => selectMapTrip(null)}
-      onOpenMapTripDetail={() => {
-        if (mapChoice) setSelectedId(mapChoice.trip.id)
-      }}
+      onOpenMapTripDetail={(trip) => setSelectedId(trip.id)}
       description={trips.length === 0 ? 'Sin viajes en la vista' : `${tripCountLabel} en la vista`}
       action={
         !isMobile ? (

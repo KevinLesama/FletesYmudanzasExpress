@@ -139,9 +139,10 @@ interface AppShellProps {
   /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
   fill?: boolean
   mapTrip?: ShiftRequest | null
+  mapTrips?: ShiftRequest[]
   mapReason?: TripForMapReason | null
   onClearMapTrip?: () => void
-  onOpenMapTripDetail?: () => void
+  onOpenMapTripDetail?: (trip: ShiftRequest) => void
   children: ReactNode
 }
 
@@ -154,6 +155,7 @@ export function AppShell({
   action,
   fill,
   mapTrip,
+  mapTrips,
   mapReason,
   onClearMapTrip,
   onOpenMapTripDetail,
@@ -191,6 +193,7 @@ export function AppShell({
       <Box sx={{ flexGrow: 1, minHeight: 180, my: 2, display: 'flex' }}>
         <MapPreview
           trip={mapTrip}
+          trips={mapTrips}
           reason={mapReason}
           onClear={onClearMapTrip}
           onOpenDetail={onOpenMapTripDetail}

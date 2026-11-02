@@ -67,6 +67,9 @@ export default defineConfig(({ mode }) => {
   return {
     base: '/',
     plugins: [react(), mpaRoutes()],
+    optimizeDeps: {
+      exclude: ['maplibre-gl'],
+    },
     server: {
       port: 5173,
       proxy: {

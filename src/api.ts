@@ -339,10 +339,11 @@ function legacySolicitudPayload(payload: Json): Json {
   const estado = payload.estado ?? payload.status
   if (estado) out.estado = ESTADO_DESDE_LABEL[String(estado)] ?? estado
 
-  const chofer = payload.chofer_id ?? payload.driver_id
-  if (chofer != null && chofer !== '') out.chofer_id = Number(chofer)
-  const vehiculo = payload.vehiculo_id ?? payload.vehicle_id
-  if (vehiculo != null && vehiculo !== '') out.vehiculo_id = Number(vehiculo)
+  const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(payload, key)
+  const chofer = hasOwn('chofer_id') ? payload.chofer_id : payload.driver_id
+  if (chofer !== undefined) out.chofer_id = chofer === null || chofer === '' ? null : Number(chofer)
+  const vehiculo = hasOwn('vehiculo_id') ? payload.vehiculo_id : payload.vehicle_id
+  if (vehiculo !== undefined) out.vehiculo_id = vehiculo === null || vehiculo === '' ? null : Number(vehiculo)
 
   const precio = payload.precio_final ?? payload.price
   if (precio != null && precio !== '') out.precio_final = Number(precio)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -149,27 +149,34 @@ export function PlanificacionPage() {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
-  const [saved, setSaved] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
+  const initializedRequestId = useRef<string | null>(null)
 
-  // Sincroniza el formulario cuando llega la solicitud.
+  // Inicializa los campos editables sólo para el viaje actual. Las recargas
+  // posteriores actualizan `request`, pero no deben pisar cambios locales.
   useEffect(() => {
-    if (!request) return
+    if (!request || request.id !== id || initializedRequestId.current === id) return
+    initializedRequestId.current = id
     setDriverId(request.driverId ?? '')
-    setVehicleId(isMobile ? request.vehicleId ?? '' : '')
+    setVehicleId(request.vehicleId ?? '')
     setStart(request.serviceRange[0] || '11:00')
     setEnd(request.serviceRange[1] || '13:00')
     setPrice(String(request.price ?? 0))
     setPriceTouched(Boolean(request.priceOverridden))
     setWaitMinutes(String(request.waitMinutes ?? 120))
+  }, [id, request])
+
+  // Estos valores son de lectura y sí deben reflejar cada respuesta nueva.
+  useEffect(() => {
+    if (!request) return
     setConfirmedState(request.status === 'Confirmada')
     setCancelled(request.status === 'Cancelada')
-  }, [request, isMobile])
+  }, [request])
 
   // Cotizacion del backend con las tarifas del chofer elegido. Se recalcula al
   // cambiar chofer o espera; es solo una vista previa hasta guardar.
@@ -202,7 +209,7 @@ export function PlanificacionPage() {
       cancelledRequest = true
       window.clearTimeout(timer)
     }
-  }, [request, driverId, waitMinutes])
+  }, [request?.id, request?.estimatedKm, driverId, waitMinutes])
 
   useEffect(() => {
     if (quote && !priceTouched) setPrice(String(Math.round(quote.suggestedPrice)))
@@ -211,7 +218,10 @@ export function PlanificacionPage() {
   useEffect(() => {
     if (catalogState.loading) return
     if (driverId && !availableDrivers.some((driver) => driver.id === driverId)) setDriverId('')
-    if (vehicleId && !availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)) setVehicleId('')
+    if (vehicleId && !availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)) {
+      setVehicleId('')
+      setToast({ message: 'El vehículo guardado ya no está disponible y fue descartado de la planificación.', tone: 'error' })
+    }
   }, [catalogState.loading, driverId, vehicleId, availableDrivers, availableVehicles])
 
   const [confirmedState, setConfirmedState] = useState(false)
@@ -224,6 +234,22 @@ export function PlanificacionPage() {
   const priceOverridden = Boolean(request?.priceOverridden)
   const suggestedPrice = quote?.suggestedPrice ?? request?.suggestedPrice ?? 0
   const hasDistance = request?.estimatedKm != null
+  const planningPayload = {
+    driver_id: driverId || null,
+    vehicle_id: vehicleId || null,
+    service_from: start,
+    service_to: end,
+    price: Number(price || 0),
+    espera_min: Number(waitMinutes || 0),
+  }
+  const hasUnsavedChanges =
+    !!request &&
+    (driverId !== (request.driverId ?? '') ||
+      vehicleId !== (request.vehicleId ?? '') ||
+      start !== (request.serviceRange[0] || '11:00') ||
+      end !== (request.serviceRange[1] || '13:00') ||
+      Number(price || 0) !== Number(request.price ?? 0) ||
+      Number(waitMinutes || 0) !== Number(request.waitMinutes ?? 120))
 
   const selectedDriver = drivers.find((d) => d.id === driverId)
   const selectedVehicle = vehicles.find((v) => v.vehicleId === vehicleId)
@@ -543,7 +569,7 @@ export function PlanificacionPage() {
                       setPriceTouched(false)
                     },
                     'Precio recalculado',
-                  ).then(() => setSaved(false))
+                  )
                 }}
                 sx={{ color: brand.navy }}
               >
@@ -671,7 +697,7 @@ export function PlanificacionPage() {
           </Stack>
 
           <Stack spacing={2.5}>
-            <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={saved ? 'Guardada' : 'Sin guardar'} />}>
+            <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={hasUnsavedChanges ? 'Sin guardar' : 'Guardada'} />}>
               <Typography sx={{ fontSize: 12.5, color: '#64707C', mb: 1.5 }}>
                 Acordá precio, horario y asignación.
               </Typography>
@@ -741,17 +767,9 @@ export function PlanificacionPage() {
                 sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }}
                 onClick={() =>
                   runAction(
-                    () =>
-                      api.updateRequest(request.id, {
-                        driver_id: driverId || null,
-                        vehicle_id: vehicleId || null,
-                        service_from: start,
-                        service_to: end,
-                        price: Number(price || 0),
-                        espera_min: Number(waitMinutes || 0),
-                      }),
+                    () => api.updateRequest(request.id, planningPayload),
                     'Planificación tentativa guardada',
-                  ).then(() => setSaved(true))
+                  )
                 }
               >
                 Guardar planificación tentativa
@@ -837,10 +855,7 @@ export function PlanificacionPage() {
           setDialogOpen(false)
           runAction(
             async () => {
-              await api.updateRequest(request.id, {
-                price: Number(price || 0),
-                espera_min: Number(waitMinutes || 0),
-              })
+              if (hasUnsavedChanges) await api.updateRequest(request.id, planningPayload)
               return api.addPayment(request.id, {
                 concept,
                 method,
