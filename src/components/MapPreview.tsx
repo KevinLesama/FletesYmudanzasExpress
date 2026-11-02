@@ -27,7 +27,7 @@ import { alpha } from '@mui/material/styles'
 import { MapContainer, Marker, Polyline, useMap } from 'react-leaflet'
 import { color, motion, shadow, type as typeScale } from '../design/tokens'
 import { api } from '../api'
-import { fmtDate } from '../format'
+import { fmtDate, formatShortPlace } from '../format'
 import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
 import { StatusChip } from './StatusChip'
@@ -77,8 +77,7 @@ function isCoordinate(lat: number | undefined, lng: number | undefined): lat is 
 }
 
 function addressFor(place: ShiftRequest['origin']): string {
-  if (place.address && place.barrio) return `${place.address} · ${place.barrio}`
-  return place.address || place.barrio || 'Dirección no disponible'
+  return formatShortPlace(place) || 'Dirección no disponible'
 }
 
 type TripMapLabelTone = 'live' | 'muted' | 'warning' | 'neutral'

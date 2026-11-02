@@ -28,6 +28,7 @@ import { R } from '../routes'
 import { brand } from '../theme'
 import { fmtDate, formatShortPlace } from '../format'
 import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
+import type { ShiftRequest } from '../types'
 
 const LIST_PAGE_SIZE = 10
 
@@ -39,6 +40,14 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'Finalizada', label: 'Finalizada' },
   { value: 'Cancelada', label: 'Cancelada' },
 ]
+
+function paymentLabel(request: ShiftRequest): string {
+  const collected = request.payments?.length
+    ? request.payments.reduce((total, payment) => total + payment.amount, 0)
+    : request.depositReceived
+  if (request.price > 0 && collected >= request.price) return 'Pagado'
+  return collected > 0 ? 'Seña recibida' : 'Sin seña'
+}
 
 export function SolicitudesPage() {
   const theme = useTheme()
@@ -272,7 +281,17 @@ export function SolicitudesPage() {
                       </Typography>
                     </Stack>
                   </TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}><StatusChip label={r.status} /></TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                    <Stack spacing={0.5} alignItems="flex-start">
+                      <StatusChip label={r.status} />
+                      <Chip
+                        label={paymentLabel(r)}
+                        size="small"
+                        variant="outlined"
+                        sx={{ color: 'text.secondary', borderColor: 'divider', fontSize: 11 }}
+                      />
+                    </Stack>
+                  </TableCell>
                   <TableCell align="right">
                     <Button
                       size="small"
@@ -322,7 +341,15 @@ export function SolicitudesPage() {
                   <Typography sx={{ fontWeight: 800, fontSize: 13, color: brand.navy }}>{r.id}</Typography>
                   <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>· {fmtDate(r.date, true)}</Typography>
                 </Stack>
-                <StatusChip label={r.status} />
+                <Stack spacing={0.5} alignItems="flex-end">
+                  <StatusChip label={r.status} />
+                  <Chip
+                    label={paymentLabel(r)}
+                    size="small"
+                    variant="outlined"
+                    sx={{ color: 'text.secondary', borderColor: 'divider', fontSize: 11 }}
+                  />
+                </Stack>
               </Stack>
               <Typography sx={{ mt: 1, fontSize: 15, fontWeight: 700 }}>{r.client}</Typography>
               <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.5 }}>

@@ -62,10 +62,6 @@ function getMinutesInTimeZone(date: Date, timeZone: string) {
   return hour * 60 + minute
 }
 
-function getHourInTimeZone(date: Date, timeZone: string) {
-  return Math.floor(getMinutesInTimeZone(date, timeZone) / 60)
-}
-
 export function AgendaPage() {
   const [anchor, setAnchor] = useState(() => getInitialAnchor(new Date()))
   const [view, setView] = useState<AgendaView>('workWeek')
@@ -243,12 +239,6 @@ export function AgendaPage() {
     </Box>
   )
 
-  const nowMinutes = getHourInTimeZone(now, profile.timezone) * 60 + Number(
-    new Intl.DateTimeFormat('en-US', { minute: 'numeric', timeZone: profile.timezone }).format(now),
-  )
-  const todayIndex = days.indexOf(today)
-  const nowLineVisible = todayIndex >= 0 && nowMinutes >= 7 * 60 && nowMinutes <= 19 * 60
-
   const header = (
     <EncabezadoPagina
       kicker={agendaDateLabel}
@@ -391,23 +381,10 @@ export function AgendaPage() {
               days={days}
               trips={trips}
               today={today}
+              now={now}
               fill={!isMobile}
               onOpenTrip={(trip) => handleGridSelection(trip.id)}
             />
-            {nowLineVisible && (
-              <Box
-                aria-hidden="true"
-                sx={{
-                  position: 'absolute',
-                  top: `calc(58px + ${(nowMinutes - 7 * 60) / 60 * 68}px)`,
-                  left: `calc(62px + ((100% - 62px) * ${todayIndex} / ${days.length}))`,
-                  width: `calc((100% - 62px) / ${days.length})`,
-                  borderTop: `2px solid ${brand.orangeStrong}`,
-                  pointerEvents: 'none',
-                  zIndex: 1,
-                }}
-              />
-            )}
           </Box>
         )}
       </Box>

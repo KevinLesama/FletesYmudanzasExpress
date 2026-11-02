@@ -20,6 +20,11 @@ export function isTripInProgress(trip: ShiftRequest): boolean {
   )
 }
 
+function hasEnded(trip: ShiftRequest, now: Date): boolean {
+  const end = new Date(`${trip.date}T${trip.serviceRange[1]}:00`)
+  return !Number.isNaN(end.getTime()) && end < now
+}
+
 export function selectMapTrips(
   requests: ShiftRequest[],
   filters: MapTripFilters = {},
@@ -31,7 +36,8 @@ export function selectMapTrips(
       (filters.driver === undefined || filters.driver === 'all' || request.driverId === filters.driver) &&
       (filters.vehicle === undefined || filters.vehicle === 'all' || request.vehicleId === filters.vehicle) &&
       (filters.status === undefined || filters.status === 'all' || request.status === filters.status) &&
-      (request.status === 'Confirmada' || isTripInProgress(request)),
+      (request.status === 'Confirmada' || isTripInProgress(request)) &&
+      (!hasEnded(request, new Date()) || isTripInProgress(request)),
     )
     .filter((request) => isTripInProgress(request) || (request.date >= today && request.date <= maxDate))
     .sort(

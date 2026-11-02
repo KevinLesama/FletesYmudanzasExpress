@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { Box, Typography } from '@mui/material'
+import { useEffect, useRef, useState } from 'react'
+import { alpha, Box, Typography } from '@mui/material'
 import { color, type } from '../design/tokens'
 import { dayNumber, weekdayShort } from '../agendaDates'
 import { formatShortPlace } from '../format'
+import { loadSettings } from '../settingsStore'
 import type { RequestStatus, ShiftRequest } from '../types'
 
 const HOUR_START = 7
@@ -14,6 +15,9 @@ const ROW_H = 68
 const COL_GAP = 6
 const EDGE_GAP = 6
 const CONTENT_H = (HOUR_END - HOUR_START) * ROW_H
+const NOW_LINE_COLOR = '#F97316'
+const NOW_LINE_WIDTH = 2
+const NOW_DOT_SIZE = 8
 
 export const ESTADOS_AGENDA = [
   { key: 'Pendiente de revisión', label: 'Pendiente de revisión', bg: color.blueSoft, border: color.border, ink: color.blue },
@@ -79,6 +83,23 @@ function styleFor(status: RequestStatus) {
   return STATUS_STYLE[status] ?? STATUS_STYLE['Pendiente de seña']
 }
 
+function getAgendaTime(date: Date, timeZone: string): { date: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map(({ type: part, value }) => [part, value]))
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    minutes: Number(values.hour) * 60 + Number(values.minute),
+  }
+}
+
 function fullPlaceLabel(place: ShiftRequest['origin']): string {
   return [place.label, place.address, place.barrio].filter(Boolean).join(' · ')
 }
@@ -128,6 +149,7 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
         overflow: 'hidden',
         cursor: 'pointer',
         outline: 0,
+        zIndex: 1,
         opacity: cancelled ? 0.75 : 1,
         transition: 'box-shadow 120ms, transform 120ms',
         '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 10px rgba(19,43,74,0.09)' },
@@ -189,14 +211,9 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
                   fontSize: 11,
                   color: color.ink,
                   lineHeight: 1.4,
-                  whiteSpace: 'normal',
-                  overflowWrap: 'anywhere',
-                  ...(cols > 1 && {
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical',
-                    WebkitLineClamp: 1,
-                  }),
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 {origin}
@@ -208,14 +225,9 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
                   fontSize: 11,
                   color: color.ink,
                   lineHeight: 1.4,
-                  whiteSpace: 'normal',
-                  overflowWrap: 'anywhere',
-                  ...(cols > 1 && {
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical',
-                    WebkitLineClamp: 1,
-                  }),
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 {destination}
@@ -231,22 +243,73 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
 function DayColumn({
   trips,
   isToday,
+  nowMinutes,
   onOpenTrip,
 }: {
   trips: ShiftRequest[]
   isToday: boolean
+  nowMinutes?: number
   onOpenTrip: (trip: ShiftRequest) => void
 }) {
   const placed = computeLanes(trips)
+  const nowPosition =
+    nowMinutes !== undefined && nowMinutes >= MIN_START && nowMinutes <= MIN_END
+      ? ((nowMinutes - MIN_START) / 60) * ROW_H
+      : undefined
   return (
     <Box
       sx={{
         position: 'relative',
         height: CONTENT_H,
+        overflow: 'hidden',
         borderLeft: `1px solid ${color.borderSoft}`,
-        bgcolor: isToday ? 'rgba(19,43,74,0.015)' : 'transparent',
+        bgcolor: isToday ? alpha(color.navy, 0.015) : 'transparent',
       }}
     >
+      {isToday && nowPosition !== undefined && (
+        <>
+          <Box
+            aria-hidden="true"
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: nowPosition,
+              bgcolor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.04),
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+          <Box
+            aria-hidden="true"
+            sx={{
+              position: 'absolute',
+              top: nowPosition,
+              left: 0,
+              right: 0,
+              borderTop: `${NOW_LINE_WIDTH}px solid ${NOW_LINE_COLOR}`,
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+          <Box
+            aria-hidden="true"
+            sx={{
+              position: 'absolute',
+              top: nowPosition,
+              left: 0,
+              width: NOW_DOT_SIZE,
+              height: NOW_DOT_SIZE,
+              borderRadius: '50%',
+              bgcolor: NOW_LINE_COLOR,
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+        </>
+      )}
       {Array.from({ length: HOUR_END - HOUR_START - 1 }, (_, index) => (
         <Box
           key={`rule-${index}`}
@@ -264,12 +327,14 @@ export function AgendaGrid({
   days,
   trips,
   today,
+  now,
   fill,
   onOpenTrip,
 }: {
   days: string[]
   trips: ShiftRequest[]
   today: string
+  now?: Date
   /** El grid ocupa el alto disponible y hace scroll interno, con el encabezado fijo. */
   fill?: boolean
   onOpenTrip: (trip: ShiftRequest) => void
@@ -284,12 +349,23 @@ export function AgendaGrid({
   const columns = `repeat(${days.length}, minmax(0, 1fr))`
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [currentNow, setCurrentNow] = useState(() => now ?? new Date())
+  const timezone = loadSettings().profile.timezone
+  const agendaTime = getAgendaTime(currentNow, timezone)
+  const nowMinutes = agendaTime.date === today ? agendaTime.minutes : undefined
   const scrollKey = `${days.join('|')}|${trips
     .map((trip) => `${trip.id}:${trip.serviceRange[0]}`)
     .join('|')}`
+  const scrollReference = trips.length === 0 ? agendaTime.minutes : null
+
+  useEffect(() => {
+    setCurrentNow(now ?? new Date())
+    const timer = window.setInterval(() => setCurrentNow(new Date()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [now])
 
   // Abre la grilla en el borde exacto de una hora: una hora antes del primer
-  // viaje visible (o de la hora actual si no hay viajes). El encabezado sticky
+  // viaje visible. El encabezado sticky
   // de los días vive dentro del contenedor que scrollea, así que su alto ya
   // está descontado: alinear la fila en `hourIndex * ROW_H` la deja justo
   // debajo del encabezado fijo, sin cortar ninguna fila de hora.
@@ -298,19 +374,18 @@ export function AgendaGrid({
     if (!element || !fill) return
     const firstStart =
       trips.length > 0 ? Math.min(...trips.map((trip) => toMin(trip.serviceRange[0]))) : null
-    const now = new Date()
-    const nowMinutes = now.getHours() * 60 + now.getMinutes()
-    const reference = firstStart ?? nowMinutes
+    const reference = firstStart ?? scrollReference ?? MIN_START
     const targetHour = Math.max(HOUR_START, Math.min(HOUR_END - 1, Math.floor(reference / 60) - 1))
     const top = (targetHour - HOUR_START) * ROW_H
     element.scrollTo({ top, behavior: 'smooth' })
-  }, [scrollKey, fill])
+  }, [fill, scrollKey, scrollReference])
 
   return (
     <Box
       ref={scrollRef}
       sx={{
         overflowX: 'auto',
+        '& + [aria-hidden="true"]': { display: 'none' },
         ...(fill && { flex: 1, minHeight: 0, overflowY: 'auto' }),
       }}
     >
@@ -374,7 +449,7 @@ export function AgendaGrid({
             gridTemplateColumns: `${GUTTER}px ${columns}`,
           }}
         >
-          <Box sx={{ position: 'relative', height: CONTENT_H }}>
+          <Box sx={{ position: 'sticky', left: 0, zIndex: 1, height: CONTENT_H, bgcolor: color.paper }}>
             {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => {
               return (
                 <Typography
@@ -408,6 +483,7 @@ export function AgendaGrid({
               key={day}
               trips={tripsByDay.get(day) ?? []}
               isToday={day === today}
+              nowMinutes={day === today ? nowMinutes : undefined}
               onOpenTrip={onOpenTrip}
             />
           ))}

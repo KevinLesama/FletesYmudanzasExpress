@@ -27,9 +27,12 @@ export function formatShortPlace(place: { address: string; barrio: string }): st
   const locality = place.barrio.trim()
   const firstSegment = address.split(',')[0]?.trim() ?? ''
   const ignoredSegment = /^(partido|municipio|departamento)\s+de\s+/i
+  const administrativeSegment = /(provincia|argentina|buenos aires|c[oó]digo postal|\bcp\b|\d{4,})/i
   const cleanSegment = (segment: string) => segment.replace(ignoredSegment, '').trim()
+  const isUsefulSegment = (segment: string) => segment && !administrativeSegment.test(segment)
   const shortAddress = cleanSegment(firstSegment)
-  const shortLocality = cleanSegment(locality)
+  const cleanedLocality = cleanSegment(locality)
+  const shortLocality = isUsefulSegment(cleanedLocality) ? cleanedLocality : ''
 
   if (!shortLocality && address.length <= 32) return address
   if (shortLocality && shortAddress) return `${shortAddress} · ${shortLocality}`
@@ -39,7 +42,7 @@ export function formatShortPlace(place: { address: string; barrio: string }): st
     .split(',')
     .slice(1)
     .map((segment) => cleanSegment(segment))
-    .find((segment) => segment && !/(\d{4,}|argentina|buenos aires|provincia)/i.test(segment))
+    .find(isUsefulSegment)
 
   return city && shortAddress ? `${shortAddress} · ${city}` : shortAddress || address
 }
