@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -41,6 +42,7 @@ from app.schemas import (
     ClientLoginIn,
 )
 from app.services import business, pricing, serializers
+from app.services.supabase_admin import SupabaseAdminError, delete_user, invite_user
 from app.services.scraping import get_geo_service
 from app.services.scraping.schemas import GeoStatus
 
@@ -259,11 +261,37 @@ def list_drivers(db: Session = Depends(get_db)) -> list[ChoferOut]:
     dependencies=[Depends(require_role("administrador"))],
 )
 def create_driver(payload: ChoferIn, db: Session = Depends(get_db)) -> ChoferOut:
+    settings = get_settings()
+
+    normalized_email = payload.email.strip().lower()
+    email_exists = db.scalar(
+        select(Usuario.id).where(func.lower(Usuario.email) == normalized_email).limit(1)
+    )
+    if email_exists is not None:
+        raise HTTPException(status_code=409, detail="Ya existe un usuario con ese email.")
+
+    normalized_phone = db.scalar(
+        select(Usuario.id)
+        .where(
+            Usuario.rol == "chofer",
+            func.regexp_replace(Usuario.telefono, r"\D", "", "g")
+            == func.regexp_replace(payload.telefono, r"\D", "", "g"),
+        )
+        .limit(1)
+    )
+    if normalized_phone is not None:
+        raise HTTPException(status_code=409, detail="Ya existe un chofer con ese teléfono.")
+
+    try:
+        auth_user_id = invite_user(normalized_email, settings)
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     chofer = Usuario(
         rol="chofer",
         nombre=payload.nombre,
         telefono=payload.telefono,
-        email=payload.email,
+        email=normalized_email,
         licencia=payload.licencia,
         tarifa_base=payload.tarifa_base,
         tarifa_por_km=payload.tarifa_por_km,
@@ -272,11 +300,30 @@ def create_driver(payload: ChoferIn, db: Session = Depends(get_db)) -> ChoferOut
     )
     db.add(chofer)
     try:
+        db.flush()
+        db.execute(
+            text("UPDATE usuarios SET auth_user_id = :auth_user_id WHERE id = :usuario_id"),
+            {"auth_user_id": auth_user_id, "usuario_id": chofer.id},
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
+        delete_user(auth_user_id, settings)
+        constraint_name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        if constraint_name == "uq_usuarios_rol_telefono":
+            detail = "Ya existe un chofer con ese teléfono."
+        elif constraint_name == "uq_usuarios_email":
+            detail = "Ya existe un usuario con ese email."
+        else:
+            detail = "No se pudo guardar el chofer porque sus datos entran en conflicto con otro registro."
         raise HTTPException(
-            status_code=409, detail="Ya existe un usuario con ese email."
+            status_code=409, detail=detail
+        ) from exc
+    except Exception as exc:
+        db.rollback()
+        delete_user(auth_user_id, settings)
+        raise HTTPException(
+            status_code=503, detail="No se pudo completar el alta del chofer."
         ) from exc
     db.refresh(chofer)
     return serializers.serialize_driver(chofer)

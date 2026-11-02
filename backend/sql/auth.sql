@@ -33,9 +33,9 @@
 --   El ROL sale de `usuarios.rol`, nunca del token ni del app_metadata de
 --   Supabase: habilitar o cambiar permisos se hace desde el panel.
 --
---   El alta de cuentas sigue siendo manual (Authentication > Users) usando el
---   MISMO email cargado en el panel. Ver backend/sql/futuraBD.sql para las
---   decisiones pendientes sobre altas automáticas e invitaciones.
+--   El alta desde el panel de flota usa la invitación administrativa de
+--   Supabase Auth. Si se cargan perfiles por SQL, todavía deben invitarse
+--   manualmente desde Authentication > Users usando el MISMO email.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------

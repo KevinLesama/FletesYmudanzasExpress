@@ -6,6 +6,7 @@ const PAGES: Record<string, string> = {
   '/': '/ingreso.html',
   '/landing': '/landing.html',
   '/ingreso': '/ingreso.html',
+  '/recuperar': '/recuperar.html',
   '/agenda': '/agenda.html',
   '/solicitudes': '/solicitudes.html',
   '/solicitudes/nueva': '/nueva-solicitud.html',
@@ -20,6 +21,7 @@ const PAGES: Record<string, string> = {
 const PAGE_HTML = [
   'landing.html',
   'ingreso.html',
+  'recuperar.html',
   'agenda.html',
   'solicitudes.html',
   'nueva-solicitud.html',
