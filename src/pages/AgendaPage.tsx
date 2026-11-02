@@ -16,16 +16,7 @@ import { DEMO_DATE } from '../format'
 import { addDays, workWeekDays } from '../agendaDates'
 import { loadSettings } from '../settingsStore'
 import type { ShiftRequest } from '../types'
-
-const WINDOW_DAYS = 7
-
-function isTripInProgress(trip: ShiftRequest): boolean {
-  return String(trip.status) === 'En viaje' || (
-    trip.status === 'Confirmada' &&
-    Boolean(trip.arrivedAt) &&
-    !trip.finishedAt
-  )
-}
+import { isTripInProgress, useMapTrips } from '../useMapTrips'
 
 export function AgendaPage() {
   const [anchor, setAnchor] = useState(DEMO_DATE)
@@ -105,26 +96,11 @@ export function AgendaPage() {
     () => new Intl.DateTimeFormat('en-CA', { timeZone }).format(now),
     [now, timeZone],
   )
-  const upcomingMapTrips = useMemo(() => {
-    const maxDate = addDays(today, WINDOW_DAYS)
-    const filtered = allRequests.filter(
-      (request) =>
-        (filters.driver === 'all' || request.driverId === filters.driver) &&
-        (filters.vehicle === 'all' || request.vehicleId === filters.vehicle) &&
-        (filters.status === 'all' || request.status === filters.status) &&
-        (request.status === 'Confirmada' || isTripInProgress(request)),
-    )
-    const inWindow = filtered.filter(
-      (request) => isTripInProgress(request) || (request.date >= today && request.date <= maxDate),
-    )
-    return inWindow
-      .sort(
-        (a, b) =>
-          Number(isTripInProgress(b)) - Number(isTripInProgress(a)) ||
-          a.date.localeCompare(b.date) ||
-          a.serviceRange[0].localeCompare(b.serviceRange[0]),
-      )
-  }, [allRequests, filters, today])
+  const { trips: upcomingMapTrips } = useMapTrips(
+    allRequests,
+    { driver: filters.driver, vehicle: filters.vehicle, status: filters.status },
+    today,
+  )
   const selectedMapTrip = mapTripId ? allRequests.find((request) => request.id === mapTripId) ?? null : null
   const mapTrips = selectedMapTrip ? [selectedMapTrip] : upcomingMapTrips
   const mapChoice = selectedMapTrip ?? upcomingMapTrips[0] ?? null
@@ -174,6 +150,8 @@ export function AgendaPage() {
       fill
       mapTrip={mapChoice}
       mapTrips={mapTrips}
+      mapRequests={allRequests}
+      mapRequestsLoading={requestsState.loading}
       mapReason={selectedMapTrip ? 'seleccionado' : mapChoice && isTripInProgress(mapChoice) ? 'en-curso' : mapChoice ? 'proximo' : null}
       onClearMapTrip={() => selectMapTrip(null)}
       onOpenMapTripDetail={(trip) => setSelectedId(trip.id)}

@@ -73,6 +73,11 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 type Json = Record<string, any>
 
 const hhmm = (t: string | null | undefined): string => (t ? t.slice(0, 5) : '')
+const coordinate = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
 
 function mapClient(c: Json): Client {
   return {
@@ -154,8 +159,8 @@ function mapRequest(r: Json): ShiftRequest {
       floor: String(r.origin_floor ?? r.origen_piso ?? ''),
       elevator: Boolean(r.origin_elevator ?? r.origen_ascensor),
       placeId: r.origen_place_id ?? undefined,
-      lat: r.origen_lat ?? undefined,
-      lng: r.origen_lng ?? undefined,
+      lat: coordinate(r.origen_lat ?? r.origin_lat),
+      lng: coordinate(r.origen_lng ?? r.origin_lng),
     },
     destination: {
       label: 'Destino',
@@ -164,8 +169,8 @@ function mapRequest(r: Json): ShiftRequest {
       floor: String(r.destination_floor ?? r.destino_piso ?? ''),
       elevator: Boolean(r.destination_elevator ?? r.destino_ascensor),
       placeId: r.destino_place_id ?? undefined,
-      lat: r.destino_lat ?? undefined,
-      lng: r.destino_lng ?? undefined,
+      lat: coordinate(r.destino_lat ?? r.destination_lat),
+      lng: coordinate(r.destino_lng ?? r.destination_lng),
     },
     cargo: {
       items: (r.cargo_items ?? []).map((i: Json) => ({

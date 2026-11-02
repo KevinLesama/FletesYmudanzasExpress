@@ -31,10 +31,12 @@ import { fmtDate } from '../format'
 import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
 import { StatusChip } from './StatusChip'
+import { WINDOW_DAYS } from '../useMapTrips'
 
 export interface MapPreviewProps {
   trip?: ShiftRequest | null
   trips?: ShiftRequest[]
+  tripsLoading?: boolean
   reason?: TripForMapReason | null
   onClear?: () => void
   onOpenDetail?: (trip: ShiftRequest) => void
@@ -61,7 +63,6 @@ const COLORS = {
   route: '#1E2A4A',
   destination: '#C2410C',
 } as const
-const WINDOW_DAYS = 7
 const ROUTE_CACHE_LIMIT = 128
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl)
@@ -98,6 +99,7 @@ function formatDistance(km: number): string {
 
 function MapLibreLayer() {
   const map = useMap()
+  const layerRef = useRef<ReturnType<typeof maplibreGL> | null>(null)
 
   useEffect(() => {
     if (!MAP_STYLE_URL) {
@@ -110,14 +112,24 @@ function MapLibreLayer() {
       interactive: false,
       attributionControl: false,
     })
+    layerRef.current = layer
     map.attributionControl.addAttribution(MAP_ATTRIBUTION)
     map.addLayer(layer)
-    const resizeFrame = window.requestAnimationFrame(() => map.invalidateSize({ pan: false }))
+    const resize = () => {
+      map.invalidateSize({ pan: false })
+      layer.getMaplibreMap()?.resize()
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(map.getContainer())
+    const resizeFrame = window.requestAnimationFrame(resize)
 
     return () => {
       window.cancelAnimationFrame(resizeFrame)
+      observer.disconnect()
       map.attributionControl.removeAttribution(MAP_ATTRIBUTION)
-      if (map.hasLayer(layer)) map.removeLayer(layer)
+      const activeLayer = layerRef.current
+      if (activeLayer && map.hasLayer(activeLayer)) map.removeLayer(activeLayer)
+      layerRef.current = null
     }
   }, [map])
 
@@ -390,19 +402,22 @@ function FitMap({
   const map = useMap()
 
   useEffect(() => {
-    map.invalidateSize({ pan: false })
-    if (positions.length === 0) {
-      map.setView(BUENOS_AIRES, 11, { animate: false })
-      return
-    }
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize({ pan: false })
+      if (positions.length === 0) {
+        map.setView(BUENOS_AIRES, 11, { animate: false })
+        return
+      }
 
-    const bounds = L.latLngBounds(positions)
-    map.fitBounds(bounds, {
-      paddingTopLeft: [40, 48],
-      paddingBottomRight: [40, cardHeight + 16],
-      maxZoom: positions.length === 1 ? 14 : 16,
-      animate: !reducedMotion,
+      const bounds = L.latLngBounds(positions)
+      map.fitBounds(bounds, {
+        paddingTopLeft: [40, 48],
+        paddingBottomRight: [40, cardHeight + 16],
+        maxZoom: positions.length === 1 ? 14 : 16,
+        animate: !reducedMotion,
+      })
     })
+    return () => window.cancelAnimationFrame(frame)
   }, [cardHeight, map, positions, reducedMotion, tripId])
 
   return null
@@ -499,27 +514,6 @@ function MapContents({
         >
           <Skeleton width={88} height={16} />
         </Box>
-      )}
-      {!trip && (
-        <Typography
-          role="status"
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 1000,
-            p: 1,
-            borderRadius: 2,
-            bgcolor: alpha(color.paper, 0.92),
-            color: color.navy,
-            fontSize: 13,
-            fontWeight: 700,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Sin viajes en los próximos {WINDOW_DAYS} días
-        </Typography>
       )}
       {trip && !bothCoordinates && (
         <Typography
@@ -706,7 +700,7 @@ function MapCanvas({
   )
 }
 
-export function MapPreview({ trip, trips, reason, onClear, onOpenDetail }: MapPreviewProps) {
+export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear, onOpenDetail }: MapPreviewProps) {
   const [expanded, setExpanded] = useState(false)
   const [index, setIndex] = useState(0)
   const [cardHeight, setCardHeight] = useState(0)
@@ -855,6 +849,16 @@ export function MapPreview({ trip, trips, reason, onClear, onOpenDetail }: MapPr
           <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />
         )}
         {currentTrip && <TripCard trip={currentTrip} routeState={routeState} onOpenDetail={onOpenDetail} onHeightChange={setCardHeight} />}
+        {!currentTrip && tripsLoading && (
+          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92) }}>
+            <Skeleton width={160} height={20} />
+          </Box>
+        )}
+        {!currentTrip && !tripsLoading && (
+          <Typography role="status" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92), color: color.navy, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            Sin viajes en los próximos {WINDOW_DAYS} días
+          </Typography>
+        )}
       </Box>
 
       <Dialog

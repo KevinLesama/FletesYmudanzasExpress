@@ -185,9 +185,9 @@ export function SolicitudesPage() {
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtDate(r.date)}</TableCell>
                   <TableCell>
                     <Stack direction="row" alignItems="center" spacing={0.8}>
-                      <Typography sx={{ fontSize: 13.5 }}>{r.origin.barrio}</Typography>
+                      <Typography sx={{ fontSize: 13.5 }}>{r.origin.barrio || r.origin.address}</Typography>
                       <ArrowForward sx={{ fontSize: 13, color: '#8A929B' }} />
-                      <Typography sx={{ fontSize: 13.5 }}>{r.destination.barrio}</Typography>
+                      <Typography sx={{ fontSize: 13.5 }}>{r.destination.barrio || r.destination.address}</Typography>
                     </Stack>
                   </TableCell>
                   <TableCell><StatusChip label={r.status} /></TableCell>

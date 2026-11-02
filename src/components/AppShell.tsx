@@ -30,6 +30,7 @@ import { brand } from '../theme'
 import { loadSettings } from '../settingsStore'
 import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
+import { useMapTrips } from '../useMapTrips'
 
 const SEPARADOR_BREADCRUMB = '·'
 export const SECCION_BREADCRUMB = 'Operación'
@@ -140,6 +141,8 @@ interface AppShellProps {
   fill?: boolean
   mapTrip?: ShiftRequest | null
   mapTrips?: ShiftRequest[]
+  mapRequests?: ShiftRequest[]
+  mapRequestsLoading?: boolean
   mapReason?: TripForMapReason | null
   onClearMapTrip?: () => void
   onOpenMapTripDetail?: (trip: ShiftRequest) => void
@@ -156,6 +159,8 @@ export function AppShell({
   fill,
   mapTrip,
   mapTrips,
+  mapRequests,
+  mapRequestsLoading,
   mapReason,
   onClearMapTrip,
   onOpenMapTripDetail,
@@ -176,6 +181,10 @@ export function AppShell({
     initials: initialsFrom(name),
     photo: profile.photo,
   }
+  const fallbackMap = useMapTrips(mapRequests)
+  const effectiveMapTrips = mapTrips ?? fallbackMap.trips
+  const effectiveMapTrip = mapTrip ?? effectiveMapTrips[0] ?? null
+  const effectiveMapLoading = mapRequestsLoading ?? fallbackMap.loading
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -192,8 +201,9 @@ export function AppShell({
       </Stack>
       <Box sx={{ flexGrow: 1, minHeight: 180, my: 2, display: 'flex' }}>
         <MapPreview
-          trip={mapTrip}
-          trips={mapTrips}
+          trip={effectiveMapTrip}
+          trips={effectiveMapTrips}
+          tripsLoading={effectiveMapLoading}
           reason={mapReason}
           onClear={onClearMapTrip}
           onOpenDetail={onOpenMapTripDetail}
