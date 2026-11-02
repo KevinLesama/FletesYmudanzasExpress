@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
+    auth_invite_redirect_url: str = "http://localhost:5173/ingreso?modo=restablecer"
     # Google Maps Platform (Places API New + Routes API). La key es del backend:
     # nunca se expone en el bundle del frontend.
     google_maps_api_key: str = ""

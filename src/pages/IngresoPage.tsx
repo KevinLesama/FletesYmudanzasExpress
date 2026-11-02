@@ -102,6 +102,7 @@ function AnimatedAlert({
 }
 
 export function IngresoPage() {
+  const isInvitation = () => new URLSearchParams(window.location.hash.slice(1)).get('type') === 'invite'
   const [showPassword, setShowPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [email, setEmail] = useState('')
@@ -109,7 +110,7 @@ export function IngresoPage() {
   const [newPassword, setNewPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [mode, setMode] = useState<AuthMode>(() => (
-    new URLSearchParams(window.location.search).get('modo') === 'restablecer' ? 'update' : 'login'
+    new URLSearchParams(window.location.search).get('modo') === 'restablecer' || isInvitation() ? 'update' : 'login'
   ))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -129,7 +130,7 @@ export function IngresoPage() {
     if (!supabase) return undefined
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && isInvitation())) {
         setMode('update')
         setError(null)
         setMessage(null)
@@ -448,7 +449,7 @@ export function IngresoPage() {
                   <EtiquetaCampo text="Contraseña" htmlFor="login-password" />
                   <Button
                     type="button"
-                    onClick={() => resetForm('request')}
+                    onClick={() => { window.location.href = R.recuperar }}
                     sx={{
                       position: 'relative',
                       minWidth: 0,

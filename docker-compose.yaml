@@ -15,6 +15,7 @@ services:
     environment:
       APP_ENV: docker
       CORS_ORIGINS: http://localhost:8080
+      AUTH_INVITE_REDIRECT_URL: http://localhost:8080/ingreso?modo=restablecer
     expose:
       - "8000"
     ports:
