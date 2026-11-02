@@ -15,6 +15,7 @@ import {
 import { Alert, Box, Button, Link, Stack, TextField, Typography } from '@mui/material'
 import { api } from '../api'
 import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
+import { EtiquetaCampo, MensajeCampo } from '../components/FormFields'
 import { Toast, type ToastState } from '../components/Toast'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { color, type } from '../design/tokens'
@@ -23,6 +24,8 @@ import { brand } from '../theme'
 import type { PlaceDetail } from '../types'
 
 type LandingStep = 'request' | 'sent'
+type LandingField = 'name' | 'phone' | 'date' | 'arrivalFrom' | 'arrivalTo' | 'origin' | 'destination' | 'cargo'
+type LandingErrors = Partial<Record<LandingField, string>>
 
 type ContactFormProps = Readonly<{
   name: string
@@ -30,6 +33,9 @@ type ContactFormProps = Readonly<{
   busy: boolean
   setName: (value: string) => void
   setPhone: (value: string) => void
+  errors: LandingErrors
+  touched: Partial<Record<LandingField, boolean>>
+  onBlur: (field: LandingField) => void
 }>
 
 type RequestFormProps = Readonly<{
@@ -53,6 +59,9 @@ type RequestFormProps = Readonly<{
   setCargo: (value: string) => void
   setNotes: (value: string) => void
   onSubmit: (event: React.FormEvent) => void
+  errors: LandingErrors
+  touched: Partial<Record<LandingField, boolean>>
+  onBlur: (field: LandingField) => void
 }>
 
 const today = new Date().toISOString().slice(0, 10)
@@ -74,9 +83,33 @@ export function LandingPage() {
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
+  const [errors, setErrors] = useState<LandingErrors>({})
+  const [touched, setTouched] = useState<Partial<Record<LandingField, boolean>>>({})
+
+  const validate = (): LandingErrors => {
+    const next: LandingErrors = {}
+    if (!name.trim()) next.name = 'Ingresá tu nombre y apellido.'
+    if (!phone.trim()) next.phone = 'Ingresá tu teléfono.'
+    if (!date) next.date = 'Elegí el día del servicio.'
+    if (!arrivalFrom) next.arrivalFrom = 'Elegí desde qué hora.'
+    if (!arrivalTo) next.arrivalTo = 'Elegí hasta qué hora.'
+    if (!origin.trim()) next.origin = 'Ingresá el punto de retiro.'
+    if (!destination.trim()) next.destination = 'Ingresá el punto de entrega.'
+    if (!cargo.trim()) next.cargo = 'Contanos qué hay que trasladar.'
+    return next
+  }
+
+  const onFieldBlur = (field: LandingField) => {
+    setTouched((current) => ({ ...current, [field]: true }))
+    setErrors(validate())
+  }
 
   const submitRequest = async (event: React.FormEvent) => {
     event.preventDefault()
+    const validationErrors = validate()
+    setErrors(validationErrors)
+    setTouched({ name: true, phone: true, date: true, arrivalFrom: true, arrivalTo: true, origin: true, destination: true, cargo: true })
+    if (Object.keys(validationErrors).length > 0) return
     setBusy(true)
     try {
       await api.createPublicRequest({
@@ -171,7 +204,7 @@ export function LandingPage() {
           </Box>
 
           <Box sx={{ bgcolor: '#fff', border: `1px solid ${brand.border}`, borderRadius: 4, p: { xs: 2.5, md: 4 }, boxShadow: '0 12px 30px rgba(19,43,74,0.06)' }}>
-            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} originPlace={originPlace} destinationPlace={destinationPlace} cargo={cargo} notes={notes} busy={busy} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setOriginPlace={setOriginPlace} setDestinationPlace={setDestinationPlace} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
+            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} originPlace={originPlace} destinationPlace={destinationPlace} cargo={cargo} notes={notes} busy={busy} errors={errors} touched={touched} onBlur={onFieldBlur} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setOriginPlace={setOriginPlace} setDestinationPlace={setDestinationPlace} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
             {step === 'sent' && <SuccessState onNewRequest={() => setStep('request')} />}
           </Box>
         </Box>
@@ -186,14 +219,14 @@ export function LandingPage() {
   )
 }
 
-function ContactForm({ name, phone, busy, setName, setPhone }: ContactFormProps) {
+function ContactForm({ name, phone, busy, setName, setPhone, errors, touched, onBlur }: ContactFormProps) {
   return <Stack spacing={2}>
-    <TextField label="Nombre y apellido" value={name} onChange={(event) => setName(event.target.value)} required fullWidth />
-    <TextField label="Teléfono" value={phone} onChange={(event) => setPhone(event.target.value)} required fullWidth placeholder="11 5555-0000" />
+    <LandingTextField id="landing-name" label="Nombre y apellido" value={name} onChange={(event) => setName(event.target.value)} onBlur={() => onBlur('name')} error={touched.name ? errors.name : undefined} />
+    <LandingTextField id="landing-phone" label="Teléfono" value={phone} onChange={(event) => setPhone(event.target.value)} onBlur={() => onBlur('phone')} placeholder="11 5555-0000" error={touched.phone ? errors.phone : undefined} />
   </Stack>
 }
 
-function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destination, originPlace, destinationPlace, cargo, notes, busy, setName, setPhone, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setOriginPlace, setDestinationPlace, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
+function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destination, originPlace, destinationPlace, cargo, notes, busy, errors, touched, onBlur, setName, setPhone, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setOriginPlace, setDestinationPlace, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
   const changeOrigin = (value: string) => {
     setOrigin(value)
     if (originPlace && value !== originPlace.address) setOriginPlace(null)
@@ -203,15 +236,17 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
     if (destinationPlace && value !== destinationPlace.address) setDestinationPlace(null)
   }
 
-  return <Box component="form" onSubmit={onSubmit}>
+  const errorFor = (field: LandingField) => touched[field] ? errors[field] : undefined
+
+  return <Box component="form" onSubmit={onSubmit} noValidate>
     <Typography variant="h5">Solicitá tu flete</Typography>
     <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Dejanos tus datos y completá el recorrido. No necesitás crear una cuenta.</Typography>
     <Stack spacing={2} sx={{ mt: 3 }}>
-      <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} />
-      <TextField label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} required autoComplete="off" InputLabelProps={{ shrink: true }} />
+      <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} errors={errors} touched={touched} onBlur={onBlur} />
+      <LandingTextField id="landing-date" label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} onBlur={() => onBlur('date')} error={errorFor('date')} InputLabelProps={{ shrink: true }} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-        <TextField label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} required fullWidth autoComplete="off" InputLabelProps={{ shrink: true }} />
-        <TextField label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} required fullWidth autoComplete="off" InputLabelProps={{ shrink: true }} />
+        <LandingTextField id="landing-arrival-from" label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} onBlur={() => onBlur('arrivalFrom')} error={errorFor('arrivalFrom')} InputLabelProps={{ shrink: true }} />
+        <LandingTextField id="landing-arrival-to" label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} onBlur={() => onBlur('arrivalTo')} error={errorFor('arrivalTo')} />
       </Stack>
       <PlaceAutocomplete
         label="¿Desde dónde retiramos?"
@@ -220,9 +255,9 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
         onSelect={setOriginPlace}
         selected={originPlace !== null}
         placeholder="Buscá calle y número…"
-        required
-        helperText="Escribí al menos 3 letras y elegí una sugerencia."
+        helperText={errorFor('origin') ?? 'Escribí al menos 3 letras y elegí una sugerencia.'}
       />
+      <MensajeCampo id="landing-origin-error" mensaje={errorFor('origin')} />
       <PlaceAutocomplete
         label="¿A dónde lo llevamos?"
         value={destination}
@@ -230,16 +265,20 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
         onSelect={setDestinationPlace}
         selected={destinationPlace !== null}
         placeholder="Buscá calle y número…"
-        required
-        helperText="Escribí al menos 3 letras y elegí una sugerencia."
+        helperText={errorFor('destination') ?? 'Escribí al menos 3 letras y elegí una sugerencia.'}
       />
-      <TextField label="¿Qué hay que trasladar?" value={cargo} onChange={(event) => setCargo(event.target.value)} required multiline minRows={2} fullWidth />
+      <MensajeCampo id="landing-destination-error" mensaje={errorFor('destination')} />
+      <LandingTextField id="landing-cargo" label="¿Qué hay que trasladar?" value={cargo} onChange={(event) => setCargo(event.target.value)} onBlur={() => onBlur('cargo')} error={errorFor('cargo')} multiline minRows={2} />
       <TextField label="Observaciones (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth autoComplete="off" />
       <Button type="submit" variant="contained" size="large" disabled={busy} endIcon={<ArrowForward />} sx={{ minHeight: 48, mt: 1 }}>
         {busy ? 'Enviando...' : 'Enviar solicitud'}
       </Button>
     </Stack>
   </Box>
+}
+
+function LandingTextField({ id, label, error, ...props }: { id: string; label: string; error?: string } & Omit<React.ComponentProps<typeof TextField>, 'id' | 'label' | 'error'>) {
+  return <Box><EtiquetaCampo text={label} htmlFor={id} /><TextField {...props} id={id} fullWidth error={Boolean(error)} inputProps={{ ...props.inputProps, 'aria-describedby': error ? `${id}-error` : undefined }} /><MensajeCampo id={`${id}-error`} mensaje={error} /></Box>
 }
 
 function SuccessState({ onNewRequest }: Readonly<{ onNewRequest: () => void }>) {
