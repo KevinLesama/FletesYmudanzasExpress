@@ -57,7 +57,6 @@ const MAP_STYLE_URL =
   MAP_TILES_KEY && MAP_STYLE_ID
     ? `https://api.maptiler.com/maps/${MAP_STYLE_ID}/style.json?key=${MAP_TILES_KEY}`
     : ''
-const MAP_ATTRIBUTION = '© MapTiler © OpenStreetMap contributors'
 const COLORS = {
   origin: '#1E2A4A',
   route: '#1E2A4A',
@@ -113,7 +112,6 @@ function MapLibreLayer() {
       attributionControl: false,
     })
     layerRef.current = layer
-    map.attributionControl.addAttribution(MAP_ATTRIBUTION)
     map.addLayer(layer)
     const resize = () => {
       map.invalidateSize({ pan: false })
@@ -126,7 +124,6 @@ function MapLibreLayer() {
     return () => {
       window.cancelAnimationFrame(resizeFrame)
       observer.disconnect()
-      map.attributionControl.removeAttribution(MAP_ATTRIBUTION)
       const activeLayer = layerRef.current
       if (activeLayer && map.hasLayer(activeLayer)) map.removeLayer(activeLayer)
       layerRef.current = null
@@ -236,12 +233,19 @@ function ZoomControls({
   const map = useMap()
 
   return (
-    <Stack spacing={0.5} sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1100 }}>
-      <MapButton label="Acercar" onClick={() => map.zoomIn()}>
-        <ZoomInIcon />
-      </MapButton>
+    <Stack
+      direction="row"
+      spacing={0.75}
+      sx={{
+        justifyContent: 'flex-end',
+        pointerEvents: 'auto',
+      }}
+    >
       <MapButton label="Alejar" onClick={() => map.zoomOut()}>
         <ZoomOutIcon />
+      </MapButton>
+      <MapButton label="Acercar" onClick={() => map.zoomIn()}>
+        <ZoomInIcon />
       </MapButton>
       {onExpand && (
         <MapButton label="Agrandar el mapa" onClick={onExpand}>
@@ -249,6 +253,62 @@ function ZoomControls({
         </MapButton>
       )}
     </Stack>
+  )
+}
+
+function BottomMapPanel({
+  trip,
+  routeState,
+  onExpand,
+  onOpenDetail,
+  showAddresses,
+  onBottomPanelHeightChange,
+}: {
+  trip?: ShiftRequest | null
+  routeState: RouteState
+  onExpand?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
+  showAddresses?: boolean
+  onBottomPanelHeightChange: (height: number) => void
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = panelRef.current
+    if (!element) return
+    const reportHeight = () => onBottomPanelHeightChange(element.getBoundingClientRect().height)
+    reportHeight()
+    const observer = new ResizeObserver(reportHeight)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [onBottomPanelHeightChange])
+
+  return (
+    <Box
+      ref={panelRef}
+      sx={{
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        bottom: 8,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 1,
+        pointerEvents: 'none',
+      }}
+    >
+      <ZoomControls onExpand={onExpand} />
+      {trip && (
+        <TripCard
+          trip={trip}
+          routeState={routeState}
+          onOpenDetail={onOpenDetail}
+          showAddresses={showAddresses}
+        />
+      )}
+    </Box>
   )
 }
 
@@ -392,12 +452,12 @@ function FitMap({
   tripId,
   positions,
   reducedMotion,
-  cardHeight,
+  bottomPanelHeight,
 }: {
   tripId?: string
   positions: LatLngTuple[]
   reducedMotion: boolean
-  cardHeight: number
+  bottomPanelHeight: number
 }) {
   const map = useMap()
 
@@ -412,13 +472,13 @@ function FitMap({
       const bounds = L.latLngBounds(positions)
       map.fitBounds(bounds, {
         paddingTopLeft: [40, 48],
-        paddingBottomRight: [40, cardHeight + 16],
+        paddingBottomRight: [40, bottomPanelHeight + 16],
         maxZoom: positions.length === 1 ? 14 : 16,
         animate: !reducedMotion,
       })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [cardHeight, map, positions, reducedMotion, tripId])
+  }, [bottomPanelHeight, map, positions, reducedMotion, tripId])
 
   return null
 }
@@ -426,25 +486,29 @@ function FitMap({
 function MapContents({
   trip,
   geometry,
-  routeStatus,
+  routeState,
   reducedMotion,
   onExpand,
+  onOpenDetail,
   large,
   index,
   total,
   selectedMode,
-  cardHeight,
+  bottomPanelHeight,
+  onBottomPanelHeightChange,
 }: {
   trip?: ShiftRequest | null
   geometry: LatLngTuple[] | null
-  routeStatus: RouteState['status']
+  routeState: RouteState
   reducedMotion: boolean
   onExpand?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
   large?: boolean
   index: number
   total: number
   selectedMode: boolean
-  cardHeight: number
+  bottomPanelHeight: number
+  onBottomPanelHeightChange: (height: number) => void
 }) {
   const origin = trip && isCoordinate(trip.origin.lat, trip.origin.lng)
     ? [trip.origin.lat, trip.origin.lng] as LatLngTuple
@@ -457,7 +521,7 @@ function MapContents({
     [origin?.[0], origin?.[1], destination?.[0], destination?.[1], geometry],
   )
   const bothCoordinates = origin !== null && destination !== null
-  const approximate = bothCoordinates && routeStatus === 'approximate'
+  const approximate = bothCoordinates && routeState.status === 'approximate'
   const markerA = useMemo(() => MarkerIcon('origin'), [])
   const markerB = useMemo(() => MarkerIcon('destination'), [])
   const routePositions = geometry?.length ? geometry : bothCoordinates ? [origin, destination] : []
@@ -494,10 +558,17 @@ function MapContents({
         tripId={`${trip?.id ?? 'empty'}:${selectedMode ? 'selected' : 'upcoming'}`}
         positions={positions}
         reducedMotion={reducedMotion}
-        cardHeight={cardHeight}
+        bottomPanelHeight={bottomPanelHeight}
       />
-      <ZoomControls onExpand={onExpand} />
-      {routeStatus === 'loading' && (
+      <BottomMapPanel
+        trip={trip}
+        routeState={routeState}
+        onExpand={onExpand}
+        onOpenDetail={onOpenDetail}
+        showAddresses={large}
+        onBottomPanelHeightChange={onBottomPanelHeightChange}
+      />
+      {routeState.status === 'loading' && (
         <Box
           role="status"
           aria-label="Cargando ruta"
@@ -545,15 +616,12 @@ function TripCard({
   routeState,
   onOpenDetail,
   showAddresses,
-  onHeightChange,
 }: {
   trip: ShiftRequest
   routeState: RouteState
   onOpenDetail?: (trip: ShiftRequest) => void
   showAddresses?: boolean
-  onHeightChange: (height: number) => void
 }) {
-  const cardRef = useRef<HTMLDivElement>(null)
   const km = routeState.status === 'ready' || routeState.status === 'approximate'
     ? routeState.km ?? trip.estimatedKm
     : trip.estimatedKm
@@ -561,25 +629,11 @@ function TripCard({
     ? routeState.minutes ?? trip.etaMinutes
     : trip.etaMinutes
 
-  useEffect(() => {
-    const element = cardRef.current
-    if (!element) return
-    const reportHeight = () => onHeightChange(element.getBoundingClientRect().height)
-    reportHeight()
-    const observer = new ResizeObserver(reportHeight)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [onHeightChange])
-
   return (
     <Box
-      ref={cardRef}
       sx={{
-        position: 'absolute',
-        left: 8,
-        right: 8,
-        bottom: 28,
-        zIndex: 1100,
+        width: '100%',
+        pointerEvents: 'auto',
         p: 1,
         borderRadius: 2,
         bgcolor: color.paper,
@@ -647,21 +701,25 @@ function MapCanvas({
   routeState,
   reducedMotion,
   onExpand,
+  onOpenDetail,
   large,
   index,
   total,
   selectedMode,
-  cardHeight,
+  bottomPanelHeight,
+  onBottomPanelHeightChange,
 }: {
   trip?: ShiftRequest | null
   routeState: RouteState
   reducedMotion: boolean
   onExpand?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
   large?: boolean
   index: number
   total: number
   selectedMode: boolean
-  cardHeight: number
+  bottomPanelHeight: number
+  onBottomPanelHeightChange: (height: number) => void
 }) {
   const geometry = routeState.status === 'ready' ? routeState.geometry : null
   const center = trip && isCoordinate(trip.origin.lat, trip.origin.lng)
@@ -678,6 +736,7 @@ function MapCanvas({
       minZoom={4}
       maxZoom={19}
       zoomControl={false}
+      attributionControl={false}
       scrollWheelZoom={false}
       zoomAnimation={!reducedMotion}
       markerZoomAnimation={!reducedMotion}
@@ -687,23 +746,56 @@ function MapCanvas({
       <MapContents
         trip={trip}
         geometry={geometry}
-        routeStatus={routeState.status}
+        routeState={routeState}
         reducedMotion={reducedMotion}
         onExpand={onExpand}
+        onOpenDetail={onOpenDetail}
         large={large}
         index={index}
         total={total}
         selectedMode={selectedMode}
-        cardHeight={cardHeight}
+        bottomPanelHeight={bottomPanelHeight}
+        onBottomPanelHeightChange={onBottomPanelHeightChange}
       />
     </MapContainer>
+  )
+}
+
+function MapAttribution() {
+  return (
+    <Box
+      component="div"
+      sx={{
+        flex: '0 0 20px',
+        minHeight: 20,
+        px: 1,
+        display: 'flex',
+        alignItems: 'center',
+        overflow: 'hidden',
+        color: color.muted,
+        fontSize: 10,
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+        '& a': { color: color.muted, textDecoration: 'underline' },
+      }}
+    >
+      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <Box component="a" href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener noreferrer">
+          © MapTiler
+        </Box>{' '}
+        <Box component="a" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+          © OpenStreetMap contributors
+        </Box>
+      </Box>
+    </Box>
   )
 }
 
 export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear, onOpenDetail }: MapPreviewProps) {
   const [expanded, setExpanded] = useState(false)
   const [index, setIndex] = useState(0)
-  const [cardHeight, setCardHeight] = useState(0)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(0)
   const now = new Date()
   const [routeSnapshot, setRouteSnapshot] = useState<{
     routeKey: string | null
@@ -813,7 +905,6 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
     event.preventDefault()
     navigate(event.key === 'ArrowLeft' ? -1 : 1)
   }
-
   return (
     <>
       <Box
@@ -822,43 +913,33 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
         sx={{
           position: 'relative',
           flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
           minHeight: 0,
           height: '100%',
           borderRadius: 2.5,
           border: `1px solid ${color.border}`,
           overflow: 'hidden',
           bgcolor: color.sand,
-          '& .leaflet-container': {
-            height: '100%',
-            width: '100%',
-            fontFamily: 'inherit',
-            zIndex: 0,
-          },
-          '& .leaflet-control-attribution': {
-            backgroundColor: alpha(color.paper, 0.9),
-            color: color.ink,
-            fontSize: 10,
-          },
-          '& .leaflet-control-attribution a': { color: color.navy },
-          '& .leaflet-div-icon': { background: 'transparent', border: 'none' },
-          '& .leaflet-zoom-animated': { transition: reducedMotion ? 'none' : undefined },
         }}
       >
-        <MapCanvas trip={currentTrip} routeState={routeState} reducedMotion={reducedMotion} onExpand={() => setExpanded(true)} index={currentIndex} total={totalTrips} selectedMode={selectedMode} cardHeight={cardHeight} />
-        {currentTrip && (
-          <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />
-        )}
-        {currentTrip && <TripCard trip={currentTrip} routeState={routeState} onOpenDetail={onOpenDetail} onHeightChange={setCardHeight} />}
-        {!currentTrip && tripsLoading && (
-          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92) }}>
-            <Skeleton width={160} height={20} />
-          </Box>
-        )}
-        {!currentTrip && !tripsLoading && (
-          <Typography role="status" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92), color: color.navy, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
-            Sin viajes en los próximos {WINDOW_DAYS} días
-          </Typography>
-        )}
+        <Box sx={{ position: 'relative', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', '& .leaflet-container': { height: '100%', width: '100%', fontFamily: 'inherit', zIndex: 0 }, '& .leaflet-div-icon': { background: 'transparent', border: 'none' }, '& .leaflet-zoom-animated': { transition: reducedMotion ? 'none' : undefined } }}>
+          <MapCanvas trip={currentTrip} routeState={routeState} reducedMotion={reducedMotion} onExpand={() => setExpanded(true)} onOpenDetail={onOpenDetail} index={currentIndex} total={totalTrips} selectedMode={selectedMode} bottomPanelHeight={bottomPanelHeight} onBottomPanelHeightChange={setBottomPanelHeight} />
+          {currentTrip && (
+            <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />
+          )}
+          {!currentTrip && tripsLoading && (
+            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92) }}>
+              <Skeleton width={160} height={20} />
+            </Box>
+          )}
+          {!currentTrip && !tripsLoading && (
+            <Typography role="status" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92), color: color.navy, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              Sin viajes en los próximos {WINDOW_DAYS} días
+            </Typography>
+          )}
+        </Box>
+        <MapAttribution />
       </Box>
 
       <Dialog
@@ -883,30 +964,20 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
           <Box
             sx={{
               position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
               height: '58vh',
               minHeight: 280,
               borderRadius: 2,
               border: `1px solid ${color.border}`,
               overflow: 'hidden',
-              '& .leaflet-container': {
-                height: '100%',
-                width: '100%',
-                fontFamily: 'inherit',
-                zIndex: 0,
-              },
-              '& .leaflet-control-attribution': {
-                backgroundColor: alpha(color.paper, 0.9),
-                color: color.ink,
-                fontSize: 10,
-              },
-              '& .leaflet-control-attribution a': { color: color.navy },
-              '& .leaflet-div-icon': { background: 'transparent', border: 'none' },
-              '& .leaflet-zoom-animated': { transition: reducedMotion ? 'none' : undefined },
             }}
           >
-            <MapCanvas trip={currentTrip} routeState={routeState} reducedMotion={reducedMotion} large index={currentIndex} total={totalTrips} selectedMode={selectedMode} cardHeight={cardHeight} />
-            {currentTrip && <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />}
-            {currentTrip && <TripCard trip={currentTrip} routeState={routeState} onOpenDetail={onOpenDetail} showAddresses onHeightChange={setCardHeight} />}
+            <Box sx={{ position: 'relative', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', '& .leaflet-container': { height: '100%', width: '100%', fontFamily: 'inherit', zIndex: 0 }, '& .leaflet-div-icon': { background: 'transparent', border: 'none' }, '& .leaflet-zoom-animated': { transition: reducedMotion ? 'none' : undefined } }}>
+              <MapCanvas trip={currentTrip} routeState={routeState} reducedMotion={reducedMotion} onOpenDetail={onOpenDetail} large index={currentIndex} total={totalTrips} selectedMode={selectedMode} bottomPanelHeight={bottomPanelHeight} onBottomPanelHeightChange={setBottomPanelHeight} />
+              {currentTrip && <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />}
+            </Box>
+            <MapAttribution />
           </Box>
         </DialogContent>
       </Dialog>
