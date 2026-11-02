@@ -363,6 +363,7 @@ class RutaOut(BaseModel):
     km_total: float
     duracion_ida_min: int
     duracion_vuelta_min: int
+    geometry: list[tuple[float, float]] | None = None
 
 
 class CotizacionOut(BaseModel):

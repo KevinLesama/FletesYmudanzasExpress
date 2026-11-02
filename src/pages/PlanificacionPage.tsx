@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -11,6 +11,7 @@ import {
   InputAdornment,
   MenuItem,
   Stack,
+  Tooltip,
   Typography,
   IconButton,
   useTheme,
@@ -20,6 +21,7 @@ import {
   ArrowBack,
   Check,
   CheckCircle,
+  ErrorOutline,
   InfoOutlined,
   Lock,
   LocalShipping,
@@ -53,7 +55,18 @@ import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
 import type { Driver, Quote, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
-import { color } from '../design/tokens'
+import { color, type as typeScale } from '../design/tokens'
+import { motivosConfirmacionViaje } from './planificacionConfirmacion'
+
+const avisoCampoSx = {
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' },
+} as const
+
+const errorCampoSx = {
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'error.main' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'error.main' },
+} as const
 
 interface SectionCardProps {
   title: string
@@ -136,16 +149,19 @@ export function PlanificacionPage() {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
-  const [saved, setSaved] = useState(false)
   const [cancelled, setCancelled] = useState(false)
+  const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
+  const initializedRequestId = useRef<string | null>(null)
 
-  // Sincroniza el formulario cuando llega la solicitud.
+  // Inicializa los campos editables sólo para el viaje actual. Las recargas
+  // posteriores actualizan `request`, pero no deben pisar cambios locales.
   useEffect(() => {
-    if (!request) return
+    if (!request || request.id !== id || initializedRequestId.current === id) return
+    initializedRequestId.current = id
     setDriverId(request.driverId ?? '')
     setVehicleId(request.vehicleId ?? '')
     setStart(request.serviceRange[0] || '11:00')
@@ -153,6 +169,11 @@ export function PlanificacionPage() {
     setPrice(String(request.price ?? 0))
     setPriceTouched(Boolean(request.priceOverridden))
     setWaitMinutes(String(request.waitMinutes ?? 120))
+  }, [id, request])
+
+  // Estos valores son de lectura y sí deben reflejar cada respuesta nueva.
+  useEffect(() => {
+    if (!request) return
     setConfirmedState(request.status === 'Confirmada')
     setCancelled(request.status === 'Cancelada')
   }, [request])
@@ -188,7 +209,7 @@ export function PlanificacionPage() {
       cancelledRequest = true
       window.clearTimeout(timer)
     }
-  }, [request, driverId, waitMinutes])
+  }, [request?.id, request?.estimatedKm, driverId, waitMinutes])
 
   useEffect(() => {
     if (quote && !priceTouched) setPrice(String(Math.round(quote.suggestedPrice)))
@@ -197,7 +218,10 @@ export function PlanificacionPage() {
   useEffect(() => {
     if (catalogState.loading) return
     if (driverId && !availableDrivers.some((driver) => driver.id === driverId)) setDriverId('')
-    if (vehicleId && !availableVehicles.some((vehicle) => vehicle.id === vehicleId)) setVehicleId('')
+    if (vehicleId && !availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)) {
+      setVehicleId('')
+      setToast({ message: 'El vehículo guardado ya no está disponible y fue descartado de la planificación.', tone: 'error' })
+    }
   }, [catalogState.loading, driverId, vehicleId, availableDrivers, availableVehicles])
 
   const [confirmedState, setConfirmedState] = useState(false)
@@ -210,14 +234,45 @@ export function PlanificacionPage() {
   const priceOverridden = Boolean(request?.priceOverridden)
   const suggestedPrice = quote?.suggestedPrice ?? request?.suggestedPrice ?? 0
   const hasDistance = request?.estimatedKm != null
+  const planningPayload = {
+    driver_id: driverId || null,
+    vehicle_id: vehicleId || null,
+    service_from: start,
+    service_to: end,
+    price: Number(price || 0),
+    espera_min: Number(waitMinutes || 0),
+  }
+  const hasUnsavedChanges =
+    !!request &&
+    (driverId !== (request.driverId ?? '') ||
+      vehicleId !== (request.vehicleId ?? '') ||
+      start !== (request.serviceRange[0] || '11:00') ||
+      end !== (request.serviceRange[1] || '13:00') ||
+      Number(price || 0) !== Number(request.price ?? 0) ||
+      Number(waitMinutes || 0) !== Number(request.waitMinutes ?? 120))
 
   const selectedDriver = drivers.find((d) => d.id === driverId)
-  const selectedVehicle = vehicles.find((v) => v.id === vehicleId)
-
-  const canConfirm =
-    depositOk &&
-    availableDrivers.some((driver) => driver.id === driverId) &&
-    availableVehicles.some((vehicle) => vehicle.id === vehicleId)
+  const selectedVehicle = vehicles.find((v) => v.vehicleId === vehicleId)
+  const driverIsAvailable = availableDrivers.some((driver) => driver.id === driverId)
+  const vehicleIsAvailable = availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)
+  const motivosConfirmacion = useMemo(
+    () =>
+      motivosConfirmacionViaje({
+        cancelled,
+        driverId,
+        vehicleId,
+        driverIsAvailable,
+        vehicleIsAvailable,
+        price: Number(price || 0),
+        depositReceived,
+        depositRequired,
+      }),
+    [cancelled, driverId, vehicleId, driverIsAvailable, vehicleIsAvailable, price, depositReceived, depositRequired],
+  )
+  const faltaChofer = motivosConfirmacion.some((motivo) => motivo.campo === 'chofer')
+  const faltaVehiculo = motivosConfirmacion.some((motivo) => motivo.campo === 'vehiculo')
+  const primerMotivoConfirmacion = motivosConfirmacion[0]?.texto
+  const confirmacionLista = motivosConfirmacion.length === 0
 
   const driverOption = (d: Driver) => (
     <MenuItem value={d.id} key={d.id}>
@@ -313,38 +368,125 @@ export function PlanificacionPage() {
         />
       </Stack>
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
-        <CampoSelect label="Chofer" size="small" value={driverId} onChange={(e) => setDriverId(e.target.value)}>
-            {availableDrivers.map((d) => driverOption(d))}
-        </CampoSelect>
-        <SearchableSelect
-          label="Vehículo"
-          value={selectedVehicle ?? null}
-          options={availableVehicles}
-          getKey={(v) => v.id}
-          getLabel={(v) => `${v.id} · ${v.type}`}
-          getSearchText={(v) => v.status}
-          renderOption={vehicleOptionContent}
-          onChange={(v) => setVehicleId(v?.id ?? '')}
-          placeholder="Buscar por ID o tipo"
-          fullWidth
-        />
-      </Stack>
+      {isMobile ? (
+        <>
+          <Stack direction="column" spacing={1.5} sx={{ mt: 1.5 }}>
+            <CampoSelect
+              label="Chofer"
+              size="small"
+              value={driverId}
+              onChange={(e) => setDriverId(e.target.value)}
+              sx={faltaChofer ? avisoCampoSx : {}}
+            >
+              {availableDrivers.map((d) => driverOption(d))}
+            </CampoSelect>
+            <Box sx={{ minWidth: 0, ...(faltaVehiculo ? avisoCampoSx : {}) }}>
+              <SearchableSelect
+                label="Vehículo"
+                value={selectedVehicle ?? null}
+                options={availableVehicles}
+                getKey={(v) => v.vehicleId}
+                getLabel={(v) => `${v.id} · ${v.type}`}
+                getSearchText={(v) => v.status}
+                renderOption={vehicleOptionContent}
+                onChange={(v) => setVehicleId(v?.vehicleId ?? '')}
+                placeholder="Buscar por ID o tipo"
+                fullWidth
+              />
+            </Box>
+          </Stack>
 
-      <Stack spacing={1} sx={{ mt: 2 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <CheckCircle sx={{ fontSize: 16, color: '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
-            {selectedDriver ? selectedDriver.name : 'Sin chofer'} — disponible
-          </Typography>
-        </Stack>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <LocalShipping sx={{ fontSize: 16, color: '#2F7D55' }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
-            {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — disponible
-          </Typography>
-        </Stack>
-      </Stack>
+          <Stack spacing={1} sx={{ mt: 2 }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <CheckCircle sx={{ fontSize: 16, color: '#2F7D55' }} />
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
+                {selectedDriver ? selectedDriver.name : 'Sin chofer'} — disponible
+              </Typography>
+            </Stack>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <LocalShipping sx={{ fontSize: 16, color: '#2F7D55' }} />
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
+                {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — disponible
+              </Typography>
+            </Stack>
+          </Stack>
+        </>
+      ) : (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 1.5,
+            mt: 1.5,
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <CampoSelect
+              label="Chofer"
+              size="small"
+              value={driverId}
+              onChange={(e) => setDriverId(e.target.value)}
+              displayEmpty
+              error={confirmationAttempted && !driverId}
+              helperText={confirmationAttempted && !driverId ? 'Elegí un chofer.' : undefined}
+              sx={confirmationAttempted && !driverId ? errorCampoSx : {}}
+              renderValue={(value) =>
+                value
+                  ? availableDrivers.find((driver) => driver.id === value)?.name ?? String(value)
+                  : <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un chofer</Box>
+              }
+            >
+              <MenuItem value="" disabled>
+                Elegí un chofer
+              </MenuItem>
+              {availableDrivers.map((d) => driverOption(d))}
+            </CampoSelect>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+              <CheckCircle sx={{ fontSize: 16, color: selectedDriver ? color.green : 'text.secondary' }} />
+              <Typography sx={{ minWidth: 0, fontSize: typeScale.caption, fontWeight: 600, color: selectedDriver ? color.green : 'text.secondary' }}>
+                {selectedDriver ? `${selectedDriver.name} — disponible` : 'Sin chofer seleccionado'}
+              </Typography>
+            </Stack>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <CampoSelect
+              label="Vehículo"
+              size="small"
+              value={vehicleId}
+              onChange={(e) => setVehicleId(String(e.target.value))}
+              displayEmpty
+              error={confirmationAttempted && !vehicleId}
+              helperText={confirmationAttempted && !vehicleId ? 'Elegí un vehículo.' : undefined}
+              sx={confirmationAttempted && !vehicleId ? errorCampoSx : {}}
+              renderValue={(value) =>
+                value
+                  ? (() => {
+                      const vehicle = availableVehicles.find((option) => option.vehicleId === value)
+                      return vehicle ? `${vehicle.id} · ${vehicle.type}` : String(value)
+                    })()
+                  : <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un vehículo</Box>
+              }
+            >
+              <MenuItem value="" disabled>
+                Elegí un vehículo
+              </MenuItem>
+              {availableVehicles.map((vehicle) => (
+                <MenuItem value={vehicle.vehicleId} key={vehicle.vehicleId}>
+                  {vehicle.id} · {vehicle.type}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+              <LocalShipping sx={{ fontSize: 16, color: selectedVehicle ? color.green : 'text.secondary' }} />
+              <Typography sx={{ minWidth: 0, fontSize: typeScale.caption, fontWeight: 600, color: selectedVehicle ? color.green : 'text.secondary' }}>
+                {selectedVehicle
+                  ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg — disponible`
+                  : 'Sin vehículo seleccionado'}
+              </Typography>
+            </Stack>
+          </Box>
+        </Box>
+      )}
 
       <Box sx={{ mt: 2, p: 1.8, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
@@ -427,7 +569,7 @@ export function PlanificacionPage() {
                       setPriceTouched(false)
                     },
                     'Precio recalculado',
-                  ).then(() => setSaved(false))
+                  )
                 }}
                 sx={{ color: brand.navy }}
               >
@@ -555,7 +697,7 @@ export function PlanificacionPage() {
           </Stack>
 
           <Stack spacing={2.5}>
-            <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={saved ? 'Guardada' : 'Sin guardar'} />}>
+            <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={hasUnsavedChanges ? 'Sin guardar' : 'Guardada'} />}>
               <Typography sx={{ fontSize: 12.5, color: '#64707C', mb: 1.5 }}>
                 Acordá precio, horario y asignación.
               </Typography>
@@ -573,15 +715,46 @@ export function PlanificacionPage() {
                   </Typography>
                 </Stack>
               </Box>
-            ) : (
-              <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #F0DFC0', color: '#98621B' }}>
+            ) : confirmacionLista ? (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  bgcolor: 'success.light',
+                  border: '1px solid',
+                  borderColor: 'success.main',
+                  color: 'success.main',
+                }}
+              >
                 <Stack direction="row" spacing={1} alignItems="flex-start">
                   <Lock sx={{ fontSize: 16, mt: 0.2 }} />
-                  <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
-                    {depositOk
-                      ? 'Confirmación habilitada: la seña está registrada y los recursos están disponibles.'
-                      : 'Confirmación bloqueada. Para confirmar el viaje, primero registrá la seña requerida y elegí un chofer y un vehículo disponibles.'}
+                  <Typography sx={{ fontSize: typeScale.caption, fontWeight: 600 }}>
+                    Confirmación habilitada: la seña está registrada y los recursos están disponibles.
                   </Typography>
+                </Stack>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  bgcolor: 'warning.light',
+                  border: '1px solid',
+                  borderColor: 'warning.main',
+                }}
+              >
+                <Typography sx={{ fontSize: typeScale.caption, fontWeight: 800, color: 'warning.dark', mb: 1 }}>
+                  Para confirmar el viaje falta:
+                </Typography>
+                <Stack spacing={0.75}>
+                  {motivosConfirmacion.map((motivo) => (
+                    <Stack key={motivo.id} direction="row" spacing={1} alignItems="flex-start">
+                      <ErrorOutline sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0, mt: 0.15 }} />
+                      <Typography sx={{ fontSize: typeScale.caption, fontWeight: 600, color: 'warning.dark' }}>
+                        {motivo.texto}
+                      </Typography>
+                    </Stack>
+                  ))}
                 </Stack>
               </Box>
             )}
@@ -594,17 +767,9 @@ export function PlanificacionPage() {
                 sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }}
                 onClick={() =>
                   runAction(
-                    () =>
-                      api.updateRequest(request.id, {
-                        driver_id: driverId || null,
-                        vehicle_id: vehicleId || null,
-                        service_from: start,
-                        service_to: end,
-                        price: Number(price || 0),
-                        espera_min: Number(waitMinutes || 0),
-                      }),
+                    () => api.updateRequest(request.id, planningPayload),
                     'Planificación tentativa guardada',
-                  ).then(() => setSaved(true))
+                  )
                 }
               >
                 Guardar planificación tentativa
@@ -640,30 +805,36 @@ export function PlanificacionPage() {
               >
                 {cancelledFlag ? 'Reactivar viaje' : 'Cancelar viaje'}
               </Button>
-              <Button
-                variant="contained"
-                startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <Check />}
-                disabled={!canConfirm || cancelledFlag || busy}
-                sx={{ py: 1.1 }}
-                onClick={() =>
-                  runAction(
-                    () =>
-                      api.updateRequest(request.id, {
-                        driver_id: driverId,
-                        vehicle_id: vehicleId,
-                        service_from: start,
-                        service_to: end,
-                        price: Number(price || 0),
-                        espera_min: Number(waitMinutes || 0),
-                        status: 'Confirmada',
-                        confirmed: true,
-                      }),
-                    'Viaje confirmado · ' + requestId,
-                  )
-                }
-              >
-                Confirmar viaje
-              </Button>
+              <Tooltip title={!confirmacionLista && primerMotivoConfirmacion ? primerMotivoConfirmacion : ''} disableHoverListener={confirmacionLista}>
+                <span>
+                  <Button
+                    variant="contained"
+                    startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <Check />}
+                    disabled={cancelledFlag || busy || (isMobile ? !confirmacionLista : Boolean(driverId && vehicleId && !confirmacionLista))}
+                    sx={{ py: 1.1 }}
+                    onClick={() => {
+                      if (!isMobile) setConfirmationAttempted(true)
+                      if (!driverId || !vehicleId) return
+                      void runAction(
+                        () =>
+                          api.updateRequest(request.id, {
+                            driver_id: driverId,
+                            vehicle_id: vehicleId,
+                            service_from: start,
+                            service_to: end,
+                            price: Number(price || 0),
+                            espera_min: Number(waitMinutes || 0),
+                            status: 'Confirmada',
+                            confirmed: true,
+                          }),
+                        'Viaje confirmado · ' + requestId,
+                      )
+                    }}
+                  >
+                    Confirmar viaje
+                  </Button>
+                </span>
+              </Tooltip>
             </Stack>
             <Typography sx={{ fontSize: 12.5, color: '#64707C', mt: 0.5 }}>
               Guardar la planificación no confirma el viaje. La seña se registra por separado.
@@ -684,10 +855,7 @@ export function PlanificacionPage() {
           setDialogOpen(false)
           runAction(
             async () => {
-              await api.updateRequest(request.id, {
-                price: Number(price || 0),
-                espera_min: Number(waitMinutes || 0),
-              })
+              if (hasUnsavedChanges) await api.updateRequest(request.id, planningPayload)
               return api.addPayment(request.id, {
                 concept,
                 method,

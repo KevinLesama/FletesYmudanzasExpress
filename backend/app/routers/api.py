@@ -127,12 +127,12 @@ def get_place(place_id: str) -> PlaceOut:
 
 @geo_router.post("/route", response_model=RutaOut)
 def route_estimate(payload: RutaIn) -> RutaOut:
-    estimate = _geo_result_http(
-        get_geo_service().route(
-            (payload.origen.lat, payload.origen.lng),
-            (payload.destino.lat, payload.destino.lng),
-        )
-    )
+    origin = (payload.origen.lat, payload.origen.lng)
+    destination = (payload.destino.lat, payload.destino.lng)
+    service = get_geo_service()
+    estimate = _geo_result_http(service.route(origin, destination))
+    provider = next((item for item in service.providers if item.name == estimate.provider), None)
+    geometry = provider.route_geometry(origin, destination) if provider else None
     ida = pricing.ceil_km(estimate.distance_km)
     return RutaOut(
         km_ida=float(ida),
@@ -140,6 +140,7 @@ def route_estimate(payload: RutaIn) -> RutaOut:
         km_total=float(ida * 2),
         duracion_ida_min=estimate.duration_min,
         duracion_vuelta_min=estimate.duration_min,
+        geometry=geometry,
     )
 
 

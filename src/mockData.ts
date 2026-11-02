@@ -70,10 +70,10 @@ export const REMITO_SAMPLE: RemitoPhoto = {
 }
 
 export const VEHICLES: Vehicle[] = [
-  { id: 'MOV-01', type: 'Furgón grande', capacityKg: 1500, status: 'Disponible' },
-  { id: 'MOV-04', type: 'Furgón chico', capacityKg: 500, status: 'Asignado', assignedNote: 'FEX-1047 · hasta 14:00' },
-  { id: 'MOV-05', type: 'Camión mudancero', capacityKg: 3500, status: 'Disponible' },
-  { id: 'MOV-07', type: 'Camión mediano', capacityKg: 2000, status: 'En taller', assignedNote: 'En taller · no asignable' },
+  { vehicleId: '1', id: 'MOV-01', type: 'Furgón grande', capacityKg: 1500, status: 'Disponible' },
+  { vehicleId: '2', id: 'MOV-04', type: 'Furgón chico', capacityKg: 500, status: 'Asignado', assignedNote: 'FEX-1047 · hasta 14:00' },
+  { vehicleId: '3', id: 'MOV-05', type: 'Camión mudancero', capacityKg: 3500, status: 'Disponible' },
+  { vehicleId: '4', id: 'MOV-07', type: 'Camión mediano', capacityKg: 2000, status: 'En taller', assignedNote: 'En taller · no asignable' },
 ]
 
 export const CLIENTS = [

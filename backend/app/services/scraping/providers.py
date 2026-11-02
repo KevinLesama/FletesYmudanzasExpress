@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import httpx
@@ -28,6 +28,11 @@ class GeoProvider(Protocol):
         ...
 
     def route(self, origin: tuple[float, float], destination: tuple[float, float]) -> Route:
+        ...
+
+    def route_geometry(
+        self, origin: tuple[float, float], destination: tuple[float, float]
+    ) -> list[tuple[float, float]] | None:
         ...
 
 
@@ -60,11 +65,21 @@ class GoogleProvider:
         )
 
     def route(self, origin: tuple[float, float], destination: tuple[float, float]) -> Route:
+        return self.route_with_geometry(origin, destination)[0]
+
+    def route_with_geometry(
+        self, origin: tuple[float, float], destination: tuple[float, float]
+    ) -> tuple[Route, list[tuple[float, float]] | None]:
         try:
             route = geo.compute_route(origin, destination)
         except (geo.GeoNotConfiguredError, geo.GeoUnavailableError) as exc:
             raise ProviderUnavailable(str(exc)) from exc
-        return Route(route.distance_km, route.duration_min, self.name)
+        return Route(route.distance_km, route.duration_min, self.name), None
+
+    def route_geometry(
+        self, origin: tuple[float, float], destination: tuple[float, float]
+    ) -> list[tuple[float, float]] | None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -74,6 +89,25 @@ class OSMProvider:
     user_agent: str = "fletes-express/1.0"
     timeout_seconds: float = 6.0
     name: str = "osm"
+    _route_geometry_cache: dict[
+        tuple[float, float, float, float], list[tuple[float, float]] | None
+    ] = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    @staticmethod
+    def _route_key(
+        origin: tuple[float, float], destination: tuple[float, float]
+    ) -> tuple[float, float, float, float]:
+        return (
+            round(origin[0], 6),
+            round(origin[1], 6),
+            round(destination[0], 6),
+            round(destination[1], 6),
+        )
+
+    def route_geometry(
+        self, origin: tuple[float, float], destination: tuple[float, float]
+    ) -> list[tuple[float, float]] | None:
+        return self._route_geometry_cache.get(self._route_key(origin, destination))
 
     def _get(self, url: str, **params) -> list[dict]:
         try:
@@ -161,11 +195,16 @@ class OSMProvider:
         return Location(place_id, address, lat, lng, provider=self.name)
 
     def route(self, origin: tuple[float, float], destination: tuple[float, float]) -> Route:
+        return self.route_with_geometry(origin, destination)[0]
+
+    def route_with_geometry(
+        self, origin: tuple[float, float], destination: tuple[float, float]
+    ) -> tuple[Route, list[tuple[float, float]] | None]:
         url = f"{self.routing_url.rstrip('/')}/route/v1/driving/{origin[1]},{origin[0]};{destination[1]},{destination[0]}"
         try:
             response = httpx.get(
                 url,
-                params={"overview": "false"},
+                params={"overview": "full", "geometries": "geojson"},
                 headers={"User-Agent": self.user_agent},
                 timeout=self.timeout_seconds,
             )
@@ -177,4 +216,21 @@ class OSMProvider:
         if not routes:
             raise ProviderNotFound("No se encontró una ruta.")
         first = routes[0]
-        return Route(float(first["distance"]) / 1000, round(float(first["duration"]) / 60), self.name)
+        raw_geometry = first.get("geometry")
+        raw_coordinates = (
+            raw_geometry.get("coordinates")
+            if isinstance(raw_geometry, dict) and raw_geometry.get("type") == "LineString"
+            else None
+        )
+        geometry = None
+        if raw_coordinates is not None:
+            try:
+                geometry = [(float(point[0]), float(point[1])) for point in raw_coordinates]
+            except (TypeError, ValueError, IndexError) as exc:
+                raise ProviderUnavailable("Respuesta inválida del proveedor de rutas.") from exc
+        key = self._route_key(origin, destination)
+        if key not in self._route_geometry_cache and len(self._route_geometry_cache) >= 256:
+            self._route_geometry_cache.pop(next(iter(self._route_geometry_cache)))
+        self._route_geometry_cache[key] = geometry
+        route = Route(float(first["distance"]) / 1000, round(float(first["duration"]) / 60), self.name)
+        return route, geometry

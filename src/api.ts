@@ -73,6 +73,11 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 type Json = Record<string, any>
 
 const hhmm = (t: string | null | undefined): string => (t ? t.slice(0, 5) : '')
+const coordinate = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
 
 function mapClient(c: Json): Client {
   return {
@@ -114,6 +119,7 @@ function mapVehicle(v: Json): Vehicle {
   else status = 'Disponible'
 
   return {
+    vehicleId: String(v.id),
     id: v.patente ?? String(v.id),
     type: v.tipo ?? v.type ?? '',
     capacityKg: Number(v.capacidad_kg ?? v.capacity_kg ?? 0),
@@ -153,8 +159,8 @@ function mapRequest(r: Json): ShiftRequest {
       floor: String(r.origin_floor ?? r.origen_piso ?? ''),
       elevator: Boolean(r.origin_elevator ?? r.origen_ascensor),
       placeId: r.origen_place_id ?? undefined,
-      lat: r.origen_lat ?? undefined,
-      lng: r.origen_lng ?? undefined,
+      lat: coordinate(r.origen_lat ?? r.origin_lat),
+      lng: coordinate(r.origen_lng ?? r.origin_lng),
     },
     destination: {
       label: 'Destino',
@@ -163,8 +169,8 @@ function mapRequest(r: Json): ShiftRequest {
       floor: String(r.destination_floor ?? r.destino_piso ?? ''),
       elevator: Boolean(r.destination_elevator ?? r.destino_ascensor),
       placeId: r.destino_place_id ?? undefined,
-      lat: r.destino_lat ?? undefined,
-      lng: r.destino_lng ?? undefined,
+      lat: coordinate(r.destino_lat ?? r.destination_lat),
+      lng: coordinate(r.destino_lng ?? r.destination_lng),
     },
     cargo: {
       items: (r.cargo_items ?? []).map((i: Json) => ({
@@ -338,10 +344,11 @@ function legacySolicitudPayload(payload: Json): Json {
   const estado = payload.estado ?? payload.status
   if (estado) out.estado = ESTADO_DESDE_LABEL[String(estado)] ?? estado
 
-  const chofer = payload.chofer_id ?? payload.driver_id
-  if (chofer != null && chofer !== '') out.chofer_id = Number(chofer)
-  const vehiculo = payload.vehiculo_id ?? payload.vehicle_id
-  if (vehiculo != null && vehiculo !== '') out.vehiculo_id = Number(vehiculo)
+  const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(payload, key)
+  const chofer = hasOwn('chofer_id') ? payload.chofer_id : payload.driver_id
+  if (chofer !== undefined) out.chofer_id = chofer === null || chofer === '' ? null : Number(chofer)
+  const vehiculo = hasOwn('vehiculo_id') ? payload.vehiculo_id : payload.vehicle_id
+  if (vehiculo !== undefined) out.vehiculo_id = vehiculo === null || vehiculo === '' ? null : Number(vehiculo)
 
   const precio = payload.precio_final ?? payload.price
   if (precio != null && precio !== '') out.precio_final = Number(precio)
@@ -405,6 +412,9 @@ export const api = {
       kmTotal: Number(r.km_total),
       etaMinutes: Number(r.duracion_ida_min),
       returnMinutes: Number(r.duracion_vuelta_min),
+      geometry: Array.isArray(r.geometry)
+        ? r.geometry.map((point: number[]) => [Number(point[0]), Number(point[1])] as [number, number])
+        : undefined,
     }
   },
   quote: async (id: string, params: { driverId: string; waitMinutes?: number }): Promise<Quote> => {

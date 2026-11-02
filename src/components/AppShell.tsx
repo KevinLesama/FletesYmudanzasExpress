@@ -28,6 +28,9 @@ import { Brand } from './Brand'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
 import { loadSettings } from '../settingsStore'
+import type { TripForMapReason } from '../tripForMap'
+import type { ShiftRequest } from '../types'
+import { useMapTrips } from '../useMapTrips'
 
 const SEPARADOR_BREADCRUMB = '·'
 export const SECCION_BREADCRUMB = 'Operación'
@@ -136,10 +139,33 @@ interface AppShellProps {
   action?: ReactNode
   /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
   fill?: boolean
+  mapTrip?: ShiftRequest | null
+  mapTrips?: ShiftRequest[]
+  mapRequests?: ShiftRequest[]
+  mapRequestsLoading?: boolean
+  mapReason?: TripForMapReason | null
+  onClearMapTrip?: () => void
+  onOpenMapTripDetail?: (trip: ShiftRequest) => void
   children: ReactNode
 }
 
-export function AppShell({ active, breadcrumb, title, kicker, description, action, fill, children }: AppShellProps) {
+export function AppShell({
+  active,
+  breadcrumb,
+  title,
+  kicker,
+  description,
+  action,
+  fill,
+  mapTrip,
+  mapTrips,
+  mapRequests,
+  mapRequestsLoading,
+  mapReason,
+  onClearMapTrip,
+  onOpenMapTripDetail,
+  children,
+}: AppShellProps) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const fillLayout = Boolean(fill) && !isMobile
@@ -155,6 +181,10 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
     initials: initialsFrom(name),
     photo: profile.photo,
   }
+  const fallbackMap = useMapTrips(mapRequests)
+  const effectiveMapTrips = mapTrips ?? fallbackMap.trips
+  const effectiveMapTrip = mapTrip ?? effectiveMapTrips[0] ?? null
+  const effectiveMapLoading = mapRequestsLoading ?? fallbackMap.loading
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -170,7 +200,14 @@ export function AppShell({ active, breadcrumb, title, kicker, description, actio
         ))}
       </Stack>
       <Box sx={{ flexGrow: 1, minHeight: 180, my: 2, display: 'flex' }}>
-        <MapPreview />
+        <MapPreview
+          trip={effectiveMapTrip}
+          trips={effectiveMapTrips}
+          tripsLoading={effectiveMapLoading}
+          reason={mapReason}
+          onClear={onClearMapTrip}
+          onOpenDetail={onOpenMapTripDetail}
+        />
       </Box>
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64707C' }}>

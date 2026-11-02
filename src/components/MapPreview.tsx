@@ -1,60 +1,187 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
+import L, { type LatLngTuple } from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import * as maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker?url'
+import { maplibreGL } from '@maplibre/maplibre-gl-leaflet'
 import {
   Box,
+  Button,
   Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
+  Skeleton,
   Stack,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material'
-import PlaceIcon from '@mui/icons-material/Place'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import ZoomOutIcon from '@mui/icons-material/ZoomOut'
 import OpenInFullIcon from '@mui/icons-material/OpenInFull'
 import CloseIcon from '@mui/icons-material/Close'
-import { color, motion, shadow } from '../design/tokens'
+import { alpha } from '@mui/material/styles'
+import { MapContainer, Marker, Polyline, useMap } from 'react-leaflet'
+import { color, motion, shadow, type as typeScale } from '../design/tokens'
+import { api } from '../api'
+import { fmtDate } from '../format'
+import type { TripForMapReason } from '../tripForMap'
+import type { ShiftRequest } from '../types'
+import { StatusChip } from './StatusChip'
+import { WINDOW_DAYS } from '../useMapTrips'
 
-const MIN_ZOOM = 1
-const MAX_ZOOM = 2.5
-const ZOOM_STEP = 0.5
-
-const GRID_COLS = 8
-const GRID_ROWS = 10
-const GRID_CELL = 48
-const BLOCK_SIZE = 42
-
-/** Rounded blocks, drawn as subpaths of one compound path instead of 80 nodes. */
-function blockSubpath(x: number, y: number, size: number) {
-  return `M${x} ${y}h${size}v${size}h${-size}Z`
+export interface MapPreviewProps {
+  trip?: ShiftRequest | null
+  trips?: ShiftRequest[]
+  tripsLoading?: boolean
+  reason?: TripForMapReason | null
+  onClear?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
 }
 
-function buildCityBlocks() {
-  const blocks: string[] = []
-  const gardens: string[] = []
-  for (let row = 0; row < GRID_ROWS; row += 1) {
-    for (let col = 0; col < GRID_COLS; col += 1) {
-      // Two low blocks leave room for the diagonal avenue and a small plaza.
-      if ((row === 4 && col === 4) || (row === 5 && col === 3)) continue
-      const x = 8 + col * GRID_CELL
-      const y = 8 + row * GRID_CELL
-      const jitter = (row * 3 + col * 5) % 3
-      const size = BLOCK_SIZE - jitter
-      const isGarden = (row === 2 && col === 2) || (row === 2 && col === 3) || (row === 7 && col === 5)
-      const subpath = blockSubpath(x, y, size)
-      if (isGarden) gardens.push(subpath)
-      else blocks.push(subpath)
+function isTripInProgress(trip: ShiftRequest): boolean {
+  return String(trip.status) === 'En viaje' || (
+    trip.status === 'Confirmada' &&
+    Boolean(trip.arrivedAt) &&
+    !trip.finishedAt
+  )
+}
+
+const BUENOS_AIRES: LatLngTuple = [-34.6037, -58.3816]
+const MAP_TILES_KEY = (import.meta.env.VITE_MAP_TILES_KEY as string | undefined)?.trim() ?? ''
+const MAP_STYLE_ID = (import.meta.env.VITE_MAP_STYLE_ID as string | undefined)?.trim()
+const MAP_STYLE_URL =
+  MAP_TILES_KEY && MAP_STYLE_ID
+    ? `https://api.maptiler.com/maps/${MAP_STYLE_ID}/style.json?key=${MAP_TILES_KEY}`
+    : ''
+const COLORS = {
+  origin: '#1E2A4A',
+  route: '#1E2A4A',
+  destination: '#C2410C',
+} as const
+const ROUTE_CACHE_LIMIT = 128
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl)
+
+type RouteState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'approximate'; geometry: null; km?: number; minutes?: number }
+  | { status: 'ready'; geometry: LatLngTuple[]; km: number; minutes: number }
+
+function isCoordinate(lat: number | undefined, lng: number | undefined): lat is number {
+  return lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)
+}
+
+function addressFor(place: ShiftRequest['origin']): string {
+  if (place.address && place.barrio) return `${place.address} · ${place.barrio}`
+  return place.address || place.barrio || 'Dirección no disponible'
+}
+
+type TripMapLabelTone = 'live' | 'muted' | 'warning' | 'neutral'
+
+function getTripMapLabel(trip: ShiftRequest, now: Date): { text: string; tone: TripMapLabelTone } {
+  if (trip.arrivedAt && !trip.finishedAt) return { text: 'En curso', tone: 'live' }
+  if (trip.finishedAt) return { text: 'Finalizado', tone: 'muted' }
+
+  const end = new Date(`${trip.date}T${trip.serviceRange[1]}:00`)
+  if (!Number.isNaN(end.getTime()) && end < now) return { text: 'Sin finalizar', tone: 'warning' }
+  return { text: 'Programado', tone: 'neutral' }
+}
+
+function formatDistance(km: number): string {
+  return `${km.toLocaleString('es-AR', { maximumFractionDigits: 1 })} km`
+}
+
+function MapLibreLayer() {
+  const map = useMap()
+  const layerRef = useRef<ReturnType<typeof maplibreGL> | null>(null)
+
+  useEffect(() => {
+    if (!MAP_STYLE_URL) {
+      console.error('No se pudo cargar el mapa: faltan VITE_MAP_TILES_KEY o VITE_MAP_STYLE_ID.')
+      return
     }
-  }
-  return { blocks: blocks.join(''), gardens: gardens.join('') }
+
+    const layer = maplibreGL({
+      style: MAP_STYLE_URL,
+      interactive: false,
+      attributionControl: false,
+    })
+    layerRef.current = layer
+    map.addLayer(layer)
+    const resize = () => {
+      map.invalidateSize({ pan: false })
+      layer.getMaplibreMap()?.resize()
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(map.getContainer())
+    const resizeFrame = window.requestAnimationFrame(resize)
+
+    return () => {
+      window.cancelAnimationFrame(resizeFrame)
+      observer.disconnect()
+      const activeLayer = layerRef.current
+      if (activeLayer && map.hasLayer(activeLayer)) map.removeLayer(activeLayer)
+      layerRef.current = null
+    }
+  }, [map])
+
+  return null
 }
 
-const CITY = buildCityBlocks()
+type MarkerKind = 'origin' | 'destination'
 
-function roundZoom(value: number) {
-  return Math.round(value * 10) / 10
+function markerColor(kind: MarkerKind): string {
+  return kind === 'origin' ? COLORS.origin : COLORS.destination
+}
+
+function MarkerGlyph({ kind, size }: { kind: MarkerKind; size: number }) {
+  return (
+    <Box
+      aria-hidden="true"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: kind === 'origin' ? size : size * 0.9,
+        height: kind === 'origin' ? size : size * 1.15,
+        flexShrink: 0,
+        borderRadius: kind === 'origin' ? '50%' : '50% 50% 50% 0',
+        bgcolor: kind === 'origin' ? color.paper : markerColor(kind),
+        border: kind === 'origin' ? `${Math.max(2, size * 0.22)}px solid` : 'none',
+        borderColor: COLORS.origin,
+        boxShadow: shadow.raised,
+        transform: kind === 'destination' ? 'rotate(-45deg)' : 'none',
+      }}
+    >
+      {kind === 'destination' && (
+        <Box sx={{ width: size * 0.35, height: size * 0.35, borderRadius: '50%', bgcolor: color.paper }} />
+      )}
+    </Box>
+  )
+}
+
+function MarkerIcon(kind: MarkerKind) {
+  if (kind === 'destination') {
+    return L.divIcon({
+      className: '',
+      html: `<svg aria-hidden="true" width="30" height="38" viewBox="0 0 30 38" xmlns="http://www.w3.org/2000/svg" style="display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.24))"><path d="M15 37C13 34 2 22 2 15C2 7.82 7.82 2 15 2C22.18 2 28 7.82 28 15C28 22 17 34 15 37Z" fill="${COLORS.destination}" stroke="${color.paper}" stroke-width="2"/><circle cx="15" cy="15" r="5" fill="${color.paper}"/></svg>`,
+      iconSize: [30, 38],
+      iconAnchor: [15, 37],
+    })
+  }
+
+  const size = 18
+  return L.divIcon({
+    className: '',
+    html: `<span aria-hidden="true" style="display:block;width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;background:${color.paper};border:4px solid ${COLORS.origin};box-shadow:${shadow.raised}"></span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
 }
 
 function MapButton({
@@ -79,14 +206,15 @@ function MapButton({
           sx={{
             width: 28,
             height: 28,
-            bgcolor: 'rgba(255,255,255,0.92)',
+            bgcolor: alpha(color.paper, 0.92),
             border: `1px solid ${color.border}`,
             borderRadius: 1.5,
             color: color.navy,
             boxShadow: shadow.card,
             transition: `background-color ${motion.fast}`,
+            '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
             '&:hover': { bgcolor: color.paper },
-            '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.7)', color: color.mutedSoft },
+            '&.Mui-disabled': { bgcolor: alpha(color.paper, 0.7), color: color.mutedSoft },
             '& svg': { fontSize: 17 },
           }}
         >
@@ -97,109 +225,27 @@ function MapButton({
   )
 }
 
-function MapCanvas({ zoom, label }: { zoom: number; label: string }) {
-  return (
-    <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', bgcolor: color.sand }}>
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          transition: `transform ${motion.base}`,
-          transform: `scale(${zoom})`,
-          transformOrigin: '50% 50%',
-        }}
-      >
-        <Box
-          component="svg"
-          viewBox="0 0 392 488"
-          preserveAspectRatio="xMidYMid slice"
-          role="img"
-          aria-label={label}
-          sx={{ display: 'block', width: '100%', height: '100%' }}
-        >
-          <rect width="392" height="488" fill={color.sand} />
-
-          {/* Río de la Plata */}
-          <path
-            d="M352 0 C338 80 360 160 346 250 C334 340 358 420 344 488 L392 488 L392 0 Z"
-            fill={color.blueSoft}
-          />
-
-          {/* Manzanas y espacios verdes */}
-          <path d={CITY.blocks} fill={color.borderSoft} />
-          <path d={CITY.gardens} fill={color.greenSoft} />
-
-          {/* Avenidas */}
-          <path d="M-20 400 L420 260" stroke={color.paper} strokeWidth="12" />
-          <path
-            d="M-20 400 L420 260"
-            stroke={color.border}
-            strokeWidth="1"
-            strokeDasharray="7 6"
-          />
-          <path d="M244 0 L244 488" stroke={color.paper} strokeWidth="9" />
-
-          {/* Recorrido */}
-          <path
-            d="M150 340 L150 300 L196 300 L196 244"
-            fill="none"
-            stroke={color.orangeStrong}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="7 5"
-          />
-          <circle
-            cx="150"
-            cy="340"
-            r="4.5"
-            fill={color.paper}
-            stroke={color.orangeStrong}
-            strokeWidth="2.5"
-          />
-        </Box>
-      </Box>
-
-      <Box
-        sx={{
-          position: 'absolute',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%, -100%)',
-          width: 26,
-          height: 26,
-          borderRadius: '50%',
-          bgcolor: color.paper,
-          boxShadow: shadow.raised,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <PlaceIcon sx={{ fontSize: 16, color: color.orangeStrong }} />
-      </Box>
-    </Box>
-  )
-}
-
 function ZoomControls({
-  zoom,
-  onZoomIn,
-  onZoomOut,
   onExpand,
 }: {
-  zoom: number
-  onZoomIn: () => void
-  onZoomOut: () => void
   onExpand?: () => void
 }) {
+  const map = useMap()
+
   return (
-    <Stack spacing={0.5} sx={{ position: 'absolute', top: 8, right: 8 }}>
-      <MapButton label="Acercar" onClick={onZoomIn} disabled={zoom >= MAX_ZOOM}>
-        <ZoomInIcon />
-      </MapButton>
-      <MapButton label="Alejar" onClick={onZoomOut} disabled={zoom <= MIN_ZOOM}>
+    <Stack
+      direction="row"
+      spacing={0.75}
+      sx={{
+        justifyContent: 'flex-end',
+        pointerEvents: 'auto',
+      }}
+    >
+      <MapButton label="Alejar" onClick={() => map.zoomOut()}>
         <ZoomOutIcon />
+      </MapButton>
+      <MapButton label="Acercar" onClick={() => map.zoomIn()}>
+        <ZoomInIcon />
       </MapButton>
       {onExpand && (
         <MapButton label="Agrandar el mapa" onClick={onExpand}>
@@ -210,24 +256,665 @@ function ZoomControls({
   )
 }
 
-/**
- * Sidebar map placeholder. It fills its parent, so the sidebar controls the
- * height. The controls are real (zoom scales the preview, expand opens a
- * dialog); the geography is illustrative until a map provider is connected.
- */
-export function MapPreview() {
-  const [zoom, setZoom] = useState(MIN_ZOOM)
-  const [expanded, setExpanded] = useState(false)
+function BottomMapPanel({
+  trip,
+  routeState,
+  onExpand,
+  onOpenDetail,
+  showAddresses,
+  onBottomPanelHeightChange,
+}: {
+  trip?: ShiftRequest | null
+  routeState: RouteState
+  onExpand?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
+  showAddresses?: boolean
+  onBottomPanelHeightChange: (height: number) => void
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  const zoomIn = () => setZoom((z) => roundZoom(Math.min(MAX_ZOOM, z + ZOOM_STEP)))
-  const zoomOut = () => setZoom((z) => roundZoom(Math.max(MIN_ZOOM, z - ZOOM_STEP)))
+  useEffect(() => {
+    const element = panelRef.current
+    if (!element) return
+    const reportHeight = () => onBottomPanelHeightChange(element.getBoundingClientRect().height)
+    reportHeight()
+    const observer = new ResizeObserver(reportHeight)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [onBottomPanelHeightChange])
+
+  return (
+    <Box
+      ref={panelRef}
+      sx={{
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        bottom: 8,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 1,
+        pointerEvents: 'none',
+      }}
+    >
+      <ZoomControls onExpand={onExpand} />
+      {trip && (
+        <TripCard
+          trip={trip}
+          routeState={routeState}
+          onOpenDetail={onOpenDetail}
+          showAddresses={showAddresses}
+        />
+      )}
+    </Box>
+  )
+}
+
+function TripReasonBadge({
+  trip,
+  selectedMode,
+  now,
+  onClear,
+  index,
+  total,
+  onNavigate,
+}: {
+  trip: ShiftRequest
+  selectedMode: boolean
+  now: Date
+  onClear?: () => void
+  index: number
+  total: number
+  onNavigate: (direction: -1 | 1) => void
+}) {
+  const selectedLabel = selectedMode ? getTripMapLabel(trip, now) : null
+  const isLive = isTripInProgress(trip)
+  const text = selectedLabel?.text
+    ?? (isLive ? 'En curso' : total > 1 ? 'Próximos viajes' : 'Próximo viaje')
+  const tone = selectedLabel?.tone ?? (isTripInProgress(trip) ? 'live' : 'neutral')
+  const dotColor = tone === 'live' ? color.green : tone === 'warning' ? color.amber : tone === 'muted' ? color.mutedSoft : null
+  const showNavigation = !selectedMode && total > 1
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        zIndex: 1100,
+        display: 'inline-flex',
+        alignItems: 'center',
+        minHeight: 32,
+        px: 1.25,
+        borderRadius: 2,
+        bgcolor: color.paper,
+        color: color.navy,
+        fontSize: typeScale.micro,
+        fontWeight: 700,
+        boxShadow: shadow.card,
+      }}
+    >
+      {dotColor && (
+        <Box
+          aria-hidden="true"
+          sx={{
+            width: 8,
+            height: 8,
+            mr: 0.75,
+            flexShrink: 0,
+            borderRadius: '50%',
+            bgcolor: dotColor,
+            ...(tone === 'live' && {
+              animation: 'map-pulse 1.6s ease-in-out infinite',
+              '@keyframes map-pulse': {
+                '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(color.green, 0.35)}` },
+                '50%': { boxShadow: `0 0 0 4px ${alpha(color.green, 0)}` },
+              },
+            }),
+          }}
+        />
+      )}
+      <Typography component="span" sx={{ fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit', lineHeight: 1, whiteSpace: 'nowrap' }}>
+        {showNavigation && isLive ? `${text} · ${index + 1}/${total}` : showNavigation ? (
+          <>
+            <Box component="span" sx={{ '@media (max-width: 360px)': { display: 'none' } }}>Próximos viajes · </Box>
+            <Box component="span" sx={{ display: 'none', '@media (max-width: 360px)': { display: 'inline' } }}>Próximos · </Box>
+            {index + 1}/{total}
+          </>
+        ) : text}
+      </Typography>
+      {showNavigation && (
+        <>
+          <IconButton
+            aria-label="Viaje anterior"
+            disabled={index === 0}
+            onClick={() => onNavigate(-1)}
+            sx={{
+              order: -1,
+              width: 28,
+              height: 28,
+              mr: 0.25,
+              p: 0,
+              color: color.navy,
+              borderRadius: '50%',
+              '&:hover': { bgcolor: color.sandDeep },
+              '&.Mui-disabled': { color: color.mutedSoft, opacity: 0.55 },
+              '& svg': { fontSize: 14 },
+            }}
+          >
+            ‹
+          </IconButton>
+          <IconButton
+            aria-label="Viaje siguiente"
+            disabled={index === total - 1}
+            onClick={() => onNavigate(1)}
+            sx={{
+              width: 28,
+              height: 28,
+              ml: 0.25,
+              p: 0,
+              color: color.navy,
+              borderRadius: '50%',
+              '&:hover': { bgcolor: color.sandDeep },
+              '&.Mui-disabled': { color: color.mutedSoft, opacity: 0.55 },
+              '& svg': { fontSize: 14 },
+            }}
+          >
+            ›
+          </IconButton>
+        </>
+      )}
+      {selectedMode && onClear && (
+        <IconButton
+          aria-label="Volver a próximos viajes"
+          onClick={onClear}
+          sx={{
+            width: 24,
+            height: 24,
+            ml: 0.5,
+            p: 0,
+            color: color.muted,
+            borderRadius: '50%',
+            '&:hover': { bgcolor: color.sandDeep },
+            '& svg': { fontSize: 14 },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+      )}
+    </Box>
+  )
+}
+
+function FitMap({
+  tripId,
+  positions,
+  reducedMotion,
+  bottomPanelHeight,
+}: {
+  tripId?: string
+  positions: LatLngTuple[]
+  reducedMotion: boolean
+  bottomPanelHeight: number
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize({ pan: false })
+      if (positions.length === 0) {
+        map.setView(BUENOS_AIRES, 11, { animate: false })
+        return
+      }
+
+      const bounds = L.latLngBounds(positions)
+      map.fitBounds(bounds, {
+        paddingTopLeft: [40, 48],
+        paddingBottomRight: [40, bottomPanelHeight + 16],
+        maxZoom: positions.length === 1 ? 14 : 16,
+        animate: !reducedMotion,
+      })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [bottomPanelHeight, map, positions, reducedMotion, tripId])
+
+  return null
+}
+
+function MapContents({
+  trip,
+  geometry,
+  routeState,
+  reducedMotion,
+  onExpand,
+  onOpenDetail,
+  large,
+  index,
+  total,
+  selectedMode,
+  bottomPanelHeight,
+  onBottomPanelHeightChange,
+}: {
+  trip?: ShiftRequest | null
+  geometry: LatLngTuple[] | null
+  routeState: RouteState
+  reducedMotion: boolean
+  onExpand?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
+  large?: boolean
+  index: number
+  total: number
+  selectedMode: boolean
+  bottomPanelHeight: number
+  onBottomPanelHeightChange: (height: number) => void
+}) {
+  const origin = trip && isCoordinate(trip.origin.lat, trip.origin.lng)
+    ? [trip.origin.lat, trip.origin.lng] as LatLngTuple
+    : null
+  const destination = trip && isCoordinate(trip.destination.lat, trip.destination.lng)
+    ? [trip.destination.lat, trip.destination.lng] as LatLngTuple
+    : null
+  const positions = useMemo(
+    () => [...(origin ? [origin] : []), ...(destination ? [destination] : []), ...(geometry ?? [])],
+    [origin?.[0], origin?.[1], destination?.[0], destination?.[1], geometry],
+  )
+  const bothCoordinates = origin !== null && destination !== null
+  const approximate = bothCoordinates && routeState.status === 'approximate'
+  const markerA = useMemo(() => MarkerIcon('origin'), [])
+  const markerB = useMemo(() => MarkerIcon('destination'), [])
+  const routePositions = geometry?.length ? geometry : bothCoordinates ? [origin, destination] : []
 
   return (
     <>
+      <MapLibreLayer />
+      {trip && origin && (
+        <Marker position={origin} icon={markerA} alt={`Origen: ${addressFor(trip.origin)}`} zIndexOffset={1000} />
+      )}
+      {trip && destination && (
+        <Marker position={destination} icon={markerB} alt={`Destino: ${addressFor(trip.destination)}`} zIndexOffset={1000} />
+      )}
+      {bothCoordinates && (
+        approximate ? (
+          <Polyline
+            positions={routePositions}
+            pathOptions={{ color: COLORS.route, weight: 5, opacity: 0.5, dashArray: '6 8', lineCap: 'round', lineJoin: 'round' }}
+          />
+        ) : (
+          <>
+            <Polyline
+              positions={routePositions}
+              pathOptions={{ color: COLORS.route, weight: 5, opacity: 0.5, lineCap: 'round', lineJoin: 'round' }}
+            />
+            <Polyline
+              positions={routePositions}
+              pathOptions={{ color: COLORS.route, weight: 5, opacity: 0.5, lineCap: 'round', lineJoin: 'round' }}
+            />
+          </>
+        )
+      )}
+      <FitMap
+        tripId={`${trip?.id ?? 'empty'}:${selectedMode ? 'selected' : 'upcoming'}`}
+        positions={positions}
+        reducedMotion={reducedMotion}
+        bottomPanelHeight={bottomPanelHeight}
+      />
+      <BottomMapPanel
+        trip={trip}
+        routeState={routeState}
+        onExpand={onExpand}
+        onOpenDetail={onOpenDetail}
+        showAddresses={large}
+        onBottomPanelHeightChange={onBottomPanelHeightChange}
+      />
+      {routeState.status === 'loading' && (
+        <Box
+          role="status"
+          aria-label="Cargando ruta"
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 1000,
+            p: 0.75,
+            borderRadius: 2,
+            bgcolor: alpha(color.paper, 0.92),
+          }}
+        >
+          <Skeleton width={88} height={16} />
+        </Box>
+      )}
+      {trip && !bothCoordinates && (
+        <Typography
+          role="status"
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 1000,
+            p: 1,
+            borderRadius: 2,
+            bgcolor: alpha(color.paper, 0.92),
+            color: color.red,
+            fontSize: 12,
+            fontWeight: 700,
+            textAlign: 'center',
+          }}
+        >
+          No pudimos ubicar este viaje
+        </Typography>
+      )}
+    </>
+  )
+}
+
+function TripCard({
+  trip,
+  routeState,
+  onOpenDetail,
+  showAddresses,
+}: {
+  trip: ShiftRequest
+  routeState: RouteState
+  onOpenDetail?: (trip: ShiftRequest) => void
+  showAddresses?: boolean
+}) {
+  const km = routeState.status === 'ready' || routeState.status === 'approximate'
+    ? routeState.km ?? trip.estimatedKm
+    : trip.estimatedKm
+  const minutes = routeState.status === 'ready' || routeState.status === 'approximate'
+    ? routeState.minutes ?? trip.etaMinutes
+    : trip.etaMinutes
+
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        pointerEvents: 'auto',
+        p: 1,
+        borderRadius: 2,
+        bgcolor: color.paper,
+        border: `1px solid ${color.border}`,
+        boxShadow: shadow.card,
+        transition: 'none',
+        '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+      }}
+    >
+      <Tooltip title={trip.client} placement="top">
+        <Typography noWrap sx={{ minWidth: 0, fontSize: typeScale.caption, fontWeight: 700, color: color.navy }}>
+          {trip.client}
+        </Typography>
+      </Tooltip>
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0, mt: 0.25 }}>
+        <Typography sx={{ minWidth: 0, fontSize: typeScale.micro, color: color.muted }}>{trip.id}</Typography>
+        <StatusChip label={trip.status} />
+      </Stack>
+      <Typography sx={{ mt: 0.25, fontSize: typeScale.micro, color: color.muted }}>
+        {fmtDate(trip.date)} · {trip.serviceRange[0]}–{trip.serviceRange[1]}
+      </Typography>
+      {showAddresses && <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+        {([
+          ['Origen', trip.origin],
+          ['Destino', trip.destination],
+        ] as const).map(([label, place]) => (
+          <Stack key={label} direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+            <MarkerGlyph kind={label === 'Origen' ? 'origin' : 'destination'} size={18} />
+            <Typography sx={{ width: 42, flexShrink: 0, fontSize: 11, fontWeight: 800, color: label === 'Origen' ? color.navy : color.orangeStrong }}>
+              {label}
+            </Typography>
+            <Tooltip title={addressFor(place)} placement="top">
+              <Typography noWrap sx={{ minWidth: 0, fontSize: 11, color: color.ink }}>
+                {addressFor(place)}
+              </Typography>
+            </Tooltip>
+          </Stack>
+        ))}
+      </Stack>}
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: showAddresses ? 0.35 : 0.5, minWidth: 0 }}>
+        {routeState.status === 'loading' ? (
+          <Skeleton width={102} height={18} />
+        ) : (
+          <Typography sx={{ flex: 1, minWidth: 0, fontSize: typeScale.micro, fontWeight: 700, color: color.navy }}>
+            {km != null && minutes != null
+              ? `${formatDistance(km)} · ${Math.round(minutes)} min`
+              : routeState.status === 'approximate'
+                ? 'Ruta aproximada'
+                : 'Sin datos de ruta'}
+            {routeState.status === 'approximate' && km != null && minutes != null ? ' · Ruta aproximada' : ''}
+          </Typography>
+        )}
+        {onOpenDetail && (
+          <Button size="small" onClick={() => onOpenDetail(trip)} sx={{ flexShrink: 0, minWidth: 0, px: 0.5, py: 0, fontSize: typeScale.micro, whiteSpace: 'nowrap' }}>
+            Ver detalle
+          </Button>
+        )}
+      </Stack>
+    </Box>
+  )
+}
+
+function MapCanvas({
+  trip,
+  routeState,
+  reducedMotion,
+  onExpand,
+  onOpenDetail,
+  large,
+  index,
+  total,
+  selectedMode,
+  bottomPanelHeight,
+  onBottomPanelHeightChange,
+}: {
+  trip?: ShiftRequest | null
+  routeState: RouteState
+  reducedMotion: boolean
+  onExpand?: () => void
+  onOpenDetail?: (trip: ShiftRequest) => void
+  large?: boolean
+  index: number
+  total: number
+  selectedMode: boolean
+  bottomPanelHeight: number
+  onBottomPanelHeightChange: (height: number) => void
+}) {
+  const geometry = routeState.status === 'ready' ? routeState.geometry : null
+  const center = trip && isCoordinate(trip.origin.lat, trip.origin.lng)
+    ? [trip.origin.lat, trip.origin.lng] as LatLngTuple
+    : trip && isCoordinate(trip.destination.lat, trip.destination.lng)
+      ? [trip.destination.lat, trip.destination.lng] as LatLngTuple
+      : BUENOS_AIRES
+
+  return (
+    <MapContainer
+      key={`${trip?.id ?? 'empty'}:${selectedMode ? 'selected' : 'upcoming'}`}
+      center={center}
+      zoom={11}
+      minZoom={4}
+      maxZoom={19}
+      zoomControl={false}
+      attributionControl={false}
+      scrollWheelZoom={false}
+      zoomAnimation={!reducedMotion}
+      markerZoomAnimation={!reducedMotion}
+      fadeAnimation={!reducedMotion}
+      style={{ height: '100%', width: '100%' }}
+    >
+      <MapContents
+        trip={trip}
+        geometry={geometry}
+        routeState={routeState}
+        reducedMotion={reducedMotion}
+        onExpand={onExpand}
+        onOpenDetail={onOpenDetail}
+        large={large}
+        index={index}
+        total={total}
+        selectedMode={selectedMode}
+        bottomPanelHeight={bottomPanelHeight}
+        onBottomPanelHeightChange={onBottomPanelHeightChange}
+      />
+    </MapContainer>
+  )
+}
+
+function MapAttribution() {
+  return (
+    <Box
+      component="div"
+      sx={{
+        flex: '0 0 20px',
+        minHeight: 20,
+        px: 1,
+        display: 'flex',
+        alignItems: 'center',
+        overflow: 'hidden',
+        color: color.muted,
+        fontSize: 10,
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+        '& a': { color: color.muted, textDecoration: 'underline' },
+      }}
+    >
+      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <Box component="a" href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener noreferrer">
+          © MapTiler
+        </Box>{' '}
+        <Box component="a" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+          © OpenStreetMap contributors
+        </Box>
+      </Box>
+    </Box>
+  )
+}
+
+export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear, onOpenDetail }: MapPreviewProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [index, setIndex] = useState(0)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(0)
+  const now = new Date()
+  const [routeSnapshot, setRouteSnapshot] = useState<{
+    routeKey: string | null
+    state: RouteState
+  }>({ routeKey: null, state: { status: 'idle' } })
+  const routeCache = useRef(new Map<string, Exclude<RouteState, { status: 'idle' } | { status: 'loading' }>>())
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const selectedMode = reason === 'seleccionado'
+  const orderedTrips = useMemo(
+    () => (selectedMode ? (trip ? [trip] : []) : (trips !== undefined ? trips : trip ? [trip] : []))
+      .filter((candidate, candidateIndex, all) => all.findIndex((item) => item.id === candidate.id) === candidateIndex)
+      .filter((candidate) => selectedMode || candidate.status === 'Confirmada' || isTripInProgress(candidate))
+      .sort((a, b) => Number(isTripInProgress(b)) - Number(isTripInProgress(a)) || a.date.localeCompare(b.date) || a.serviceRange[0].localeCompare(b.serviceRange[0])),
+    [selectedMode, trip, trips],
+  )
+  const currentIndex = orderedTrips.length > 0 ? Math.min(index, orderedTrips.length - 1) : 0
+  const currentTrip = orderedTrips[currentIndex] ?? trip ?? null
+  const totalTrips = orderedTrips.length
+  const tripListKey = `${selectedMode ? 'selected' : 'upcoming'}:${orderedTrips.map((candidate) => candidate.id).join('|')}`
+  const hasCoordinates =
+    Boolean(currentTrip) &&
+    isCoordinate(currentTrip?.origin.lat, currentTrip?.origin.lng) &&
+    isCoordinate(currentTrip?.destination.lat, currentTrip?.destination.lng)
+
+  const routeKey = currentTrip
+    ? `${currentTrip.id}:${currentTrip.origin.lat},${currentTrip.origin.lng}:${currentTrip.destination.lat},${currentTrip.destination.lng}`
+    : null
+  const routeState = routeSnapshot.routeKey === routeKey
+    ? routeSnapshot.state
+    : currentTrip
+      ? { status: 'loading' as const }
+      : { status: 'idle' as const }
+
+  useEffect(() => {
+    const lastIndex = orderedTrips.length - 1
+    if (index > lastIndex) setIndex(Math.max(0, lastIndex))
+  }, [index, orderedTrips.length])
+
+  useEffect(() => {
+    setIndex(0)
+  }, [tripListKey])
+
+  useEffect(() => {
+    if (!trip?.id) return
+    const selectedIndex = orderedTrips.findIndex((candidate) => candidate.id === trip.id)
+    if (selectedIndex >= 0) setIndex(selectedIndex)
+  }, [trip?.id])
+
+  useEffect(() => {
+    if (!currentTrip || !hasCoordinates) {
+      setRouteSnapshot({ routeKey, state: { status: 'idle' } })
+      return
+    }
+
+    const cached = routeCache.current.get(currentTrip.id)
+    if (cached) {
+      setRouteSnapshot({ routeKey, state: cached })
+      return
+    }
+
+    const controller = new AbortController()
+    setRouteSnapshot({ routeKey, state: { status: 'loading' } })
+    void api.route(
+      { lat: currentTrip.origin.lat!, lng: currentTrip.origin.lng! },
+      { lat: currentTrip.destination.lat!, lng: currentTrip.destination.lng! },
+    ).then((result) => {
+      if (controller.signal.aborted) return
+      const state: Exclude<RouteState, { status: 'idle' } | { status: 'loading' }> =
+        result.geometry?.length
+          ? {
+              status: 'ready',
+              geometry: result.geometry.map(([lng, lat]) => [lat, lng]),
+              km: result.kmIda,
+              minutes: result.etaMinutes,
+            }
+          : {
+              status: 'approximate',
+              geometry: null,
+              km: result.kmIda,
+              minutes: result.etaMinutes,
+            }
+      if (routeCache.current.size >= ROUTE_CACHE_LIMIT) {
+        const oldest = routeCache.current.keys().next().value
+        if (oldest) routeCache.current.delete(oldest)
+      }
+      routeCache.current.set(currentTrip.id, state)
+      setRouteSnapshot({ routeKey, state })
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) return
+      console.warn('No se pudo obtener la geometría de la ruta.', error)
+      const state: Exclude<RouteState, { status: 'idle' } | { status: 'loading' }> = {
+        status: 'approximate',
+        geometry: null,
+      }
+      routeCache.current.set(currentTrip.id, state)
+      setRouteSnapshot({ routeKey, state })
+    })
+
+    return () => controller.abort()
+  }, [currentTrip?.id, currentTrip?.origin.lat, currentTrip?.origin.lng, currentTrip?.destination.lat, currentTrip?.destination.lng, hasCoordinates, routeKey])
+
+  const navigate = (direction: -1 | 1) => {
+    setIndex((current) => Math.max(0, Math.min(totalTrips - 1, current + direction)))
+  }
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    navigate(event.key === 'ArrowLeft' ? -1 : 1)
+  }
+  return (
+    <>
       <Box
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
         sx={{
           position: 'relative',
           flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
           minHeight: 0,
           height: '100%',
           borderRadius: 2.5,
@@ -236,28 +923,28 @@ export function MapPreview() {
           bgcolor: color.sand,
         }}
       >
-        <MapCanvas zoom={zoom} label="Vista previa del mapa de Buenos Aires" />
-        <ZoomControls zoom={zoom} onZoomIn={zoomIn} onZoomOut={zoomOut} onExpand={() => setExpanded(true)} />
-        <Box
-          sx={{
-            position: 'absolute',
-            left: 8,
-            bottom: 8,
-            px: 0.8,
-            py: 0.1,
-            borderRadius: 999,
-            bgcolor: 'rgba(255,255,255,0.9)',
-            border: `1px solid ${color.border}`,
-          }}
-        >
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: color.muted, lineHeight: 1.7 }}>
-            Vista previa
-          </Typography>
+        <Box sx={{ position: 'relative', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', '& .leaflet-container': { height: '100%', width: '100%', fontFamily: 'inherit', zIndex: 0 }, '& .leaflet-div-icon': { background: 'transparent', border: 'none' }, '& .leaflet-zoom-animated': { transition: reducedMotion ? 'none' : undefined } }}>
+          <MapCanvas trip={currentTrip} routeState={routeState} reducedMotion={reducedMotion} onExpand={() => setExpanded(true)} onOpenDetail={onOpenDetail} index={currentIndex} total={totalTrips} selectedMode={selectedMode} bottomPanelHeight={bottomPanelHeight} onBottomPanelHeightChange={setBottomPanelHeight} />
+          {currentTrip && (
+            <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />
+          )}
+          {!currentTrip && tripsLoading && (
+            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92) }}>
+              <Skeleton width={160} height={20} />
+            </Box>
+          )}
+          {!currentTrip && !tripsLoading && (
+            <Typography role="status" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92), color: color.navy, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              Sin viajes en los próximos {WINDOW_DAYS} días
+            </Typography>
+          )}
         </Box>
+        <MapAttribution />
       </Box>
 
       <Dialog
         open={expanded}
+        onKeyDown={handleKeyDown}
         onClose={() => setExpanded(false)}
         maxWidth="md"
         fullWidth
@@ -267,7 +954,7 @@ export function MapPreview() {
           id="map-preview-title"
           sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1, fontSize: 16, fontWeight: 800 }}
         >
-          Mapa de la ciudad
+          {currentTrip ? `Ruta de ${currentTrip.client}` : 'Mapa de Buenos Aires'}
           <Box sx={{ flexGrow: 1 }} />
           <IconButton aria-label="Cerrar" onClick={() => setExpanded(false)} size="small">
             <CloseIcon fontSize="small" />
@@ -277,14 +964,20 @@ export function MapPreview() {
           <Box
             sx={{
               position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
               height: '58vh',
+              minHeight: 280,
               borderRadius: 2,
               border: `1px solid ${color.border}`,
               overflow: 'hidden',
             }}
           >
-            <MapCanvas zoom={zoom} label="Mapa de Buenos Aires" />
-            <ZoomControls zoom={zoom} onZoomIn={zoomIn} onZoomOut={zoomOut} />
+            <Box sx={{ position: 'relative', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', '& .leaflet-container': { height: '100%', width: '100%', fontFamily: 'inherit', zIndex: 0 }, '& .leaflet-div-icon': { background: 'transparent', border: 'none' }, '& .leaflet-zoom-animated': { transition: reducedMotion ? 'none' : undefined } }}>
+              <MapCanvas trip={currentTrip} routeState={routeState} reducedMotion={reducedMotion} onOpenDetail={onOpenDetail} large index={currentIndex} total={totalTrips} selectedMode={selectedMode} bottomPanelHeight={bottomPanelHeight} onBottomPanelHeightChange={setBottomPanelHeight} />
+              {currentTrip && <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />}
+            </Box>
+            <MapAttribution />
           </Box>
         </DialogContent>
       </Dialog>
