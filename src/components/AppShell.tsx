@@ -25,12 +25,14 @@ import { R } from '../routes'
 import { currentUser, roleLabel, signOut } from '../supabase'
 import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
+import { EncabezadoPagina } from './EncabezadoPagina'
 import { MapPreview } from './MapPreview'
 import { brand } from '../theme'
 import { loadSettings } from '../settingsStore'
 import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
 import { useMapTrips } from '../useMapTrips'
+import { countPendingReview } from '../requestMetrics'
 
 const SEPARADOR_BREADCRUMB = '·'
 export const SECCION_BREADCRUMB = 'Operación'
@@ -53,7 +55,7 @@ interface NavItem {
  */
 const NAV: NavItem[] = [
   { key: 'agenda', label: 'Agenda', icon: CalendarMonth, href: R.agenda },
-  { key: 'solicitudes', label: 'Solicitudes', icon: Checklist, href: R.solicitudes, badge: 5 },
+  { key: 'solicitudes', label: 'Solicitudes', icon: Checklist, href: R.solicitudes },
   { key: 'flota', label: 'Choferes y vehículos', short: 'Choferes', icon: LocalShipping, href: R.flota },
   { key: 'pagos', label: 'Pagos', icon: AccountBalanceWallet, href: R.pagos },
 ]
@@ -133,9 +135,15 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 interface AppShellProps {
   active: NavKey
   breadcrumb: string[]
-  title: string
+  title?: string
   kicker?: string
   description?: string
+  /**
+   * Reemplaza el bloque de título/descripción/acción. La página es dueña del
+   * encabezado completo (por ejemplo, un saludo con resumen), pero mantiene el
+   * ancho, los márgenes y el alto que administra el shell.
+   */
+  header?: ReactNode
   action?: ReactNode
   /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
   fill?: boolean
@@ -155,6 +163,7 @@ export function AppShell({
   title,
   kicker,
   description,
+  header,
   action,
   fill,
   mapTrip,
@@ -185,6 +194,12 @@ export function AppShell({
   const effectiveMapTrips = mapTrips ?? fallbackMap.trips
   const effectiveMapTrip = mapTrip ?? effectiveMapTrips[0] ?? null
   const effectiveMapLoading = mapRequestsLoading ?? fallbackMap.loading
+  // Mismo dato y misma regla que el resumen de la agenda: solicitudes en
+  // "Pendiente de revisión" sobre la lista completa, no sólo la ventana del mapa.
+  const pendingReviewCount = countPendingReview(mapRequests ?? fallbackMap.requests)
+  const navItems = NAV.map((item) =>
+    item.key === 'solicitudes' ? { ...item, badge: pendingReviewCount } : item,
+  )
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -195,7 +210,7 @@ export function AppShell({
         MENÚ PRINCIPAL
       </Typography>
       <Stack spacing={0.25}>
-        {NAV.map((item) => (
+        {navItems.map((item) => (
           <NavLink key={item.key} item={item} active={item.key === active} />
         ))}
       </Stack>
@@ -342,24 +357,11 @@ export function AppShell({
               ...(fillLayout && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
             }}
           >
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
-              <Box sx={{ flexGrow: 1 }}>
-                {kicker && (
-                  <Typography
-                    sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
-                  >
-                    {kicker.toUpperCase()}
-                  </Typography>
-                )}
-                <Typography variant="h4" component="h1" sx={{ fontSize: { xs: 22, md: 26 } }}>
-                  {title}
-                </Typography>
-                {description && (
-                  <Typography sx={{ color: 'text.secondary', fontSize: 14, mt: 0.5 }}>{description}</Typography>
-                )}
-              </Box>
-              {action && <Box sx={{ flexShrink: 0 }}>{action}</Box>}
-            </Stack>
+            {header ? (
+              <Box>{header}</Box>
+            ) : (
+              <EncabezadoPagina kicker={kicker} titulo={title} bajada={description} accion={action} />
+            )}
             {children}
           </Box>
         </Box>

@@ -15,6 +15,7 @@ interface SearchableSelectProps<T> {
   renderOption?: (option: T) => ReactNode
   isOptionDisabled?: (option: T) => boolean
   onChange: (option: T | null) => void
+  disabled?: boolean
   fullWidth?: boolean
   placeholder?: string
   noOptionsText?: string
@@ -46,6 +47,7 @@ export function SearchableSelect<T>({
   renderOption,
   isOptionDisabled,
   onChange,
+  disabled,
   fullWidth,
   placeholder,
   noOptionsText = 'Sin resultados',
@@ -63,6 +65,7 @@ export function SearchableSelect<T>({
   return (
     <Autocomplete<T, false, true, false>
       fullWidth={fullWidth}
+      disabled={disabled}
       disableClearable
       autoHighlight
       value={value as NonNullable<T>}

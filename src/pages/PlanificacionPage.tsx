@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -8,9 +8,12 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
+  FormHelperText,
   InputAdornment,
   MenuItem,
   Stack,
+  Select,
   Tooltip,
   Typography,
   IconButton,
@@ -20,11 +23,10 @@ import {
 import {
   ArrowBack,
   Check,
-  CheckCircle,
+  Edit,
   ErrorOutline,
   InfoOutlined,
   Lock,
-  LocalShipping,
   MyLocation,
   LocationOn,
   Notes,
@@ -43,8 +45,7 @@ import {
   RouteOutlined,
 } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
-import { CampoSelect, CampoTexto } from '../components/FormFields'
-import { SearchableSelect } from '../components/SearchableSelect'
+import { EtiquetaCampo, CampoSelect, CampoTexto } from '../components/FormFields'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { StatusChip } from '../components/StatusChip'
@@ -53,10 +54,12 @@ import { R, useQuery } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
+import { getTodayISO } from '../agendaDates'
 import type { Driver, Quote, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
-import { color, type as typeScale } from '../design/tokens'
+import { color, shadow, type as typeScale } from '../design/tokens'
 import { motivosConfirmacionViaje } from './planificacionConfirmacion'
+import type { SelectChangeEvent } from '@mui/material/Select'
 
 const avisoCampoSx = {
   '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' },
@@ -77,7 +80,7 @@ interface SectionCardProps {
 
 function SectionCard({ title, icon, right, children }: SectionCardProps) {
   return (
-    <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: 2.5 }}>
+    <Box sx={{ bgcolor: color.paper, border: '1px solid', borderColor: color.border, borderRadius: 3, p: 2.5 }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
         {icon && <Box sx={{ color: brand.navy, display: 'flex' }}>{icon}</Box>}
         <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>{title}</Typography>
@@ -89,33 +92,179 @@ function SectionCard({ title, icon, right, children }: SectionCardProps) {
   )
 }
 
-function RouteStop({
-  place,
-  kind,
-  color,
-}: {
-  place: { label: string; address: string; barrio: string; floor: string; elevator: boolean }
-  kind: 'origin' | 'destination'
-  color: string
-}) {
+/** Quita el prefijo administrativo de un tramo de dirección ("Partido de …"). */
+function stripSegment(segment: string): string {
+  return segment.replace(/^(partido|municipio|departamento)\s+de\s+/i, '').trim()
+}
+
+/**
+ * Separa la dirección en las dos líneas del recorrido: calle y número, y
+ * localidad (barrio + ciudad). Descarta código postal y país, y deja el texto
+ * completo para el tooltip.
+ */
+function placeLines(place: { address: string; barrio: string }): { street: string; locality: string; full: string } {
+  const segments = place.address.split(',').map(stripSegment).filter(Boolean)
+  const isPostalCode = /^[A-Z]?\d{4}[A-Z]{0,3}$/i
+  const isCountry = /^argentina$/i
+  const street = segments[0] ?? ''
+  const cities = segments.slice(1).filter((segment) => !isPostalCode.test(segment) && !isCountry.test(segment))
+  const locality = [place.barrio, ...cities]
+    .map(stripSegment)
+    .filter(Boolean)
+    .filter((item, index, all) => all.findIndex((other) => other.toLowerCase() === item.toLowerCase()) === index)
+    .join(' · ')
+  const full =
+    place.address && place.barrio && !place.address.toLowerCase().includes(place.barrio.toLowerCase())
+      ? `${place.address} · ${place.barrio}`
+      : place.address || place.barrio
+
+  return { street: street || place.barrio || place.address, locality, full }
+}
+
+/** Marcadores del recorrido, coherentes con los del mapa. */
+function RouteMarker({ kind }: { kind: 'origin' | 'destination' }) {
+  if (kind === 'origin') {
+    return (
+      <Box
+        aria-hidden="true"
+        sx={{
+          width: 18,
+          height: 18,
+          boxSizing: 'border-box',
+          borderRadius: '50%',
+          bgcolor: color.paper,
+          border: `4px solid ${color.navy}`,
+          boxShadow: shadow.card,
+        }}
+      />
+    )
+  }
+
   return (
-    <Stack direction="row" spacing={1.5}>
-      <Box sx={{ pt: 0.5 }}>
-        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, border: kind === 'destination' ? '2px solid #fff' : 'none', boxShadow: kind === 'destination' ? `0 0 0 2px ${color}` : 'none' }} />
+    <Box
+      aria-hidden="true"
+      sx={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: '50% 50% 50% 0',
+          bgcolor: color.orange,
+          boxShadow: shadow.card,
+          transform: 'rotate(-45deg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: color.paper }} />
       </Box>
-      <Box>
-        <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C', letterSpacing: '0.08em' }}>{place.label.toUpperCase()}</Typography>
-        <Typography sx={{ fontWeight: 700, fontSize: 13.5, mt: 0.3 }}>{place.address}</Typography>
-        <Typography sx={{ fontSize: 12.5, color: '#5C6B7A' }}>{place.barrio}</Typography>
-        <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.3 }}>
-          <Typography sx={{ fontSize: 12, color: '#64707C' }}>{place.floor}</Typography>
-          <Box sx={{ width: 3, height: 3, borderRadius: 50, bgcolor: '#C4C9CE' }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: place.elevator ? '#2F7D55' : '#64707C' }}>
-            {place.elevator ? 'Con ascensor' : 'Sin ascensor'}
+    </Box>
+  )
+}
+
+interface CampoAsignacionProps {
+  label: string
+  value: string
+  onChange: (event: SelectChangeEvent<string>) => void
+  available: boolean
+  selected: boolean
+  disabled: boolean
+  error?: boolean
+  helperText?: string
+  children: React.ReactNode
+  renderValue: (value: unknown) => React.ReactNode
+}
+
+function CampoAsignacion({
+  label,
+  value,
+  onChange,
+  available,
+  selected,
+  disabled,
+  error,
+  helperText,
+  children,
+  renderValue,
+}: CampoAsignacionProps) {
+  const fieldId = useId()
+  const statusText = selected ? (available ? 'Disponible' : 'No disponible') : 'Sin asignar'
+  const statusColor = selected && available ? color.green : color.amberInk
+
+  return (
+    <FormControl fullWidth error={error}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
+        <EtiquetaCampo text={label} htmlFor={fieldId} />
+        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0, color: statusColor }}>
+          <Box sx={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', bgcolor: selected && available ? color.green : color.amber }} />
+          <Typography noWrap sx={{ fontSize: typeScale.caption, fontWeight: 700 }}>
+            {statusText}
           </Typography>
         </Stack>
-      </Box>
-    </Stack>
+      </Stack>
+      <Select
+        id={fieldId}
+        size="small"
+        fullWidth
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        displayEmpty
+        error={error}
+        renderValue={renderValue}
+        sx={{
+          '& .MuiSelect-select': {
+            height: 48,
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            whiteSpace: 'nowrap',
+            overflow: 'visible',
+            textOverflow: 'clip',
+          },
+        }}
+      >
+        {children}
+      </Select>
+      {helperText && <FormHelperText>{helperText}</FormHelperText>}
+    </FormControl>
+  )
+}
+
+function RouteStopContent({
+  place,
+  title,
+}: {
+  place: { label: string; address: string; barrio: string; floor: string; elevator: boolean }
+  title: string
+}) {
+  const { street, locality, full } = placeLines(place)
+
+  return (
+    <Box>
+      <Typography
+        sx={{ fontSize: 11, fontWeight: 800, color: color.muted, letterSpacing: '0.08em', lineHeight: 1.4, mb: 0.5 }}
+      >
+        {title}
+      </Typography>
+      <Tooltip title={full} placement="top" arrow>
+        <Typography noWrap sx={{ fontWeight: 700, fontSize: 13.5, lineHeight: '18px', color: color.navy }}>
+          {street}
+        </Typography>
+      </Tooltip>
+      {locality && (
+        <Tooltip title={full} placement="top" arrow>
+          <Typography noWrap sx={{ fontSize: 12.5, color: color.ink, lineHeight: 1.5 }}>
+            {locality}
+          </Typography>
+        </Tooltip>
+      )}
+      <Typography sx={{ fontSize: 12, color: color.muted, lineHeight: 1.5, mt: 0.3 }}>
+        {[place.floor, place.elevator ? 'Con ascensor' : 'Sin ascensor'].filter(Boolean).join(' · ')}
+      </Typography>
+    </Box>
   )
 }
 
@@ -136,6 +285,7 @@ export function PlanificacionPage() {
   const request = requestState.data
   const drivers: Driver[] = catalogState.data?.drivers ?? []
   const vehicles: Vehicle[] = catalogState.data?.vehicles ?? []
+  const pageMapTrips = useMemo<ShiftRequest[]>(() => (request ? [request] : []), [request])
   const availableDrivers = useMemo(() => drivers.filter((driver) => driver.status === 'Activo'), [drivers])
   const availableVehicles = useMemo(() => vehicles.filter((vehicle) => vehicle.status === 'Disponible'), [vehicles])
 
@@ -149,7 +299,7 @@ export function PlanificacionPage() {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
-  const [cancelled, setCancelled] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
@@ -171,12 +321,10 @@ export function PlanificacionPage() {
     setWaitMinutes(String(request.waitMinutes ?? 120))
   }, [id, request])
 
-  // Estos valores son de lectura y sí deben reflejar cada respuesta nueva.
+  // Al cambiar de viaje se sale del modo edición.
   useEffect(() => {
-    if (!request) return
-    setConfirmedState(request.status === 'Confirmada')
-    setCancelled(request.status === 'Cancelada')
-  }, [request])
+    setEditing(false)
+  }, [id])
 
   // Cotizacion del backend con las tarifas del chofer elegido. Se recalcula al
   // cambiar chofer o espera; es solo una vista previa hasta guardar.
@@ -211,20 +359,31 @@ export function PlanificacionPage() {
     }
   }, [request?.id, request?.estimatedKm, driverId, waitMinutes])
 
+  // En modo lectura el precio guardado no debe pisarse con el sugerido.
   useEffect(() => {
-    if (quote && !priceTouched) setPrice(String(Math.round(quote.suggestedPrice)))
-  }, [quote, priceTouched])
+    if (!request) return
+    const priceLocked =
+      request.status === 'Finalizada' ||
+      request.status === 'Cancelada' ||
+      (request.status === 'Confirmada' && !editing)
+    if (!priceLocked && quote && !priceTouched) setPrice(String(Math.round(quote.suggestedPrice)))
+  }, [quote, priceTouched, request, editing])
 
   useEffect(() => {
     if (catalogState.loading) return
-    if (driverId && !availableDrivers.some((driver) => driver.id === driverId)) setDriverId('')
-    if (vehicleId && !availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)) {
+    // La asignación guardada en el viaje se respeta aunque el chofer esté
+    // inactivo o el vehículo figure asignado a este mismo viaje. Solo se
+    // descarta una elección manual que dejó de estar disponible.
+    const savedDriverId = request?.driverId ?? ''
+    const savedVehicleId = request?.vehicleId ?? ''
+    if (driverId && driverId !== savedDriverId && !availableDrivers.some((driver) => driver.id === driverId)) {
+      setDriverId('')
+    }
+    if (vehicleId && vehicleId !== savedVehicleId && !availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)) {
       setVehicleId('')
       setToast({ message: 'El vehículo guardado ya no está disponible y fue descartado de la planificación.', tone: 'error' })
     }
-  }, [catalogState.loading, driverId, vehicleId, availableDrivers, availableVehicles])
-
-  const [confirmedState, setConfirmedState] = useState(false)
+  }, [catalogState.loading, request?.driverId, request?.vehicleId, driverId, vehicleId, availableDrivers, availableVehicles])
 
   const depositReceived = request?.depositReceived ?? 0
   // La seña es siempre el 50 % del precio acordado. El backend es la fuente de
@@ -253,12 +412,28 @@ export function PlanificacionPage() {
 
   const selectedDriver = drivers.find((d) => d.id === driverId)
   const selectedVehicle = vehicles.find((v) => v.vehicleId === vehicleId)
+  // Las opciones incluyen la asignación guardada aunque hoy no esté libre
+  // (vehículo asignado a este viaje, chofer inactivo) para que el select la
+  // muestre en vez de aparecer vacío. La validación de disponibilidad sigue
+  // usando las listas estrictas de arriba.
+  const driverOptions = useMemo(() => {
+    const current = drivers.find((driver) => driver.id === driverId)
+    return current && !availableDrivers.some((driver) => driver.id === current.id)
+      ? [...availableDrivers, current]
+      : availableDrivers
+  }, [availableDrivers, drivers, driverId])
+  const vehicleOptions = useMemo(() => {
+    const current = vehicles.find((vehicle) => vehicle.vehicleId === vehicleId)
+    return current && !availableVehicles.some((vehicle) => vehicle.vehicleId === current.vehicleId)
+      ? [current, ...availableVehicles]
+      : availableVehicles
+  }, [availableVehicles, vehicles, vehicleId])
   const driverIsAvailable = availableDrivers.some((driver) => driver.id === driverId)
   const vehicleIsAvailable = availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)
   const motivosConfirmacion = useMemo(
     () =>
       motivosConfirmacionViaje({
-        cancelled,
+        cancelled: request?.status === 'Cancelada',
         driverId,
         vehicleId,
         driverIsAvailable,
@@ -267,7 +442,7 @@ export function PlanificacionPage() {
         depositReceived,
         depositRequired,
       }),
-    [cancelled, driverId, vehicleId, driverIsAvailable, vehicleIsAvailable, price, depositReceived, depositRequired],
+    [request?.status, driverId, vehicleId, driverIsAvailable, vehicleIsAvailable, price, depositReceived, depositRequired],
   )
   const faltaChofer = motivosConfirmacion.some((motivo) => motivo.campo === 'chofer')
   const faltaVehiculo = motivosConfirmacion.some((motivo) => motivo.campo === 'vehiculo')
@@ -277,22 +452,11 @@ export function PlanificacionPage() {
   const driverOption = (d: Driver) => (
     <MenuItem value={d.id} key={d.id}>
       <Stack direction="row" alignItems="center" spacing={1}>
-        <Person sx={{ fontSize: 16, color: '#64707C' }} />
+        <Person sx={{ fontSize: 16, color: color.muted }} />
         <span>{d.name}</span>
       </Stack>
     </MenuItem>
   )
-
-  const vehicleOptionContent = (v: Vehicle) => {
-    return (
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <LocalShipping sx={{ fontSize: 16, color: '#64707C' }} />
-        <span>
-          {v.id} · {v.type}
-        </span>
-      </Stack>
-    )
-  }
 
   const requestId = request?.id ?? id
   const requestClient = request?.client ?? ''
@@ -313,8 +477,10 @@ export function PlanificacionPage() {
       await fn()
       await requestState.reload()
       setToast({ message: successMessage, tone: 'success' })
+      return true
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'No pudimos completar la operación.', tone: 'error' })
+      return false
     } finally {
       setBusy(false)
     }
@@ -323,7 +489,7 @@ export function PlanificacionPage() {
   if (requestState.loading || catalogState.loading) {
     return (
       <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
-        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+        <Box sx={{ bgcolor: color.paper, border: '1px solid', borderColor: color.border, borderRadius: 3 }}>
           <LoadingState label="Cargando solicitud..." />
         </Box>
       </AppShell>
@@ -333,162 +499,150 @@ export function PlanificacionPage() {
   if (requestState.error || !request) {
     return (
       <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
-        <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+        <Box sx={{ bgcolor: color.paper, border: '1px solid', borderColor: color.border, borderRadius: 3 }}>
           <ErrorState message={requestState.error ?? 'No encontramos la solicitud solicitada.'} onRetry={requestState.reload} />
         </Box>
       </AppShell>
     )
   }
 
-  const confirmed = confirmedState
-  const cancelledFlag = cancelled
+  // Estado del viaje y modo de la planificación. Confirmada abre en lectura;
+  // Finalizada y Cancelada quedan siempre en lectura.
+  const isConfirmed = request.status === 'Confirmada'
+  const isFinalized = request.status === 'Finalizada'
+  const isCancelled = request.status === 'Cancelada'
+  const plannedStatus = !isConfirmed && !isFinalized && !isCancelled
+  const canEdit = !isFinalized && !isCancelled && (!isConfirmed || editing)
 
+  const resetPlanningFields = () => {
+    setDriverId(request.driverId ?? '')
+    setVehicleId(request.vehicleId ?? '')
+    setStart(request.serviceRange[0] || '11:00')
+    setEnd(request.serviceRange[1] || '13:00')
+    setPrice(String(request.price ?? 0))
+    setPriceTouched(Boolean(request.priceOverridden))
+    setWaitMinutes(String(request.waitMinutes ?? 120))
+    setConfirmationAttempted(false)
+  }
+
+  const savePlanningChanges = async () => {
+    const saved = await runAction(
+      () => api.updateRequest(request.id, planningPayload),
+      'Cambios de planificación guardados',
+    )
+    if (saved) setEditing(false)
+  }
+
+  const cancelPlanningEdit = () => {
+    resetPlanningFields()
+    setEditing(false)
+  }
 
   const planning = (
     <>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <Schedule sx={{ fontSize: 17, color: '#64707C' }} />
-        </Stack>
-        <CampoTexto size="small" type="time" label="Inicio estimado" value={start} onChange={(e) => setStart(e.target.value)} sx={{ flexGrow: 1 }} autoComplete="off" />
-        <CampoTexto size="small" type="time" label="Fin estimado" value={end} onChange={(e) => setEnd(e.target.value)} sx={{ flexGrow: 1 }} autoComplete="off" />
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          columnGap: 1.5,
+          rowGap: 1.5,
+          alignItems: 'start',
+        }}
+      >
+        <CampoTexto
+          size="small"
+          type="time"
+          label="Inicio"
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          disabled={!canEdit}
+          autoComplete="off"
+          fullWidth
+          sx={{ '& .MuiOutlinedInput-root': { height: 48 } }}
+        />
+        <CampoTexto
+          size="small"
+          type="time"
+          label="Fin"
+          value={end}
+          onChange={(e) => setEnd(e.target.value)}
+          disabled={!canEdit}
+          autoComplete="off"
+          fullWidth
+          sx={{ '& .MuiOutlinedInput-root': { height: 48 } }}
+        />
         <CampoTexto
           size="small"
           type="number"
-          label="Espera (carga y descarga)"
+          label="Espera (min)"
           value={waitMinutes}
           onChange={(e) => setWaitMinutes(e.target.value.replace(/[^\d]/g, ''))}
           onBlur={() => {
             const n = Math.min(Math.max(Number(waitMinutes || 0), 0), 1440)
             setWaitMinutes(String(n))
           }}
-          InputProps={{ endAdornment: <InputAdornment position="end">min</InputAdornment> }}
+          disabled={!canEdit}
           inputProps={{ min: 0, max: 1440, step: 15 }}
-          sx={{ width: { xs: '100%', md: 190 } }}
-        />
-      </Stack>
-
-      {isMobile ? (
-        <>
-          <Stack direction="column" spacing={1.5} sx={{ mt: 1.5 }}>
-            <CampoSelect
-              label="Chofer"
-              size="small"
-              value={driverId}
-              onChange={(e) => setDriverId(e.target.value)}
-              sx={faltaChofer ? avisoCampoSx : {}}
-            >
-              {availableDrivers.map((d) => driverOption(d))}
-            </CampoSelect>
-            <Box sx={{ minWidth: 0, ...(faltaVehiculo ? avisoCampoSx : {}) }}>
-              <SearchableSelect
-                label="Vehículo"
-                value={selectedVehicle ?? null}
-                options={availableVehicles}
-                getKey={(v) => v.vehicleId}
-                getLabel={(v) => `${v.id} · ${v.type}`}
-                getSearchText={(v) => v.status}
-                renderOption={vehicleOptionContent}
-                onChange={(v) => setVehicleId(v?.vehicleId ?? '')}
-                placeholder="Buscar por ID o tipo"
-                fullWidth
-              />
-            </Box>
-          </Stack>
-
-          <Stack spacing={1} sx={{ mt: 2 }}>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <CheckCircle sx={{ fontSize: 16, color: '#2F7D55' }} />
-              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
-                {selectedDriver ? selectedDriver.name : 'Sin chofer'} — disponible
-              </Typography>
-            </Stack>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <LocalShipping sx={{ fontSize: 16, color: '#2F7D55' }} />
-              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#2F7D55' }}>
-                {selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : 'Sin vehículo'} — disponible
-              </Typography>
-            </Stack>
-          </Stack>
-        </>
-      ) : (
-        <Box
+          fullWidth
           sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: 1.5,
-            mt: 1.5,
+            '& .MuiInputLabel-root': { whiteSpace: 'nowrap' },
+            '& .MuiOutlinedInput-root': { height: 48 },
           }}
+        />
+      </Box>
+
+      <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+        <CampoAsignacion
+          label="Chofer"
+          value={driverId}
+          onChange={(event) => setDriverId(event.target.value)}
+          selected={Boolean(selectedDriver)}
+          available={driverIsAvailable}
+          disabled={!canEdit}
+          error={confirmationAttempted && !driverId}
+          helperText={confirmationAttempted && !driverId ? 'Elegí un chofer.' : undefined}
+          renderValue={(value) =>
+            value
+              ? driverOptions.find((driver) => driver.id === value)?.name ?? String(value)
+              : <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un chofer</Box>
+          }
         >
+          <MenuItem value="" disabled>
+            Elegí un chofer
+          </MenuItem>
+          {driverOptions.map((d) => driverOption(d))}
+        </CampoAsignacion>
+        <Tooltip title={selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : ''} arrow>
           <Box sx={{ minWidth: 0 }}>
-            <CampoSelect
-              label="Chofer"
-              size="small"
-              value={driverId}
-              onChange={(e) => setDriverId(e.target.value)}
-              displayEmpty
-              error={confirmationAttempted && !driverId}
-              helperText={confirmationAttempted && !driverId ? 'Elegí un chofer.' : undefined}
-              sx={confirmationAttempted && !driverId ? errorCampoSx : {}}
-              renderValue={(value) =>
-                value
-                  ? availableDrivers.find((driver) => driver.id === value)?.name ?? String(value)
-                  : <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un chofer</Box>
-              }
-            >
-              <MenuItem value="" disabled>
-                Elegí un chofer
-              </MenuItem>
-              {availableDrivers.map((d) => driverOption(d))}
-            </CampoSelect>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-              <CheckCircle sx={{ fontSize: 16, color: selectedDriver ? color.green : 'text.secondary' }} />
-              <Typography sx={{ minWidth: 0, fontSize: typeScale.caption, fontWeight: 600, color: selectedDriver ? color.green : 'text.secondary' }}>
-                {selectedDriver ? `${selectedDriver.name} — disponible` : 'Sin chofer seleccionado'}
-              </Typography>
-            </Stack>
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <CampoSelect
+            <CampoAsignacion
               label="Vehículo"
-              size="small"
               value={vehicleId}
-              onChange={(e) => setVehicleId(String(e.target.value))}
-              displayEmpty
+              onChange={(event) => setVehicleId(event.target.value)}
+              selected={Boolean(selectedVehicle)}
+              available={vehicleIsAvailable}
+              disabled={!canEdit}
               error={confirmationAttempted && !vehicleId}
               helperText={confirmationAttempted && !vehicleId ? 'Elegí un vehículo.' : undefined}
-              sx={confirmationAttempted && !vehicleId ? errorCampoSx : {}}
-              renderValue={(value) =>
-                value
-                  ? (() => {
-                      const vehicle = availableVehicles.find((option) => option.vehicleId === value)
-                      return vehicle ? `${vehicle.id} · ${vehicle.type}` : String(value)
-                    })()
-                  : <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un vehículo</Box>
-              }
+              renderValue={(value) => {
+                if (!value) return <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un vehículo</Box>
+                const vehicle = vehicleOptions.find((option) => option.vehicleId === value)
+                return vehicle ? `${vehicle.id} · ${vehicle.type} · ${vehicle.capacityKg} kg` : String(value)
+              }}
             >
               <MenuItem value="" disabled>
                 Elegí un vehículo
               </MenuItem>
-              {availableVehicles.map((vehicle) => (
+              {vehicleOptions.map((vehicle) => (
                 <MenuItem value={vehicle.vehicleId} key={vehicle.vehicleId}>
-                  {vehicle.id} · {vehicle.type}
+                  {vehicle.id} · {vehicle.type} · {vehicle.capacityKg} kg
                 </MenuItem>
               ))}
-            </CampoSelect>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-              <LocalShipping sx={{ fontSize: 16, color: selectedVehicle ? color.green : 'text.secondary' }} />
-              <Typography sx={{ minWidth: 0, fontSize: typeScale.caption, fontWeight: 600, color: selectedVehicle ? color.green : 'text.secondary' }}>
-                {selectedVehicle
-                  ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg — disponible`
-                  : 'Sin vehículo seleccionado'}
-              </Typography>
-            </Stack>
+            </CampoAsignacion>
           </Box>
-        </Box>
-      )}
+        </Tooltip>
+      </Stack>
 
-      <Box sx={{ mt: 2, p: 1.8, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
+      <Box sx={{ mt: 2, p: 1.8, borderRadius: 2, bgcolor: color.sand, border: '1px solid', borderColor: color.borderSoft }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
           <Paid sx={{ fontSize: 16, color: brand.navy }} />
           <Typography sx={{ fontSize: 13, fontWeight: 800 }}>Costos del viaje</Typography>
@@ -497,23 +651,23 @@ export function PlanificacionPage() {
         </Stack>
 
         {!driverId && (
-          <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
+          <Typography sx={{ fontSize: 12.5, color: color.muted }}>
             Elegí un chofer para ver su costo y el precio sugerido.
           </Typography>
         )}
         {driverId && !hasDistance && (
-          <Typography sx={{ fontSize: 12.5, color: '#98621B' }}>
+          <Typography sx={{ fontSize: 12.5, color: color.amberInk }}>
             Esta solicitud no tiene distancia calculada (se cargó sin geolocalización), así que el costo no se puede calcular.
           </Typography>
         )}
-        {quoteError && <Typography sx={{ fontSize: 12.5, color: '#B3261E' }}>{quoteError}</Typography>}
+        {quoteError && <Typography sx={{ fontSize: 12.5, color: color.red }}>{quoteError}</Typography>}
 
         {quote && (
           <Stack spacing={0.7}>
             <Row label="Tarifa base" value={ars(quote.costBase)} />
             <Row label={`Kilometraje (${quote.kmTotal} km)`} value={ars(quote.costKm)} />
             <Row label={`Tiempo (${quote.totalHours.toString().replace('.', ',')} h)`} value={ars(quote.costTime)} />
-            <Divider sx={{ borderColor: '#E3DFD5', mt: 0.5 }} />
+            <Divider sx={{ borderColor: color.border, mt: 0.5 }} />
             <Row label="Costo del chofer" value={ars(quote.driverCost)} strong />
             <Row label={`Margen (${Math.round((quote.margin - 1) * 100)} %)`} value={ars(quote.suggestedPrice - quote.driverCost)} />
             <Row label="Precio sugerido" value={ars(quote.suggestedPrice)} strong />
@@ -537,44 +691,47 @@ export function PlanificacionPage() {
               setPrice(e.target.value.replace(/[^\d]/g, ''))
               setPriceTouched(true)
             }}
+            disabled={!canEdit}
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
             sx={{ width: { xs: '100%', sm: 200 } }}
             helperText={suggestedPrice > 0 ? `Sugerido: ${ars(suggestedPrice)}` : undefined}
           />
           <Box sx={{ flexGrow: 1 }} />
           <Box sx={{ alignSelf: 'center' }}>
-            <Typography sx={{ fontSize: 11.5, color: '#64707C', fontWeight: 700 }}>SEÑA REQUERIDA (50 %)</Typography>
+            <Typography sx={{ fontSize: 11.5, color: color.muted, fontWeight: 700 }}>SEÑA REQUERIDA (50 %)</Typography>
             <Typography sx={{ fontSize: 17, fontWeight: 800, color: brand.navy }}>{ars(depositRequired)}</Typography>
           </Box>
         </Stack>
 
         {priceOverridden && (
-          <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #F0DFC0' }}>
+          <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: color.amberSoft, border: '1px solid', borderColor: color.amber }}>
             <Stack direction="row" spacing={1} alignItems="flex-start">
-              <WarningAmber sx={{ fontSize: 16, color: '#98621B', mt: 0.2 }} />
+              <WarningAmber sx={{ fontSize: 16, color: color.amberInk, mt: 0.2 }} />
               <Box sx={{ flexGrow: 1 }}>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#98621B' }}>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: color.amberInk }}>
                   El precio se modificó a mano. El sugerido con las tarifas vigentes es {ars(suggestedPrice)}.
                 </Typography>
               </Box>
-              <Button
-                size="small"
-                startIcon={<Refresh />}
-                disabled={!driverId || !hasDistance || busy}
-                onClick={() => {
-                  void runAction(
-                    async () => {
-                      await api.updateRequest(request.id, { recotizar: true })
-                      setPrice(String(Math.round(quote?.suggestedPrice ?? suggestedPrice)))
-                      setPriceTouched(false)
-                    },
-                    'Precio recalculado',
-                  )
-                }}
-                sx={{ color: brand.navy }}
-              >
-                Volver a calcular
-              </Button>
+              {canEdit && (
+                <Button
+                  size="small"
+                  startIcon={<Refresh />}
+                  disabled={!driverId || !hasDistance || busy}
+                  onClick={() => {
+                    void runAction(
+                      async () => {
+                        await api.updateRequest(request.id, { recotizar: true })
+                        setPrice(String(Math.round(quote?.suggestedPrice ?? suggestedPrice)))
+                        setPriceTouched(false)
+                      },
+                      'Precio recalculado',
+                    )
+                  }}
+                  sx={{ color: brand.navy }}
+                >
+                  Volver a calcular
+                </Button>
+              )}
             </Stack>
           </Box>
         )}
@@ -583,7 +740,7 @@ export function PlanificacionPage() {
   )
 
   const summary = (
-    <Box sx={{ bgcolor: '#FBF9F6', border: '1px solid #EDEAE3', borderRadius: 3, p: 2.5 }}>
+    <Box sx={{ bgcolor: color.sand, border: '1px solid', borderColor: color.borderSoft, borderRadius: 3, p: 2.5 }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
         <ReceiptLong sx={{ fontSize: 17, color: brand.navy }} />
         <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>Resumen de pago</Typography>
@@ -592,7 +749,7 @@ export function PlanificacionPage() {
       </Stack>
       <Stack spacing={1}>
         <Row label="Total del viaje" value={ars(Number(price || 0))} strong />
-        <Divider sx={{ borderColor: '#EDEAE3' }} />
+        <Divider sx={{ borderColor: color.borderSoft }} />
         <Row label="Seña requerida" value={ars(Number(depositRequired || 0))} />
         <Row label="Seña recibida" value={ars(depositReceived)} />
         <Row label="Saldo pendiente" value={ars(Number(price || 0) - depositReceived)} strong />
@@ -612,13 +769,20 @@ export function PlanificacionPage() {
             ? `${dayName(requestDate)}, ${fmtDate(requestDate)} · Llegada ${requestArrival.join('-')}`
             : undefined
         }
-        action={<StatusChip label={cancelled ? 'Cancelada' : confirmed ? 'Confirmada' : 'En planificación'} />}
+        action={
+          <StatusChip
+            label={isCancelled ? 'Cancelada' : isFinalized ? 'Finalizada' : isConfirmed ? 'Confirmada' : 'En planificación'}
+          />
+        }
+        mapTrip={request}
+        mapTrips={pageMapTrips}
+        mapReason="seleccionado"
       >
         <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 2 }}>
           <IconButton size="small" href={R.solicitudes} aria-label="Volver a solicitudes">
             <ArrowBack sx={{ fontSize: 18 }} />
           </IconButton>
-          <Button href={R.solicitudes} size="small" sx={{ color: '#5C6B7A' }}>
+          <Button href={R.solicitudes} size="small" sx={{ color: color.ink }}>
             Volver a solicitudes
           </Button>
         </Stack>
@@ -626,9 +790,9 @@ export function PlanificacionPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '0.95fr 1.05fr' }, gap: 2.5, alignItems: 'start' }}>
           <Stack spacing={2.5}>
             {request && (
-              <SectionCard title="Cliente" icon={<Person sx={{ fontSize: 17 }} />} right={<Phone sx={{ fontSize: 16, color: '#64707C' }} />}>
+              <SectionCard title="Cliente" icon={<Person sx={{ fontSize: 17 }} />} right={<Phone sx={{ fontSize: 16, color: color.muted }} />}>
                 <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{request.client}</Typography>
-                <Typography sx={{ fontSize: 13, color: '#5C6B7A' }}>{request.phone}</Typography>
+                <Typography sx={{ fontSize: 13, color: color.ink }}>{request.phone}</Typography>
                 <Button
                   component="a"
                   href={wa}
@@ -637,39 +801,55 @@ export function PlanificacionPage() {
                   variant="outlined"
                   startIcon={<WhatsAppIcon />}
                   fullWidth
-                  sx={{ mt: 1.4, color: color.green, borderColor: '#7AE3A7', '&:hover': { borderColor: color.green, bgcolor: color.greenSoft } }}
+                  sx={{ mt: 1.4, color: color.green, borderColor: color.green, '&:hover': { borderColor: color.green, bgcolor: color.greenSoft } }}
                 >
                   Contactar por WhatsApp
                 </Button>
-                <Divider sx={{ my: 1.5, borderColor: '#EDEAE3' }} />
+                <Divider sx={{ my: 1.5, borderColor: color.borderSoft }} />
                 <Stack direction="row" spacing={3}>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>SOLICITADA</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: color.muted }}>SOLICITADA</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{fmtDate(request.date)}</Typography>
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>LLEGADA ACORDADA</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: color.muted }}>LLEGADA ACORDADA</Typography>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{request.arrivalRange.join(' – ')}</Typography>
                   </Box>
                 </Stack>
               </SectionCard>
             )}
 
-            <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: '#64707C' }}>Buenos Aires</Typography>}>
-              {requestOrigin && <RouteStop place={requestOrigin} kind="origin" color="#132B4A" />}
-              <Box sx={{ my: 1.4, ml: 0.85, width: '1px', height: 18, borderLeft: '2px dashed #D8D3C8' }} />
-              {requestDestination && <RouteStop place={requestDestination} kind="destination" color="#F07855" />}
+            <SectionCard title="Recorrido" icon={<LocationOn sx={{ fontSize: 17 }} />} right={<Typography sx={{ fontSize: 12, color: color.muted }}>Buenos Aires</Typography>}>
+              {requestOrigin && requestDestination && (
+                <Box sx={{ display: 'grid', gridTemplateColumns: '18px minmax(0, 1fr)', columnGap: 1.25 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <RouteMarker kind="origin" />
+                    <Box sx={{ width: 2, flex: 1, minHeight: 16, bgcolor: color.border }} />
+                  </Box>
+                  <RouteStopContent place={requestOrigin} title="ORIGEN" />
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                    <RouteMarker kind="destination" />
+                  </Box>
+                  <RouteStopContent place={requestDestination} title="DESTINO" />
+                </Box>
+              )}
 
-              <Divider sx={{ my: 1.6, borderColor: '#EDEAE3' }} />
+              <Divider sx={{ my: 1.6, borderColor: color.borderSoft }} />
               {hasDistance ? (
-                <Stack direction="row" spacing={2.5} flexWrap="wrap" useFlexGap>
-                  <RouteMetric icon={<RouteOutlined sx={{ fontSize: 15 }} />} label="DISTANCIA IDA" value={`${request?.estimatedKm} km`} />
-                  <RouteMetric icon={<RouteOutlined sx={{ fontSize: 15 }} />} label="TOTAL (IDA Y VUELTA)" value={`${request?.totalKm ?? 0} km`} />
-                  <RouteMetric icon={<Schedule sx={{ fontSize: 15 }} />} label="VIAJE (IDA)" value={`~${request?.etaMinutes ?? 0} min`} />
-                  <RouteMetric icon={<Schedule sx={{ fontSize: 15 }} />} label="ESPERA" value={`${request?.waitMinutes ?? 0} min`} />
-                </Stack>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' },
+                    gap: 1.5,
+                  }}
+                >
+                  <RouteMetric icon={<RouteOutlined />} label="DISTANCIA IDA" value={`${request?.estimatedKm} km`} />
+                  <RouteMetric icon={<RouteOutlined />} label="TOTAL (IDA Y VUELTA)" value={`${request?.totalKm ?? 0} km`} />
+                  <RouteMetric icon={<Schedule />} label="VIAJE (IDA)" value={`~${request?.etaMinutes ?? 0} min`} />
+                  <RouteMetric icon={<Schedule />} label="ESPERA" value={`${request?.waitMinutes ?? 0} min`} />
+                </Box>
               ) : (
-                <Typography sx={{ fontSize: 12.5, color: '#98621B' }}>
+                <Typography sx={{ fontSize: 12.5, color: color.amberInk }}>
                   Sin distancia calculada. La solicitud se cargó sin geolocalización, así que el recorrido no se puede cotizar automáticamente.
                 </Typography>
               )}
@@ -677,19 +857,19 @@ export function PlanificacionPage() {
 
             {request && (
               <SectionCard title="Carga y observaciones" icon={<Notes sx={{ fontSize: 17 }} />} right={
-                <Typography sx={{ fontSize: 12.5, fontWeight: 800, bgcolor: '#EEF2FA', color: '#526B8A', borderRadius: 999, px: 1.2, py: 0.3 }}>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 800, bgcolor: color.blueSoft, color: color.blue, borderRadius: 999, px: 1.2, py: 0.3 }}>
                   ~{request.cargo.approxUnits} bultos
                 </Typography>
               }>
-                <Typography sx={{ fontSize: 13.5, color: '#33475F' }}>{request.cargo.items.map((i) => i.name).join(', ')}</Typography>
+                <Typography sx={{ fontSize: 13.5, color: color.inkStrong }}>{request.cargo.items.map((i) => i.name).join(', ')}</Typography>
                 <Stack direction="row" alignItems="center" spacing={0.6} sx={{ mt: 1 }}>
-                  <InfoOutlined sx={{ fontSize: 14, color: '#B9761F' }} />
-                  <Typography sx={{ fontSize: 12.5, color: '#98621B', fontWeight: 600 }}>
+                  <InfoOutlined sx={{ fontSize: 14, color: color.amber }} />
+                  <Typography sx={{ fontSize: 12.5, color: color.amberInk, fontWeight: 600 }}>
                     Objetos frágiles: {request.cargo.fragile ? 'sí' : 'no'}
                   </Typography>
                 </Stack>
-                <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: '#F7F5F0', border: '1px solid #EDEAE3' }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#64707C' }}>NOTA DEL CLIENTE</Typography>
+                <Box sx={{ mt: 1.4, p: 1.4, borderRadius: 2, bgcolor: color.sand, border: '1px solid', borderColor: color.borderSoft }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: color.muted }}>NOTA DEL CLIENTE</Typography>
                   <Typography sx={{ fontSize: 13, mt: 0.4 }}>{request.cargo.notes}</Typography>
                 </Box>
               </SectionCard>
@@ -697,8 +877,49 @@ export function PlanificacionPage() {
           </Stack>
 
           <Stack spacing={2.5}>
-            <SectionCard title="Planificación" icon={<Schedule sx={{ fontSize: 17 }} />} right={<StatusChip label={hasUnsavedChanges ? 'Sin guardar' : 'Guardada'} />}>
-              <Typography sx={{ fontSize: 12.5, color: '#64707C', mb: 1.5 }}>
+            <SectionCard
+              title="Planificación"
+              icon={<Schedule sx={{ fontSize: 17 }} />}
+              right={
+                isConfirmed ? (
+                  editing ? (
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="flex-end">
+                      <Button
+                        size="small"
+                        onClick={cancelPlanningEdit}
+                        disabled={busy}
+                        sx={{ color: color.ink }}
+                      >
+                        Cancelar edición
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<Save />}
+                        onClick={() => void savePlanningChanges()}
+                        disabled={busy}
+                      >
+                        Guardar cambios
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<Edit />}
+                      onClick={() => setEditing(true)}
+                      disabled={busy}
+                      sx={{ color: brand.navy, borderColor: color.border }}
+                    >
+                      Editar planificación
+                    </Button>
+                  )
+                ) : plannedStatus ? (
+                  <StatusChip label={hasUnsavedChanges ? 'Sin guardar' : 'Guardada'} />
+                ) : null
+              }
+            >
+              <Typography sx={{ fontSize: 12.5, color: color.muted, mb: 1.5 }}>
                 Acordá precio, horario y asignación.
               </Typography>
               {planning}
@@ -706,8 +927,8 @@ export function PlanificacionPage() {
 
             {summary}
 
-            {cancelled ? (
-              <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#F1F2F4', border: '1px solid #E0E0E0', color: '#5F6873' }}>
+            {isCancelled ? (
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: color.sandDeep, border: '1px solid', borderColor: color.borderSoft, color: color.ink }}>
                 <Stack direction="row" spacing={1} alignItems="flex-start">
                   <Block sx={{ fontSize: 16, mt: 0.2 }} />
                   <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>
@@ -715,7 +936,8 @@ export function PlanificacionPage() {
                   </Typography>
                 </Stack>
               </Box>
-            ) : confirmacionLista ? (
+            ) : plannedStatus ? (
+              confirmacionLista ? (
               <Box
                 sx={{
                   p: 2,
@@ -757,88 +979,101 @@ export function PlanificacionPage() {
                   ))}
                 </Stack>
               </Box>
-            )}
+              )
+            ) : null}
 
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-              <Button
-                variant="outlined"
-                startIcon={busy ? <CircularProgress size={16} /> : <Save />}
-                disabled={cancelledFlag || busy}
-                sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }}
-                onClick={() =>
-                  runAction(
-                    () => api.updateRequest(request.id, planningPayload),
-                    'Planificación tentativa guardada',
-                  )
-                }
-              >
-                Guardar planificación tentativa
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<Paid />}
-                disabled={cancelledFlag || busy}
-                sx={{ color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }}
-                onClick={() => setDialogOpen(true)}
-              >
-                Registrar seña
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={cancelledFlag ? <Undo /> : <Block />}
-                disabled={busy}
-                sx={
-                  cancelledFlag
-                    ? { color: brand.navy, borderColor: '#D9D4C9', py: 1.1 }
-                    : { color: '#9C493A', borderColor: '#E5B8AD', bgcolor: '#FFF7F5', py: 1.1, '&:hover': { borderColor: '#9C493A', bgcolor: '#FFEFEB' } }
-                }
-                onClick={() => {
-                  if (cancelledFlag) {
-                    runAction(
-                      () => api.updateRequest(request.id, { status: 'Pendiente de seña', confirmed: false }),
-                      'Viaje reactivado · ' + requestId,
-                    )
-                  } else {
-                    setCancelOpen(true)
-                  }
-                }}
-              >
-                {cancelledFlag ? 'Reactivar viaje' : 'Cancelar viaje'}
-              </Button>
-              <Tooltip title={!confirmacionLista && primerMotivoConfirmacion ? primerMotivoConfirmacion : ''} disableHoverListener={confirmacionLista}>
-                <span>
+            {!isFinalized && (
+              <>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                  {plannedStatus && (
+                    <Button
+                      variant="outlined"
+                      startIcon={busy ? <CircularProgress size={16} /> : <Save />}
+                      disabled={busy}
+                      sx={{ color: brand.navy, borderColor: color.border, py: 1.1 }}
+                      onClick={() =>
+                        runAction(
+                          () => api.updateRequest(request.id, planningPayload),
+                          'Planificación tentativa guardada',
+                        )
+                      }
+                    >
+                      Guardar planificación tentativa
+                    </Button>
+                  )}
+                  {!isCancelled && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<Paid />}
+                      disabled={busy}
+                      sx={{ color: brand.navy, borderColor: color.border, py: 1.1 }}
+                      onClick={() => setDialogOpen(true)}
+                    >
+                      Registrar seña
+                    </Button>
+                  )}
                   <Button
-                    variant="contained"
-                    startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <Check />}
-                    disabled={cancelledFlag || busy || (isMobile ? !confirmacionLista : Boolean(driverId && vehicleId && !confirmacionLista))}
-                    sx={{ py: 1.1 }}
+                    variant="outlined"
+                    startIcon={isCancelled ? <Undo /> : <Block />}
+                    disabled={busy}
+                    sx={
+                      isCancelled
+                        ? { color: brand.navy, borderColor: color.border, py: 1.1 }
+                        : { color: color.red, borderColor: color.red, bgcolor: color.redSoft, py: 1.1, '&:hover': { borderColor: color.red, bgcolor: color.redSoft } }
+                    }
                     onClick={() => {
-                      if (!isMobile) setConfirmationAttempted(true)
-                      if (!driverId || !vehicleId) return
-                      void runAction(
-                        () =>
-                          api.updateRequest(request.id, {
-                            driver_id: driverId,
-                            vehicle_id: vehicleId,
-                            service_from: start,
-                            service_to: end,
-                            price: Number(price || 0),
-                            espera_min: Number(waitMinutes || 0),
-                            status: 'Confirmada',
-                            confirmed: true,
-                          }),
-                        'Viaje confirmado · ' + requestId,
-                      )
+                      if (isCancelled) {
+                        runAction(
+                          () => api.updateRequest(request.id, { status: 'Pendiente de seña', confirmed: false }),
+                          'Viaje reactivado · ' + requestId,
+                        )
+                      } else {
+                        setCancelOpen(true)
+                      }
                     }}
                   >
-                    Confirmar viaje
+                    {isCancelled ? 'Reactivar viaje' : 'Cancelar viaje'}
                   </Button>
-                </span>
-              </Tooltip>
-            </Stack>
-            <Typography sx={{ fontSize: 12.5, color: '#64707C', mt: 0.5 }}>
-              Guardar la planificación no confirma el viaje. La seña se registra por separado.
-            </Typography>
+                  {plannedStatus && (
+                    <Tooltip title={!confirmacionLista && primerMotivoConfirmacion ? primerMotivoConfirmacion : ''} disableHoverListener={confirmacionLista}>
+                      <span>
+                        <Button
+                          variant="contained"
+                          startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <Check />}
+                          disabled={busy || (isMobile ? !confirmacionLista : Boolean(driverId && vehicleId && !confirmacionLista))}
+                          sx={{ py: 1.1 }}
+                          onClick={() => {
+                            if (!isMobile) setConfirmationAttempted(true)
+                            if (!driverId || !vehicleId) return
+                            void runAction(
+                              () =>
+                                api.updateRequest(request.id, {
+                                  driver_id: driverId,
+                                  vehicle_id: vehicleId,
+                                  service_from: start,
+                                  service_to: end,
+                                  price: Number(price || 0),
+                                  espera_min: Number(waitMinutes || 0),
+                                  status: 'Confirmada',
+                                  confirmed: true,
+                                }),
+                              'Viaje confirmado · ' + requestId,
+                            )
+                          }}
+                        >
+                          Confirmar viaje
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  )}
+                </Stack>
+                {plannedStatus && (
+                  <Typography sx={{ fontSize: 12.5, color: color.muted, mt: 0.5 }}>
+                    Guardar la planificación no confirma el viaje. La seña se registra por separado.
+                  </Typography>
+                )}
+              </>
+            )}
           </Stack>
         </Box>
       </AppShell>
@@ -887,21 +1122,24 @@ export function PlanificacionPage() {
 
 function RouteMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <Box>
-      <Stack direction="row" alignItems="center" spacing={0.6} sx={{ color: '#64707C' }}>
-        {icon}
-        <Typography sx={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.07em' }}>{label}</Typography>
-      </Stack>      <Typography sx={{ fontSize: 14, fontWeight: 800, color: brand.navy, mt: 0.2 }}>{value}</Typography>
+    <Box sx={{ minWidth: 0 }}>
+      <Stack direction="row" alignItems="center" spacing={0.6} sx={{ color: color.muted, '& svg': { fontSize: 16 } }}>
+        <Box sx={{ display: 'flex', flexShrink: 0 }}>{icon}</Box>
+        <Typography sx={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.07em', lineHeight: 1.4 }}>
+          {label}
+        </Typography>
+      </Stack>
+      <Typography sx={{ fontSize: 14, fontWeight: 800, color: brand.navy, mt: 0.4 }}>{value}</Typography>
     </Box>
   )
 }
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {  return (
     <Stack direction="row" alignItems="center" justifyContent="space-between">
-      <Typography sx={{ fontSize: 13.5, color: strong ? brand.navy : '#5C6B7A', fontWeight: strong ? 800 : 600 }}>
+      <Typography sx={{ fontSize: 13.5, color: strong ? brand.navy : color.ink, fontWeight: strong ? 800 : 600 }}>
         {label}
       </Typography>
-      <Typography sx={{ fontSize: 14, fontWeight: strong ? 800 : 700, color: strong ? brand.navy : '#33475F' }}>
+      <Typography sx={{ fontSize: 14, fontWeight: strong ? 800 : 700, color: strong ? brand.navy : color.inkStrong }}>
         {value}
       </Typography>
     </Stack>
@@ -923,12 +1161,12 @@ function CancelDialog({
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle sx={{ px: 3, pt: 3 }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#FFF3EF', color: '#9C493A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: color.redSoft, color: color.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Block sx={{ fontSize: 18 }} />
           </Box>
           <Box>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Cancelar viaje</Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>{requestId}</Typography>
+            <Typography sx={{ fontSize: 12.5, color: color.muted }}>{requestId}</Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />
           <IconButton onClick={onClose} aria-label="Cerrar">
@@ -937,15 +1175,15 @@ function CancelDialog({
         </Stack>
       </DialogTitle>
       <DialogContent sx={{ px: 3, pt: 2 }}>
-        <Typography sx={{ fontSize: 13.5, color: '#33475F' }}>
+        <Typography sx={{ fontSize: 13.5, color: color.inkStrong }}>
           ¿Estás seguro de cancelar el viaje {requestId}? El cliente dejará de verlo y se liberará la asignación de chofer y vehículo.
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
-        <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>
+        <Button onClick={onClose} sx={{ color: color.ink }}>
           Volver
         </Button>
-        <Button variant="contained" startIcon={<Block />} sx={{ bgcolor: '#9C493A', '&:hover': { bgcolor: '#8A4236' } }} onClick={onConfirm}>
+        <Button variant="contained" startIcon={<Block />} sx={{ bgcolor: color.red, '&:hover': { bgcolor: color.red } }} onClick={onConfirm}>
           Sí, cancelar viaje
         </Button>
       </DialogActions>
@@ -973,7 +1211,7 @@ function DepositDialog({
   onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: 'Transferencia' | 'Efectivo', receivedBy: ReceivedBy, notes?: string) => void
 }) {
   const [amount, setAmount] = useState(String(depositRequired || ''))
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(getTodayISO)
   const [concept, setConcept] = useState<'Seña' | 'Saldo'>('Seña')
   const [method, setMethod] = useState<'Transferencia' | 'Efectivo'>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')
@@ -996,11 +1234,11 @@ function DepositDialog({
     <Dialog open={open} onClose={onClose} fullScreen={isMobile} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ px: { xs: 2.5, md: 3 }, pt: { xs: 4, md: 3 } }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#EEF2FA', color: brand.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: color.blueSoft, color: brand.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Paid sx={{ fontSize: 18 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 12, color: '#64707C', fontWeight: 700 }}>{requestId} · {client}</Typography>
+            <Typography sx={{ fontSize: 12, color: color.muted, fontWeight: 700 }}>{requestId} · {client}</Typography>
             <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Registrar seña</Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />
@@ -1008,10 +1246,10 @@ function DepositDialog({
         </Stack>
       </DialogTitle>
       <DialogContent sx={{ px: { xs: 2.5, md: 3 }, pt: 2 }}>
-        <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: '#FFF4E5', border: '1px solid #F0DFC0', mb: 2 }}>
+        <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: color.amberSoft, border: '1px solid', borderColor: color.amber, mb: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#98621B' }}>Seña requerida</Typography>
-            <Typography sx={{ fontSize: 15, fontWeight: 800, color: '#98621B' }}>{ars(depositRequired)}</Typography>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>Seña requerida</Typography>
+            <Typography sx={{ fontSize: 15, fontWeight: 800, color: color.amberInk }}>{ars(depositRequired)}</Typography>
           </Stack>
         </Box>
 
@@ -1048,7 +1286,7 @@ function DepositDialog({
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2.5, md: 3 }, pb: 3, justifyContent: 'space-between' }}>
-        <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>Cancelar</Button>
+        <Button onClick={onClose} sx={{ color: color.ink }}>Cancelar</Button>
         <Button variant="contained" startIcon={<Check />} onClick={save}>Guardar seña</Button>
       </DialogActions>
     </Dialog>

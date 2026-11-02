@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { Box, Typography } from '@mui/material'
 import { color, type } from '../design/tokens'
 import { dayNumber, weekdayShort } from '../agendaDates'
+import { formatShortPlace } from '../format'
 import type { RequestStatus, ShiftRequest } from '../types'
 
 const HOUR_START = 7
@@ -12,6 +14,14 @@ const ROW_H = 68
 const COL_GAP = 6
 const EDGE_GAP = 6
 const CONTENT_H = (HOUR_END - HOUR_START) * ROW_H
+
+export const ESTADOS_AGENDA = [
+  { key: 'Pendiente de revisión', label: 'Pendiente de revisión', bg: color.blueSoft, border: color.border, ink: color.blue },
+  { key: 'Pendiente de seña', label: 'Pendiente de seña', bg: color.amberSoft, border: color.amber, ink: color.amberInk },
+  { key: 'Confirmada', label: 'Confirmada', bg: color.greenSoft, border: color.green, ink: color.green },
+  { key: 'Finalizada', label: 'Finalizada', bg: color.sandDeep, border: color.border, ink: color.muted },
+  { key: 'Cancelada', label: 'Cancelada', bg: color.redSoft, border: color.red, ink: color.red },
+] as const
 
 const toMin = (time: string) => {
   const [h, m] = time.split(':').map(Number)
@@ -61,15 +71,16 @@ function computeLanes(trips: ShiftRequest[]): Placed[] {
   return placed
 }
 
-const STATUS_STYLE: Record<string, { bg: string; border: string; ink: string }> = {
-  Confirmada: { bg: color.greenSoft, border: '#C9E3D2', ink: color.green },
-  'Pendiente de seña': { bg: color.amberSoft, border: '#E9C98D', ink: color.amberInk },
-  'Pendiente de revisión': { bg: color.blueSoft, border: '#D6E0F0', ink: color.blue },
-  Cancelada: { bg: color.redSoft, border: '#EFCFC7', ink: color.red },
-}
+const STATUS_STYLE: Record<string, (typeof ESTADOS_AGENDA)[number]> = Object.fromEntries(
+  ESTADOS_AGENDA.map((status) => [status.key, status]),
+)
 
 function styleFor(status: RequestStatus) {
   return STATUS_STYLE[status] ?? STATUS_STYLE['Pendiente de seña']
+}
+
+function fullPlaceLabel(place: ShiftRequest['origin']): string {
+  return [place.label, place.address, place.barrio].filter(Boolean).join(' · ')
 }
 
 function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: number; cols: number; onOpen: () => void }) {
@@ -78,9 +89,17 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
   const top = ((startMin - MIN_START) / 60) * ROW_H + 2
   const height = Math.max(30, ((endMin - startMin) / 60) * ROW_H - 4)
   const style = styleFor(trip.status)
-  const compact = height < 54
-  const roomy = height >= 96 && cols === 1
+  const compact = height <= ROW_H
   const cancelled = trip.status === 'Cancelada'
+  const origin = formatShortPlace(trip.origin)
+  const destination = formatShortPlace(trip.destination)
+  const title = [
+    trip.client,
+    trip.id,
+    trip.serviceRange.join(' a '),
+    `Origen: ${fullPlaceLabel(trip.origin)}`,
+    `Destino: ${fullPlaceLabel(trip.destination)}`,
+  ].join(' · ')
 
   return (
     <Box
@@ -94,6 +113,7 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
         }
       }}
       aria-label={`${trip.id} · ${trip.client} · ${trip.serviceRange.join(' a ')} · ${trip.status}`}
+      title={title}
       sx={{
         position: 'absolute',
         left: `calc(${(lane * 100) / cols}% + ${lane === 0 ? EDGE_GAP : COL_GAP / 2}px)`,
@@ -134,28 +154,75 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
           fontWeight: 700,
           color: color.navy,
           lineHeight: 1.35,
-          whiteSpace: 'nowrap',
+          whiteSpace: 'normal',
+          overflowWrap: 'anywhere',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: compact ? 1 : 2,
           textDecoration: cancelled ? 'line-through' : 'none',
         }}
       >
         {trip.client}
       </Typography>
       {!compact && (
-        <Typography
-          sx={{
-            fontSize: 11,
-            color: color.ink,
-            lineHeight: 1.4,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {trip.id}
-          {roomy ? ` · ${trip.origin.barrio} → ${trip.destination.barrio}` : ''}
-        </Typography>
+        <>
+          <Typography
+            sx={{
+              fontSize: 11,
+              color: color.ink,
+              lineHeight: 1.4,
+              whiteSpace: 'normal',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {trip.id}
+          </Typography>
+          <Box
+            sx={{
+              overflow: 'hidden',
+            }}
+          >
+            {origin && (
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: color.ink,
+                  lineHeight: 1.4,
+                  whiteSpace: 'normal',
+                  overflowWrap: 'anywhere',
+                  ...(cols > 1 && {
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 1,
+                  }),
+                }}
+              >
+                {origin}
+              </Typography>
+            )}
+            {destination && (
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: color.ink,
+                  lineHeight: 1.4,
+                  whiteSpace: 'normal',
+                  overflowWrap: 'anywhere',
+                  ...(cols > 1 && {
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 1,
+                  }),
+                }}
+              >
+                {destination}
+              </Typography>
+            )}
+          </Box>
+        </>
       )}
     </Box>
   )
@@ -216,8 +283,32 @@ export function AgendaGrid({
 
   const columns = `repeat(${days.length}, minmax(0, 1fr))`
 
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const scrollKey = `${days.join('|')}|${trips
+    .map((trip) => `${trip.id}:${trip.serviceRange[0]}`)
+    .join('|')}`
+
+  // Abre la grilla en el borde exacto de una hora: una hora antes del primer
+  // viaje visible (o de la hora actual si no hay viajes). El encabezado sticky
+  // de los días vive dentro del contenedor que scrollea, así que su alto ya
+  // está descontado: alinear la fila en `hourIndex * ROW_H` la deja justo
+  // debajo del encabezado fijo, sin cortar ninguna fila de hora.
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element || !fill) return
+    const firstStart =
+      trips.length > 0 ? Math.min(...trips.map((trip) => toMin(trip.serviceRange[0]))) : null
+    const now = new Date()
+    const nowMinutes = now.getHours() * 60 + now.getMinutes()
+    const reference = firstStart ?? nowMinutes
+    const targetHour = Math.max(HOUR_START, Math.min(HOUR_END - 1, Math.floor(reference / 60) - 1))
+    const top = (targetHour - HOUR_START) * ROW_H
+    element.scrollTo({ top, behavior: 'smooth' })
+  }, [scrollKey, fill])
+
   return (
     <Box
+      ref={scrollRef}
       sx={{
         overflowX: 'auto',
         ...(fill && { flex: 1, minHeight: 0, overflowY: 'auto' }),
@@ -284,21 +375,27 @@ export function AgendaGrid({
           }}
         >
           <Box sx={{ position: 'relative', height: CONTENT_H }}>
-            {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, index) => {
-              const isFirst = index === 0
-              const isLast = index === HOUR_END - HOUR_START
+            {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => {
               return (
                 <Typography
                   key={index}
                   sx={{
                     position: 'absolute',
                     top: index * ROW_H,
-                    right: 8,
+                    left: 0,
+                    width: GUTTER,
+                    height: ROW_H,
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
                     fontSize: 11,
                     fontWeight: 600,
                     color: color.muted,
                     lineHeight: 1,
-                    transform: isFirst ? 'none' : isLast ? 'translateY(-100%)' : 'translateY(-50%)',
+                    bgcolor: color.paper,
+                    zIndex: 1,
                   }}
                 >
                   {String(HOUR_START + index).padStart(2, '0')}:00

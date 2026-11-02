@@ -473,7 +473,7 @@ function FitMap({
       map.fitBounds(bounds, {
         paddingTopLeft: [40, 48],
         paddingBottomRight: [40, bottomPanelHeight + 16],
-        maxZoom: positions.length === 1 ? 14 : 16,
+        maxZoom: 13,
         animate: !reducedMotion,
       })
     })

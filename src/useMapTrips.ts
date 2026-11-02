@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { api } from './api'
-import { addDays } from './agendaDates'
+import { addDays, getTodayISO } from './agendaDates'
 import { useAsync } from './useAsync'
 import type { ShiftRequest } from './types'
 
@@ -23,7 +23,7 @@ export function isTripInProgress(trip: ShiftRequest): boolean {
 export function selectMapTrips(
   requests: ShiftRequest[],
   filters: MapTripFilters = {},
-  today = new Date().toISOString().slice(0, 10),
+  today = getTodayISO(),
 ): ShiftRequest[] {
   const maxDate = addDays(today, WINDOW_DAYS)
   return requests
@@ -58,6 +58,7 @@ export function useMapTrips(
   )
 
   return {
+    requests,
     trips,
     loading: sourceRequests === undefined ? state.loading : false,
     error: sourceRequests === undefined ? state.error : null,

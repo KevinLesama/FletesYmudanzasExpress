@@ -19,6 +19,7 @@ import { Toast, type ToastState } from '../components/Toast'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { color, type } from '../design/tokens'
 import { waLink } from '../format'
+import { getTodayISO } from '../agendaDates'
 import { brand } from '../theme'
 import type { PlaceDetail } from '../types'
 
@@ -55,7 +56,6 @@ type RequestFormProps = Readonly<{
   onSubmit: (event: React.FormEvent) => void
 }>
 
-const today = new Date().toISOString().slice(0, 10)
 const FLETES_WHATSAPP = '11 4500-1287'
 const WHATSAPP_REQUEST_MESSAGE = 'Hola, quiero realizar una solicitud de flete.'
 
@@ -63,7 +63,7 @@ export function LandingPage() {
   const [step, setStep] = useState<LandingStep>('request')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [date, setDate] = useState(today)
+  const [date, setDate] = useState(getTodayISO)
   const [arrivalFrom, setArrivalFrom] = useState('09:00')
   const [arrivalTo, setArrivalTo] = useState('11:00')
   const [origin, setOrigin] = useState('')

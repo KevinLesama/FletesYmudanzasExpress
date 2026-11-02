@@ -1,7 +1,7 @@
 import { Box, IconButton, Stack, Typography } from '@mui/material'
 import { ChevronLeft, ChevronRight } from '@mui/icons-material'
 import { brand } from '../theme'
-import { DEMO_DATE } from '../format'
+import { getTodayISO } from '../agendaDates'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
@@ -16,6 +16,7 @@ export function MiniCalendar({
   onSelect,
   onPrevMonth,
   onNextMonth,
+  today = getTodayISO(),
 }: {
   year: number
   month: number
@@ -24,6 +25,7 @@ export function MiniCalendar({
   onSelect: (date: string) => void
   onPrevMonth: () => void
   onNextMonth: () => void
+  today?: string
 }) {
   const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -58,7 +60,7 @@ export function MiniCalendar({
           if (d == null) return <Box key={i} />
           const dateStr = iso(year, month, d)
           const isSelected = dateStr === selected
-          const isToday = dateStr === DEMO_DATE
+          const isToday = dateStr === today
           const hasTrips = marked.has(dateStr)
           return (
             <Box

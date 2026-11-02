@@ -31,6 +31,7 @@ import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { usePagedList } from '../usePagedList'
 import { ars, fmtDate } from '../format'
+import { getTodayISO } from '../agendaDates'
 import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
 import { brand } from '../theme'
 import type { Payment, PaymentConcept, PaymentMethod, PaymentSummary, ReceivedBy } from '../types'
@@ -275,7 +276,7 @@ function PaymentDialog({
   const saldo = Math.max(trip.price - cobrado, 0)
 
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(getTodayISO)
   const [concept, setConcept] = useState<PaymentConcept>('Saldo')
   const [method, setMethod] = useState<PaymentMethod>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent, MouseEvent } from 'react'
-import { Box, Button, useMediaQuery, useTheme } from '@mui/material'
+import { Box, Button, IconButton, Link, useMediaQuery, useTheme } from '@mui/material'
 import { Add } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
+import { EncabezadoPagina } from '../components/EncabezadoPagina'
 import { AgendaToolbar, EMPTY_FILTERS, type AgendaFilters, type AgendaView } from '../components/AgendaToolbar'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
@@ -12,14 +13,61 @@ import { useAsync } from '../useAsync'
 import { R } from '../routes'
 import { brand } from '../theme'
 import { color } from '../design/tokens'
-import { DEMO_DATE } from '../format'
-import { addDays, workWeekDays } from '../agendaDates'
+import { addDays, getInitialAnchor, getInitialWeekStart, getTodayISO, workWeekDays } from '../agendaDates'
+import { givenName } from '../format'
+import { countPendingReview, PENDING_REVIEW_STATUS } from '../requestMetrics'
 import { loadSettings } from '../settingsStore'
+import { currentUser } from '../supabase'
 import type { ShiftRequest } from '../types'
 import { isTripInProgress, useMapTrips } from '../useMapTrips'
 
+const summaryLinkSx = {
+  color: color.navy,
+  fontWeight: 700,
+  fontSize: 'inherit',
+  textDecoration: 'none',
+  verticalAlign: 'baseline',
+  cursor: 'pointer',
+  '&:hover': { color: brand.orangeInk, textDecoration: 'underline' },
+}
+
+function getZonedDateParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone,
+  }).formatToParts(date)
+  return {
+    year: parts.find((part) => part.type === 'year')?.value ?? '',
+    month: parts.find((part) => part.type === 'month')?.value ?? '',
+    day: parts.find((part) => part.type === 'day')?.value ?? '',
+  }
+}
+
+function getTodayInTimeZone(date: Date, timeZone: string) {
+  const { year, month, day } = getZonedDateParts(date, timeZone)
+  return `${year}-${month}-${day}`
+}
+
+function getMinutesInTimeZone(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  }).formatToParts(date)
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0)
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0)
+  return hour * 60 + minute
+}
+
+function getHourInTimeZone(date: Date, timeZone: string) {
+  return Math.floor(getMinutesInTimeZone(date, timeZone) / 60)
+}
+
 export function AgendaPage() {
-  const [anchor, setAnchor] = useState(DEMO_DATE)
+  const [anchor, setAnchor] = useState(() => getInitialAnchor(new Date()))
   const [view, setView] = useState<AgendaView>('workWeek')
   const [filters, setFilters] = useState<AgendaFilters>(EMPTY_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -34,7 +82,6 @@ export function AgendaPage() {
   const [now, setNow] = useState(() => new Date())
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const timeZone = loadSettings().profile.timezone
 
   const requestsState = useAsync(() => api.listRequests(), [])
   const catalogState = useAsync(async () => {
@@ -91,11 +138,10 @@ export function AgendaPage() {
     setAnchor(addDays(anchor, direction * (effectiveView === 'day' ? 1 : 7)))
   }
 
+  const user = currentUser()
+  const profile = useMemo(() => loadSettings().profile, [])
   const selected = allRequests.find((request) => request.id === selectedId) ?? null
-  const today = useMemo(
-    () => new Intl.DateTimeFormat('en-CA', { timeZone }).format(now),
-    [now, timeZone],
-  )
+  const today = useMemo(() => getTodayInTimeZone(now, profile.timezone), [now, profile.timezone])
   const { trips: upcomingMapTrips } = useMapTrips(
     allRequests,
     { driver: filters.driver, vehicle: filters.vehicle, status: filters.status },
@@ -109,7 +155,136 @@ export function AgendaPage() {
     ? `${selected.vehicleId} · ${vehicles.find((vehicle) => vehicle.id === selected.vehicleId)?.type ?? ''}`
     : undefined
 
-  const tripCountLabel = `${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'}`
+  // El nombre de pila sale del perfil local (el mismo que alimenta la foto y el
+  // menú superior). `usuarios.nombre` de una cuenta compartida trae el rol
+  // ("Administración"), que no sirve para saludar.
+  const firstName = givenName(profile.name || user?.nombre)
+  const agendaDateLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat('es-AR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        timeZone: profile.timezone,
+      }).format(now).toUpperCase(),
+    [now, profile.timezone],
+  )
+
+  const salutation = useMemo(() => {
+    const minutes = getMinutesInTimeZone(now, profile.timezone)
+    if (minutes >= 7 * 60 && minutes < 12 * 60) return 'Buenos días'
+    if (minutes >= 12 * 60 && minutes <= 19 * 60 + 30) return 'Buenas tardes'
+    return 'Buenas noches'
+  }, [now, profile.timezone])
+
+  const greeting = firstName ? `${salutation}, ${firstName}` : salutation
+
+  const todayTrips = useMemo(
+    () =>
+      allRequests.filter(
+        (request) =>
+          request.date === today &&
+          (request.status === 'Confirmada' || request.status === 'Pendiente de seña'),
+      ),
+    [allRequests, today],
+  )
+  const pendingReviewCount = useMemo(() => countPendingReview(allRequests), [allRequests])
+  const reviewHref = `${R.solicitudes}?estado=${encodeURIComponent(PENDING_REVIEW_STATUS)}`
+  const depositHref = `${R.solicitudes}?estado=${encodeURIComponent('Pendiente de seña')}`
+  const pendingDepositCount = useMemo(
+    () => allRequests.filter((request) => request.status === 'Pendiente de seña').length,
+    [allRequests],
+  )
+
+  const openToday = () => {
+    setView('day')
+    setAnchor(today)
+  }
+
+  const summary = (
+    <Box component="span">
+      {todayTrips.length > 0 ? (
+        <>
+          Hoy tenés{' '}
+          <Link component="button" type="button" onClick={openToday} aria-label="Ver los viajes de hoy" sx={summaryLinkSx}>
+            {todayTrips.length} {todayTrips.length === 1 ? 'viaje' : 'viajes'}
+          </Link>
+        </>
+      ) : (
+        'Hoy no tenés viajes agendados'
+      )}
+      {pendingReviewCount > 0 && todayTrips.length > 0 && (
+        <>
+          {' y '}
+          <Link href={reviewHref} sx={summaryLinkSx}>
+            {pendingReviewCount} {pendingReviewCount === 1 ? 'solicitud' : 'solicitudes'} por revisar
+          </Link>
+        </>
+      )}
+      .
+      {pendingReviewCount > 0 && todayTrips.length === 0 && (
+        <>
+          {' '}
+          <Link href={reviewHref} sx={summaryLinkSx}>
+            {pendingReviewCount} {pendingReviewCount === 1 ? 'solicitud' : 'solicitudes'} por revisar.
+          </Link>
+        </>
+      )}
+      {pendingDepositCount > 0 && (
+        <>
+          {' '}
+          <Link href={depositHref} sx={summaryLinkSx}>
+            <Box component="span">
+              {pendingDepositCount} {pendingDepositCount === 1 ? 'viaje espera' : 'viajes esperan'} la seña.
+            </Box>
+          </Link>
+        </>
+      )}
+    </Box>
+  )
+
+  const nowMinutes = getHourInTimeZone(now, profile.timezone) * 60 + Number(
+    new Intl.DateTimeFormat('en-US', { minute: 'numeric', timeZone: profile.timezone }).format(now),
+  )
+  const todayIndex = days.indexOf(today)
+  const nowLineVisible = todayIndex >= 0 && nowMinutes >= 7 * 60 && nowMinutes <= 19 * 60
+
+  const header = (
+    <EncabezadoPagina
+      kicker={agendaDateLabel}
+      titulo={greeting}
+      bajada={summary}
+      accion={
+        isMobile ? (
+          <IconButton
+            href={R.nuevaSolicitud}
+            aria-label="Nueva solicitud"
+            sx={{
+              flexShrink: 0,
+              width: 44,
+              height: 44,
+              bgcolor: brand.orangeStrong,
+              color: 'common.white',
+              '&:hover': { bgcolor: brand.orangeInk },
+            }}
+          >
+            <Add />
+          </IconButton>
+        ) : (
+          <Button
+            variant="contained"
+            size="medium"
+            startIcon={<Add />}
+            href={R.nuevaSolicitud}
+            sx={{ flexShrink: 0, bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
+          >
+            Nueva solicitud
+          </Button>
+        )
+
+      }
+    />
+  )
 
   const handleGridSelection = (tripId: string) => {
     selectMapTrip(mapTripId === tripId ? null : tripId)
@@ -146,7 +321,6 @@ export function AgendaPage() {
     <AppShell
       active="agenda"
       breadcrumb={[SECCION_BREADCRUMB, 'Agenda']}
-      title="Agenda de viajes"
       fill
       mapTrip={mapChoice}
       mapTrips={mapTrips}
@@ -155,39 +329,15 @@ export function AgendaPage() {
       mapReason={selectedMapTrip ? 'seleccionado' : mapChoice && isTripInProgress(mapChoice) ? 'en-curso' : mapChoice ? 'proximo' : null}
       onClearMapTrip={() => selectMapTrip(null)}
       onOpenMapTripDetail={(trip) => setSelectedId(trip.id)}
-      description={trips.length === 0 ? 'Sin viajes en la vista' : `${tripCountLabel} en la vista`}
-      action={
-        !isMobile ? (
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<Add />}
-            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
-            href={R.nuevaSolicitud}
-          >
-            Nueva solicitud
-          </Button>
-        ) : undefined
-      }
+      header={header}
     >
-      {isMobile && (
-        <Button
-          fullWidth
-          variant="contained"
-          startIcon={<Add />}
-          sx={{ mb: 2, py: 1.2, bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
-          href={R.nuevaSolicitud}
-        >
-          Nueva solicitud
-        </Button>
-      )}
-
       <Box
         sx={{
           bgcolor: color.paper,
           border: `1px solid ${color.border}`,
           borderRadius: 3,
           overflow: 'hidden',
+          minWidth: 0,
           ...(!isMobile && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
         }}
       >
@@ -200,7 +350,13 @@ export function AgendaPage() {
             marked={marked}
             onSelectDate={setAnchor}
             onShift={shift}
-            onToday={() => setAnchor(DEMO_DATE)}
+            onToday={() => {
+              if (effectiveView === 'day') {
+                setAnchor(getTodayISO())
+              } else {
+                setAnchor(getInitialWeekStart(new Date()))
+              }
+            }}
             filters={filters}
             onFiltersChange={setFilters}
             drivers={drivers}
@@ -227,17 +383,31 @@ export function AgendaPage() {
           </Box>
         ) : (
           <Box
-            sx={!isMobile ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}
+            sx={!isMobile ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' } : { position: 'relative' }}
             onDoubleClickCapture={handleGridDoubleClickCapture}
             onKeyDownCapture={handleGridKeyDownCapture}
           >
             <AgendaGrid
               days={days}
               trips={trips}
-              today={DEMO_DATE}
+              today={today}
               fill={!isMobile}
               onOpenTrip={(trip) => handleGridSelection(trip.id)}
             />
+            {nowLineVisible && (
+              <Box
+                aria-hidden="true"
+                sx={{
+                  position: 'absolute',
+                  top: `calc(58px + ${(nowMinutes - 7 * 60) / 60 * 68}px)`,
+                  left: `calc(62px + ((100% - 62px) * ${todayIndex} / ${days.length}))`,
+                  width: `calc((100% - 62px) / ${days.length})`,
+                  borderTop: `2px solid ${brand.orangeStrong}`,
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}
+              />
+            )}
           </Box>
         )}
       </Box>

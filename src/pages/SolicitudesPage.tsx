@@ -26,17 +26,31 @@ import { useAsync } from '../useAsync'
 import { usePagedList } from '../usePagedList'
 import { R } from '../routes'
 import { brand } from '../theme'
-import { fmtDate } from '../format'
+import { fmtDate, formatShortPlace } from '../format'
 import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
 
 const LIST_PAGE_SIZE = 10
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Todos los estados' },
+  { value: 'Pendiente de revisión', label: 'Pendiente de revisión' },
+  { value: 'Pendiente de seña', label: 'Pendiente de seña' },
+  { value: 'Confirmada', label: 'Confirmada' },
+  { value: 'Finalizada', label: 'Finalizada' },
+  { value: 'Cancelada', label: 'Cancelada' },
+]
 
 export function SolicitudesPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [search, setSearch] = useState('')
   const [date, setDate] = useState('all')
-  const [status, setStatus] = useState('all')
+  // Permite llegar con un filtro preseleccionado, por ejemplo desde la agenda:
+  // /solicitudes?estado=Pendiente%20de%20revisi%C3%B3n
+  const [status, setStatus] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('estado')
+    return requested && STATUS_FILTER_OPTIONS.some((option) => option.value === requested) ? requested : 'all'
+  })
 
   const { data, loading, error, reload } = useAsync(() => api.listRequests(), [])
 
@@ -74,14 +88,7 @@ export function SolicitudesPage() {
 
   const filtersActive = search !== '' || date !== 'all' || status !== 'all'
 
-  const statusOptions = [
-    { value: 'all', label: 'Todos los estados' },
-    { value: 'Pendiente de revisión', label: 'Pendiente de revisión' },
-    { value: 'Pendiente de seña', label: 'Pendiente de seña' },
-    { value: 'Confirmada', label: 'Confirmada' },
-    { value: 'Finalizada', label: 'Finalizada' },
-    { value: 'Cancelada', label: 'Cancelada' },
-  ]
+  const statusOptions = STATUS_FILTER_OPTIONS
 
   return (
     <AppShell
@@ -111,17 +118,32 @@ export function SolicitudesPage() {
       {/* Filters */}
       <Box
         sx={{
-          bgcolor: '#FFFFFF',
-          border: '1px solid #E9E6DF',
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider',
           borderRadius: 3,
-          p: 2,
+          px: 2,
+          py: 2,
           mb: 2.5,
           display: 'flex',
           alignItems: 'flex-end',
           gap: 1.5,
-          '& > .search-filter': { flex: 1, minWidth: 0 },
-          '& > .select-filter': { width: 180, flexShrink: 0 },
-          '& > .clear-filters': { height: 40, flexShrink: 0, alignSelf: 'flex-end' },
+          '& > .search-filter': {
+            flex: 1,
+            minWidth: 0,
+            '& .MuiOutlinedInput-root': { height: 48 },
+          },
+          '& > .select-filter': {
+            width: 180,
+            flexShrink: 0,
+            '& .MuiOutlinedInput-root': { height: 48 },
+          },
+          '& > .clear-filters': {
+            height: 48,
+            minHeight: 48,
+            flexShrink: 0,
+            alignSelf: 'flex-end',
+          },
           '@media (max-width: 600px)': {
             flexDirection: 'column',
             alignItems: 'stretch',
@@ -144,7 +166,7 @@ export function SolicitudesPage() {
             onChange={(e) => setSearch(e.target.value)}
             sx={SEARCH_FIELD_SX}
             inputProps={SEARCH_INPUT_PROPS}
-            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
+            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
           />
         </Box>
         <Box className="select-filter">
@@ -185,39 +207,89 @@ export function SolicitudesPage() {
         </Box>
       ) : !isMobile ? (
         <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, overflow: 'hidden' }}>
-          <Table>
+          <Table sx={{ tableLayout: 'fixed' }}>
             <TableHead>
               <TableRow>
-                <TableCell>Número</TableCell>
-                <TableCell>Cliente</TableCell>
-                <TableCell>Fecha</TableCell>
-                <TableCell>Origen → destino</TableCell>
-                <TableCell>Estado</TableCell>
-                <TableCell align="right">Acción</TableCell>
+                <TableCell sx={{ width: 110, whiteSpace: 'nowrap' }}>Número</TableCell>
+                <TableCell sx={{ width: '18%' }}>Cliente</TableCell>
+                <TableCell sx={{ width: 110, whiteSpace: 'nowrap' }}>Fecha</TableCell>
+                <TableCell sx={{ width: '34%' }}>Origen → destino</TableCell>
+                <TableCell sx={{ width: 130, whiteSpace: 'nowrap' }}>Estado</TableCell>
+                <TableCell align="right" sx={{ width: 130, whiteSpace: 'nowrap' }}>Acción</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {pages.pageItems.map((r) => (
                 <TableRow key={r.id} hover>
-                  <TableCell sx={{ fontWeight: 800, color: brand.navy }}>{r.id}</TableCell>
-                  <TableCell>{r.client}</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: brand.navy, whiteSpace: 'nowrap', height: 64 }}>{r.id}</TableCell>
+                  <TableCell sx={{ height: 64 }}>
+                    <Typography
+                      sx={{
+                        display: '-webkit-box',
+                        overflow: 'hidden',
+                        WebkitBoxOrient: 'vertical',
+                        WebkitLineClamp: 2,
+                        lineHeight: 1.35,
+                      }}
+                      title={r.client}
+                    >
+                      {r.client}
+                    </Typography>
+                  </TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtDate(r.date)}</TableCell>
-                  <TableCell>
-                    <Stack direction="row" alignItems="center" spacing={0.8}>
-                      <Typography sx={{ fontSize: 13.5 }}>{r.origin.barrio || r.origin.address}</Typography>
+                  <TableCell sx={{ height: 64 }}>
+                    <Stack direction="row" alignItems="center" spacing={0.8} sx={{ minWidth: 0 }}>
+                      <Typography
+                        sx={{
+                          minWidth: 0,
+                          flex: 1,
+                          fontSize: 13.5,
+                          display: '-webkit-box',
+                          overflow: 'hidden',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: 2,
+                          lineHeight: 1.35,
+                        }}
+                        title={r.origin.address}
+                      >
+                        {formatShortPlace(r.origin)}
+                      </Typography>
                       <ArrowForward sx={{ fontSize: 13, color: '#8A929B' }} />
-                      <Typography sx={{ fontSize: 13.5 }}>{r.destination.barrio || r.destination.address}</Typography>
+                      <Typography
+                        sx={{
+                          minWidth: 0,
+                          flex: 1,
+                          fontSize: 13.5,
+                          display: '-webkit-box',
+                          overflow: 'hidden',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: 2,
+                          lineHeight: 1.35,
+                        }}
+                        title={r.destination.address}
+                      >
+                        {formatShortPlace(r.destination)}
+                      </Typography>
                     </Stack>
                   </TableCell>
-                  <TableCell><StatusChip label={r.status} /></TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}><StatusChip label={r.status} /></TableCell>
                   <TableCell align="right">
                     <Button
                       size="small"
-                      sx={{ fontWeight: 700 }}
+                      aria-label="Ver detalle"
+                      sx={{
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        minWidth: 0,
+                        '@media (max-width: 1100px)': {
+                          '& .detail-label': { display: 'none' },
+                          '& .MuiButton-endIcon': { margin: 0 },
+                        },
+                      }}
                       endIcon={<ArrowForward sx={{ fontSize: 15 }} />}
                       href={R.planificacion(r.id)}
                     >
-                      Ver detalle
+                      <Box component="span" className="detail-label">Ver detalle</Box>
                     </Button>
                   </TableCell>
                 </TableRow>

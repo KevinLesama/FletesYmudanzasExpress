@@ -17,6 +17,7 @@ import {
 } from '@mui/material'
 import { CalendarMonth, ChevronLeft, ChevronRight, Tune } from '@mui/icons-material'
 import { MiniCalendar } from './MiniCalendar'
+import { ESTADOS_AGENDA } from './AgendaGrid'
 import { color, motion, radius, type } from '../design/tokens'
 import { fmtRange } from '../agendaDates'
 import type { Driver, Vehicle } from '../types'
@@ -258,9 +259,16 @@ export function AgendaToolbar({
         </Tooltip>
 
         {showLegend && (
-          <Stack direction="row" alignItems="center" spacing={1.4} sx={{ pl: 0.5 }}>
-            <LegendSwatch tone={color.green} label="Confirmada" />
-            <LegendSwatch tone={color.amber} label="Pendiente de seña" />
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1.4}
+            useFlexGap
+            sx={{ pl: 0.5, flexWrap: 'wrap', rowGap: 0.6 }}
+          >
+            {ESTADOS_AGENDA.map((status) => (
+              <LegendSwatch key={status.key} tone={status.ink} label={status.label} />
+            ))}
           </Stack>
         )}
       </Stack>

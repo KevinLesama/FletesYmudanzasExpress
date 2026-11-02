@@ -22,7 +22,8 @@ import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import { DEMO_DATE, fmtLong } from '../format'
+import { fmtLong } from '../format'
+import { getTodayISO } from '../agendaDates'
 import { currentUser } from '../supabase'
 import type { Driver, ShiftRequest } from '../types'
 
@@ -59,7 +60,7 @@ function earningsFromTrip(trip: ShiftRequest) {
 
 export function ChoferPage() {
   const user = currentUser()
-  const [date, setDate] = useState(DEMO_DATE)
+  const [date, setDate] = useState(getTodayISO)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [incidentOpen, setIncidentOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -120,7 +121,7 @@ export function ChoferPage() {
           <IconButton size="small" onClick={() => setDate(shiftDate(date, -1))} aria-label="Día anterior">
             <ChevronLeft fontSize="small" />
           </IconButton>
-          <Button size="small" onClick={() => setDate(DEMO_DATE)} sx={{ fontSize: 12.5 }}>
+          <Button size="small" onClick={() => setDate(getTodayISO())} sx={{ fontSize: 12.5 }}>
             Hoy
           </Button>
           <IconButton size="small" onClick={() => setDate(shiftDate(date, 1))} aria-label="Día siguiente">
@@ -144,7 +145,7 @@ export function ChoferPage() {
             />
           </Box>
         ) : (
-          <AgendaGrid days={[date]} trips={dayTrips} today={DEMO_DATE} onOpenTrip={(t) => setSelectedId(t.id)} />
+          <AgendaGrid days={[date]} trips={dayTrips} today={getTodayISO()} onOpenTrip={(t) => setSelectedId(t.id)} />
         )}
       </ChoferShell>
 

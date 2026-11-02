@@ -25,6 +25,7 @@ import { R } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import type { Client, PlaceDetail } from '../types'
+import { getTodayISO } from '../agendaDates'
 import { brand } from '../theme'
 import { radius, type as typeScale } from '../design/tokens'
 import { filtrarTelefono, validarTelefono } from '../utils/telefono'
@@ -83,6 +84,8 @@ const PREGUNTA_NIVEL_CALLE = '¿Está a nivel de calle?'
 
 const requierePisoYAscensor = (aNivelDeCalle: boolean | null) => aNivelDeCalle === false
 
+const isValidTimeRange = (from: string, to: string) => Boolean(from && to && to > from)
+
 const derivarPisoYAscensor = (
   aNivelDeCalle: boolean | null,
   piso: string,
@@ -109,7 +112,7 @@ export function NuevaSolicitudPage() {
   const [newPhone, setNewPhone] = useState('')
 
   // service
-  const [date, setDate] = useState('2026-09-26')
+  const [date, setDate] = useState(getTodayISO)
   const [arriveFrom, setArriveFrom] = useState('09:00')
   const [arriveTo, setArriveTo] = useState('11:00')
   const [originAddress, setOriginAddress] = useState('')
@@ -181,7 +184,11 @@ export function NuevaSolicitudPage() {
     'new-client-phone': validarTelefono(newPhone),
     'service-date': date === '' ? 'Ingresá la fecha solicitada.' : null,
     'arrival-from': arriveFrom === '' ? 'Ingresá la hora de llegada desde.' : null,
-    'arrival-until': arriveTo === '' ? 'Ingresá la hora de llegada hasta.' : null,
+    'arrival-until': arriveTo === ''
+      ? 'Ingresá la hora de llegada hasta.'
+      : arriveFrom && !isValidTimeRange(arriveFrom, arriveTo)
+        ? 'La hora límite debe ser posterior a la hora de inicio.'
+        : null,
     'origin-address': originAddress.trim() === ''
       ? 'Ingresá la dirección.'
       : originGeoOk && !originPlace
@@ -531,6 +538,7 @@ export function NuevaSolicitudPage() {
                           aria-describedby={visibleFieldErrors['arrival-until'] ? 'arrival-until-error' : undefined}
                           size="small"
                           fullWidth
+                          inputProps={{ min: arriveFrom || undefined }}
                           autoComplete="off"
                         />
                         <MensajeCampo id="arrival-until-error" mensaje={visibleFieldErrors['arrival-until']} sinAnimacion={sinAnimacion} />
