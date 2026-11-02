@@ -18,7 +18,7 @@ import {
 import { Add, ArrowForward, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
-import { CampoSelect } from '../components/FormFields'
+import { CampoSelect, EtiquetaCampo } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { api } from '../api'
@@ -116,37 +116,56 @@ export function SolicitudesPage() {
           borderRadius: 3,
           p: 2,
           mb: 2.5,
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr 1fr auto' },
+          display: 'flex',
+          alignItems: 'flex-end',
           gap: 1.5,
-          alignItems: 'center',
+          '& > .search-filter': { flex: 1, minWidth: 0 },
+          '& > .select-filter': { width: 180, flexShrink: 0 },
+          '& > .clear-filters': { height: 40, flexShrink: 0, alignSelf: 'flex-end' },
+          '@media (max-width: 600px)': {
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            '& > .search-filter, & > .select-filter, & > .clear-filters': {
+              width: '100%',
+              flex: 'none',
+            },
+          },
         }}
       >
-        <TextField
-          size="small"
-          type="search"
-          placeholder="Buscar por cliente o número de solicitud"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={SEARCH_FIELD_SX}
-          inputProps={SEARCH_INPUT_PROPS}
-          InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
-        />
-        <CampoSelect label="Filtrar por fecha" size="small" value={date} onChange={(e) => setDate(e.target.value)}>
+        <Box className="search-filter">
+          <EtiquetaCampo text="Buscar" htmlFor="solicitudes-search" />
+          <TextField
+            id="solicitudes-search"
+            fullWidth
+            size="small"
+            type="search"
+            placeholder="Buscar por cliente o número de solicitud"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={SEARCH_FIELD_SX}
+            inputProps={SEARCH_INPUT_PROPS}
+            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: '#64707C', mr: 1 }} /> }}
+          />
+        </Box>
+        <Box className="select-filter">
+          <CampoSelect label="Filtrar por fecha" size="small" value={date} onChange={(e) => setDate(e.target.value)}>
             {dateOptions.map((o) => (
               <MenuItem key={o.value} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
-        </CampoSelect>
-        <CampoSelect label="Filtrar por estado" size="small" value={status} onChange={(e) => setStatus(e.target.value)}>
+          </CampoSelect>
+        </Box>
+        <Box className="select-filter">
+          <CampoSelect label="Filtrar por estado" size="small" value={status} onChange={(e) => setStatus(e.target.value)}>
             {statusOptions.map((o) => (
               <MenuItem key={o.value} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
-        </CampoSelect>
-        <Button startIcon={<FilterAltOff />} onClick={clearFilters} sx={{ color: brand.navy, fontWeight: 700 }}>
+          </CampoSelect>
+        </Box>
+        <Button className="clear-filters" startIcon={<FilterAltOff />} onClick={clearFilters} sx={{ color: brand.navy, fontWeight: 700 }}>
           Limpiar filtros
         </Button>
       </Box>
