@@ -1,141 +1,22 @@
-"""Pruebas de reglas de negocio: confirmacion con sena, conflictos de chofer/vehiculo."""
+"""Reglas de negocio puras: pagos, estado derivado y agenda.
+
+Ninguna prueba de este archivo abre una conexion. Las que necesitan base de
+datos viven en ``tests/pg/``.
+"""
 
 from __future__ import annotations
 
+from datetime import date, time
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.services import business
 
-BASE_REQUEST = {
-    "date": "2026-09-24",
-    "arrival_from": "09:00",
-    "arrival_to": "11:00",
-    "service_from": "11:00",
-    "service_to": "13:00",
-    "origin": {"address": "Armenia 1450", "barrio": "Palermo", "floor": "Piso 3", "elevator": True},
-    "destination": {"address": "Ruiz Huidobro 2500", "barrio": "Saavedra", "floor": "Piso 1", "elevator": False},
-    "cargo": {"items": [{"name": "Cajas", "units": 5}], "approx_units": 5, "fragile": False, "notes": ""},
-    "price": 100000,
-    "deposit_required": 50000,
-}
-
-
-def _create(client: TestClient, seeded: dict, **overrides: object) -> dict:
-    payload = {**BASE_REQUEST, "client_id": seeded["client_id"], **overrides}
-    response = client.post("/api/requests", json=payload)
-    assert response.status_code == 201, response.text
-    return response.json()
-
-
-def test_confirm_without_deposit_is_blocked(client: TestClient, seeded: dict) -> None:
-    request = _create(client, seeded)
-    response = client.patch(
-        f"/api/requests/{request['id']}",
-        json={"driver_id": seeded["driver_id"], "vehicle_id": seeded["vehicle_id"], "status": "Confirmada"},
-    )
-    assert response.status_code == 409
-    assert "seña" in response.json()["detail"].lower()
-
-
-def test_confirm_after_deposit_succeeds(client: TestClient, seeded: dict) -> None:
-    request = _create(client, seeded)
-    paid = client.post(
-        f"/api/requests/{request['id']}/payments",
-        json={
-            "concept": "Seña",
-            "method": "Transferencia",
-            "received_by": "Administración",
-            "amount": 50000,
-            "date": "2026-09-22",
-            "notes": "Seña 50%",
-        },
-    )
-    assert paid.status_code == 201, paid.text
-    assert paid.json()["deposit_received"] == 50000
-
-    confirmed = client.patch(
-        f"/api/requests/{request['id']}",
-        json={"driver_id": seeded["driver_id"], "vehicle_id": seeded["vehicle_id"], "status": "Confirmada"},
-    )
-    assert confirmed.status_code == 200, confirmed.text
-    assert confirmed.json()["status"] == "Confirmada"
-
-
-def test_driver_conflict_blocks_confirmation(client: TestClient, seeded: dict) -> None:
-    first = _create(client, seeded)
-    client.post(
-        f"/api/requests/{first['id']}/payments",
-        json={"concept": "Seña", "method": "Efectivo", "received_by": "Administración", "amount": 50000, "date": "2026-09-22"},
-    )
-    confirm_first = client.patch(
-        f"/api/requests/{first['id']}",
-        json={"driver_id": seeded["driver_id"], "vehicle_id": seeded["vehicle_id"], "status": "Confirmada"},
-    )
-    assert confirm_first.status_code == 200
-
-    second = _create(client, seeded, service_from="12:00", service_to="14:00")
-    client.post(
-        f"/api/requests/{second['id']}/payments",
-        json={"concept": "Seña", "method": "Efectivo", "received_by": "Administración", "amount": 50000, "date": "2026-09-22"},
-    )
-    conflict = client.patch(
-        f"/api/requests/{second['id']}",
-        json={"driver_id": seeded["driver_id"], "vehicle_id": seeded["vehicle_id"], "status": "Confirmada"},
-    )
-    assert conflict.status_code == 409
-    assert "chofer" in conflict.json()["detail"].lower()
-
-
-def test_availability_endpoint(client: TestClient, seeded: dict) -> None:
-    response = client.get(
-        "/api/availability",
-        params={
-            "date": "2026-09-24",
-            "driver_id": seeded["driver_id"],
-            "vehicle_id": seeded["vehicle_id"],
-            "start": "11:00",
-            "end": "13:00",
-        },
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["driver_available"] is True
-    assert body["vehicle_available"] is True
-
-
-def test_client_login_returns_existing_client_without_creating_one(client: TestClient, seeded: dict) -> None:
-    response = client.post("/api/clients/login", json={"name": "Kevin", "phone": "11 3291-5140"})
-    assert response.status_code == 200
-    assert response.json()["id"] == seeded["client_id"]
-
-    invalid = client.post("/api/clients/login", json={"name": "Kevin", "phone": "11 0000-0000"})
-    assert invalid.status_code == 401
-
-
-def test_cancel_releases_vehicle(client: TestClient, seeded: dict) -> None:
-    request = _create(client, seeded)
-    client.post(
-        f"/api/requests/{request['id']}/payments",
-        json={"concept": "Seña", "method": "Efectivo", "received_by": "Administración", "amount": 50000, "date": "2026-09-22"},
-    )
-    client.patch(
-        f"/api/requests/{request['id']}",
-        json={"driver_id": seeded["driver_id"], "vehicle_id": seeded["vehicle_id"], "status": "Confirmada"},
-    )
-    assert client.get(f"/api/vehicles/{seeded['vehicle_id']}").json()["status"] == "Asignado"
-
-    cancelled = client.patch(f"/api/requests/{request['id']}", json={"status": "Cancelada"})
-    assert cancelled.status_code == 200
-    assert cancelled.json()["status"] == "Cancelada"
-    assert client.get(f"/api/vehicles/{seeded['vehicle_id']}").json()["status"] == "Disponible"
-
 
 # --------------------------------------------------------------------------- #
-# Tope de pagos: regla pura, sin base de datos ni API.
+# Tope de pagos: una seña no se cobra dos veces ni se cobra de mas.
 # --------------------------------------------------------------------------- #
 def _solicitud(precio: Decimal, pagos: list[tuple[str, Decimal]]):
     return SimpleNamespace(
@@ -179,7 +60,7 @@ def test_validate_payment_amount_requires_price_for_sena() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Estado derivado y confirmacion automatica: reglas puras, sin base de datos.
+# Estado derivado y confirmacion automatica.
 # --------------------------------------------------------------------------- #
 def _viaje(
     estado: str = "pendiente",
@@ -266,3 +147,113 @@ def test_blocking_reason_ignora_viajes_incompletos() -> None:
         is None
     )
     assert business.blocking_reason(None, _viaje(pagos=[])) is None
+
+
+# --------------------------------------------------------------------------- #
+# Agenda: que viajes bloquean el horario del chofer y del rodado.
+#
+# Regla vigente en esta base (`main` + confirmacion automatica): SOLO los viajes
+# `confirmada` bloquean. Un `pendiente` todavia no reserva a nivel de bloqueo;
+# la capa de advertencia blanda llega con el motor de disponibilidad.
+#
+# Estas pruebas fijan esa regla para detectar regresiones: si alguien vuelve a
+# hacer que `pendiente` bloquee, fallan.
+# --------------------------------------------------------------------------- #
+class _Scalars:
+    def __init__(self, rows: list[object]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[object]:
+        return self._rows
+
+
+class _FakeDb:
+    """Devuelve filas fijas: alcanza para probar el filtro en memoria."""
+
+    def __init__(self, rows: list[object]) -> None:
+        self._rows = rows
+
+    def scalars(self, _stmt: object) -> _Scalars:
+        return _Scalars(self._rows)
+
+
+class _CapturaDb:
+    """No devuelve filas: captura la consulta emitida para inspeccionarla.
+
+    El filtro por estado lo resuelve la base, no Python. Un fake que devuelve
+    filas no puede probarlo: hay que mirar el SQL que se genera.
+    """
+
+    def __init__(self) -> None:
+        self.sql = ""
+
+    def scalars(self, stmt: object) -> _Scalars:
+        self.sql = stmt.compile(compile_kwargs={"literal_binds": True}).string
+        return _Scalars([])
+
+
+def _agenda(codigo: str, desde: tuple[int, int], hasta: tuple[int, int]):
+    return SimpleNamespace(
+        id=2,
+        codigo=codigo,
+        hora_desde=time(*desde),
+        hora_hasta=time(*hasta),
+    )
+
+
+def test_solo_confirmada_bloquea_la_agenda() -> None:
+    """El filtro por estado lo aplica la base: se verifica en el SQL emitido."""
+    captura = _CapturaDb()
+    business.driver_conflicts(captura, 7, date(2026, 11, 3), time(10, 0), time(12, 0))
+
+    assert "solicitudes.estado = 'confirmada'" in captura.sql
+
+    captura = _CapturaDb()
+    business.vehicle_conflicts(captura, 9, date(2026, 11, 3), time(10, 0), time(12, 0))
+
+    assert "solicitudes.estado = 'confirmada'" in captura.sql
+
+
+def test_conflictos_filtran_por_recurso_y_dia() -> None:
+    captura = _CapturaDb()
+    business.driver_conflicts(
+        captura, 7, date(2026, 11, 3), time(10, 0), time(12, 0), exclude_id=42
+    )
+
+    assert "solicitudes.chofer_id = 7" in captura.sql
+    assert "solicitudes.fecha = '2026-11-03'" in captura.sql
+    # El viaje que se esta editando no se reporta a si mismo.
+    assert "solicitudes.id != 42" in captura.sql
+
+    captura = _CapturaDb()
+    business.vehicle_conflicts(captura, 9, date(2026, 11, 3), time(10, 0), time(12, 0))
+
+    assert "solicitudes.vehiculo_id = 9" in captura.sql
+
+
+def test_conflictos_descartan_franjas_que_no_se_pisan() -> None:
+    """El solapamiento se resuelve en memoria sobre las filas que trae la base."""
+    viajes = [
+        _agenda("FEX-A", (9, 0), (10, 0)),   # termina justo antes: no
+        _agenda("FEX-B", (10, 0), (12, 0)),  # se pisa
+        _agenda("FEX-C", (11, 0), (13, 0)),  # se pisa
+        _agenda("FEX-D", (13, 0), (15, 0)),  # empieza justo despues: no
+    ]
+
+    choques = business.driver_conflicts(
+        _FakeDb(viajes), 7, date(2026, 11, 3), time(10, 30), time(12, 30)
+    )
+
+    assert [c.codigo for c in choques] == ["FEX-B", "FEX-C"]
+
+
+def test_conflictos_no_marcan_horarios_contiguos() -> None:
+    """Salir a las 12:00 y entrar a las 12:00 no es superposicion."""
+    viajes = [_agenda("FEX-A", (10, 0), (12, 0))]
+
+    assert not business.driver_conflicts(
+        _FakeDb(viajes), 7, date(2026, 11, 3), time(12, 0), time(14, 0)
+    )
+    assert not business.vehicle_conflicts(
+        _FakeDb(viajes), 9, date(2026, 11, 3), time(12, 0), time(14, 0)
+    )

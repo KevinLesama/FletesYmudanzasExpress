@@ -153,17 +153,34 @@ Cambios en `.env` de la raíz los toma Vite al reiniciar el dev server: `docker 
 En la configuración de producción local, los cambios en las variables `VITE_*` requieren reconstruir la imagen compilada: `docker compose up --build frontend`.
 
 ## Pruebas
-**Backend (SQLite en memoria, sin tocar la DB real):**
+
+**Backend — carril unitario (sin base de datos ni red):**
 ```bash
 cd backend
-pytest -v
+pytest -m unit -v
 ```
-Los tests validan reglas de negocio (generación de IDs, conflictos de chofer/vehículo, cálculos derivados).
 
-**Frontend:**
+**Backend — carril PostgreSQL (integración real):**
 ```bash
-npm run build  # typecheck + build de producción
-npm run preview
+cd backend
+# Apuntar a una base DESCARTABLE cuyo nombre contenga "test".
+# El conftest se niega a recrear el esquema en cualquier otra.
+export FEX_TEST_DATABASE_URL="postgresql+psycopg://postgres:test@127.0.0.1:55432/fex_test"
+pytest -m pg -v
+```
+Sin `FEX_TEST_DATABASE_URL` el carril `pg` se omite y `pytest tests` corre solo lo unitario.
+El esquema de prueba se crea desde `sql/schema.sql` y `sql/auth.sql`, y cada test arranca con las tablas vacías.
+
+**Frontend — unitarios (Vitest):**
+```bash
+npm test         # una corrida
+npm run test:watch
+```
+
+**Frontend — typecheck y build de producción:**
+```bash
+npx tsc --noEmit
+npm run build
 ```
 
 ## Enriquecimiento geográfico opcional
