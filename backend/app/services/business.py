@@ -133,3 +133,93 @@ def validate_payment_amount(solicitud: Solicitud, concepto: str, monto: float | 
         raise PaymentAmountError(
             f"El importe supera el saldo pendiente ({faltante})."
         )
+
+
+def sena_recibida(solicitud: Solicitud) -> Decimal:
+    """Total cobrado como seña en el viaje."""
+    return sum(
+        (
+            Decimal(str(p.monto))
+            for p in (getattr(solicitud, "pagos", None) or [])
+            if getattr(p, "concepto", None) == "sena"
+        ),
+        Decimal("0"),
+    )
+
+
+def sena_completa(solicitud: Solicitud) -> bool:
+    """La seña está completa cuando lo cobrado cubre el 50 % del precio final."""
+    requerida = pricing.sena(Decimal(str(solicitud.precio_final or 0)))
+    return requerida > 0 and sena_recibida(solicitud) >= requerida
+
+
+def derive_estado(solicitud: Solicitud) -> str:
+    """Estado visible del viaje.
+
+    El estado almacenado sigue siendo el que decide la base. Lo único que se
+    deriva es "pendiente de seña": un viaje con chofer y rodado asignados al
+    que todavía le falta la seña. Sin la asignación completa la seña no es el
+    próximo paso, así que el viaje sigue siendo "pendiente".
+    """
+    if solicitud.estado != "pendiente":
+        return solicitud.estado
+    if not solicitud.chofer_id or not solicitud.vehiculo_id:
+        return "pendiente"
+    if not sena_completa(solicitud):
+        return "pendiente_sena"
+    # Seña completa pero el viaje sigue pendiente: la confirmación automática
+    # no pudo aplicarse (por ejemplo, por un conflicto de agenda).
+    return "pendiente"
+
+
+def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
+    """Confirma el viaje cuando la planificación y la seña están completas.
+
+    Devuelve None cuando confirma o cuando todavía no corresponde, y el motivo
+    cuando la confirmación automática no puede aplicarse. Nunca lanza por un
+    conflicto: la operación que la dispara (registrar el pago, guardar el plan)
+    ya está hecha y tiene que sobrevivir al bloqueo.
+    """
+    if solicitud.estado != "pendiente":
+        return None
+    if not solicitud.chofer_id or not solicitud.vehiculo_id:
+        return None
+    if not sena_completa(solicitud):
+        return None
+
+    choque_chofer = driver_conflicts(
+        db,
+        solicitud.chofer_id,
+        solicitud.fecha,
+        solicitud.hora_desde,
+        solicitud.hora_hasta,
+        exclude_id=solicitud.id,
+    )
+    if choque_chofer:
+        return (
+            "Seña completa, pero el chofer ya tiene el viaje "
+            f"{choque_chofer[0].codigo} en ese horario."
+        )
+
+    vehiculo = db.get(Vehiculo, solicitud.vehiculo_id)
+    if vehiculo is None:
+        return "Seña completa, pero el vehículo asignado ya no existe."
+    if not vehicle_is_assignable(db, vehiculo):
+        return "Seña completa, pero el vehículo asignado no está operativo."
+
+    choque_vehiculo = vehicle_conflicts(
+        db,
+        solicitud.vehiculo_id,
+        solicitud.fecha,
+        solicitud.hora_desde,
+        solicitud.hora_hasta,
+        exclude_id=solicitud.id,
+    )
+    if choque_vehiculo:
+        return (
+            "Seña completa, pero el vehículo ya tiene el viaje "
+            f"{choque_vehiculo[0].codigo} en ese horario."
+        )
+
+    solicitud.estado = "confirmada"
+    return None

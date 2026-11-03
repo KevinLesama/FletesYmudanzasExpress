@@ -176,3 +176,70 @@ def test_validate_payment_amount_requires_price_for_sena() -> None:
 
     with pytest.raises(business.PaymentAmountError):
         business.validate_payment_amount(solicitud, "sena", Decimal("1"))
+
+
+# --------------------------------------------------------------------------- #
+# Estado derivado y confirmacion automatica: reglas puras, sin base de datos.
+# --------------------------------------------------------------------------- #
+def _viaje(
+    estado: str = "pendiente",
+    chofer: int | None = 7,
+    vehiculo: int | None = 9,
+    pagos: list[tuple[str, Decimal]] | None = None,
+):
+    return SimpleNamespace(
+        id=1,
+        codigo="FEX-1000",
+        estado=estado,
+        chofer_id=chofer,
+        vehiculo_id=vehiculo,
+        precio_final=Decimal("100000"),
+        pagos=[SimpleNamespace(concepto=c, monto=m) for c, m in (pagos or [])],
+    )
+
+
+def test_sena_completa_exige_la_mitad_del_precio() -> None:
+    assert not business.sena_completa(_viaje(pagos=[("sena", Decimal("49999"))]))
+    assert business.sena_completa(_viaje(pagos=[("sena", Decimal("50000"))]))
+    assert business.sena_completa(
+        _viaje(pagos=[("sena", Decimal("30000")), ("sena", Decimal("20000"))])
+    )
+
+
+def test_derive_estado_sin_asignacion_es_pendiente() -> None:
+    """Sin chofer o sin rodado la seña no es el próximo paso."""
+    assert business.derive_estado(_viaje(chofer=None, vehiculo=9)) == "pendiente"
+    assert business.derive_estado(_viaje(chofer=7, vehiculo=None)) == "pendiente"
+
+
+def test_derive_estado_con_asignacion_sin_sena_es_pendiente_sena() -> None:
+    assert business.derive_estado(_viaje(pagos=[])) == "pendiente_sena"
+    assert business.derive_estado(_viaje(pagos=[("sena", Decimal("10000"))])) == "pendiente_sena"
+
+
+def test_derive_estado_con_sena_completa_no_inventa_la_confirmacion() -> None:
+    """La etiqueta sigue el estado almacenado; confirmar es tarea de confirm_if_ready."""
+    solicitud = _viaje(pagos=[("sena", Decimal("50000"))])
+
+    assert business.derive_estado(solicitud) == "pendiente"
+
+    solicitud.estado = "confirmada"
+    assert business.derive_estado(solicitud) == "confirmada"
+
+
+def test_derive_estado_respeta_estados_terminales() -> None:
+    assert business.derive_estado(_viaje(estado="finalizada")) == "finalizada"
+    assert business.derive_estado(_viaje(estado="cancelada")) == "cancelada"
+
+
+def test_confirm_if_ready_no_actua_sin_asignacion_o_sin_sena() -> None:
+    """Los casos incompletos salen antes de tocar la base (db None no se usa)."""
+    sin_chofer = _viaje(chofer=None, pagos=[("sena", Decimal("50000"))])
+    sin_sena = _viaje(pagos=[("sena", Decimal("10000"))])
+    ya_confirmado = _viaje(estado="confirmada", pagos=[("sena", Decimal("50000"))])
+
+    assert business.confirm_if_ready(None, sin_chofer) is None
+    assert business.confirm_if_ready(None, sin_sena) is None
+    assert business.confirm_if_ready(None, ya_confirmado) is None
+    assert sin_chofer.estado == "pendiente"
+    assert sin_sena.estado == "pendiente"

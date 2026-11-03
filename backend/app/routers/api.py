@@ -755,6 +755,25 @@ def get_request(request_ref: str, db: Session = Depends(get_db)) -> dict:
     return serializers.serialize_solicitud(_get_request_or_404(db, request_ref))
 
 
+def _auto_confirm(db: Session, request: Solicitud) -> str | None:
+    """Intenta confirmar el viaje sin tumbar la operación que lo disparó.
+
+    El pago o la planificación ya se guardaron en una transacción anterior. Si
+    la confirmación automática choca con la agenda se devuelve el motivo y el
+    viaje queda como estaba.
+    """
+    try:
+        motivo = business.confirm_if_ready(db, request)
+        db.commit()
+        return motivo
+    except IntegrityError:
+        db.rollback()
+        return (
+            "Seña completa, pero el horario ya fue tomado por otro viaje. "
+            "El viaje quedó pendiente."
+        )
+
+
 @requests_router.patch(
     "/{request_ref}",
     dependencies=[Depends(require_role("administrador"))],
@@ -839,9 +858,19 @@ def update_request(
         db.rollback()
         raise HTTPException(status_code=409, detail="Conflicto de integridad.") from exc
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Conflicto de integridad.") from exc
+
+    # Con chofer, rodado y seña completa el viaje se confirma solo.
+    auto_confirm_error = _auto_confirm(db, request)
     db.refresh(request)
-    return serializers.serialize_solicitud(request)
+    return {
+        **serializers.serialize_solicitud(request),
+        "auto_confirm_error": auto_confirm_error,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -901,7 +930,16 @@ def add_payment(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="Conflicto al registrar pago.") from exc
-    return serializers.serialize_solicitud(_get_request_or_404(db, request_ref))
+
+    # La seña queda registrada aunque la confirmación automática se bloquee:
+    # rechazar el cobro por un problema de agenda castigaría al cliente.
+    request = _get_request_or_404(db, request_ref)
+    auto_confirm_error = _auto_confirm(db, request)
+    request = _get_request_or_404(db, request_ref)
+    return {
+        **serializers.serialize_solicitud(request),
+        "auto_confirm_error": auto_confirm_error,
+    }
 
 
 @payments_router.get("/summary")

@@ -10,6 +10,7 @@ from app.schemas import (
     VehiculoOut,
 )
 from app.services import pricing
+from app.services.business import derive_estado
 
 
 def serialize_usuario(usuario: Usuario) -> UsuarioOut:
@@ -91,6 +92,7 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "cliente_id": solicitud.cliente_id,
         "cliente_rol": solicitud.cliente_rol,
         "estado": solicitud.estado,
+        "estado_visible": derive_estado(solicitud),
         "fecha": solicitud.fecha.isoformat() if hasattr(solicitud.fecha, "isoformat") else solicitud.fecha,
         "hora_desde": solicitud.hora_desde.isoformat() if hasattr(solicitud.hora_desde, "isoformat") else solicitud.hora_desde,
         "hora_hasta": solicitud.hora_hasta.isoformat() if hasattr(solicitud.hora_hasta, "isoformat") else solicitud.hora_hasta,
