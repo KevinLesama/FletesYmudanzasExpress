@@ -134,9 +134,11 @@ export function ChoferShell({
 
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ px: 1.5, py: 1.5, borderRadius: 2, bgcolor: '#FBF9F6', border: '1px solid #EDEAE3' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64707C' }}>
-          <LocalShipping sx={{ fontSize: 16 }} />
-          <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>Vehículo asignado · MOV-05</Typography>
+        <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ color: '#64707C' }}>
+          <LocalShipping sx={{ fontSize: 16, mt: '1px' }} />
+          <Typography sx={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.4 }}>
+            Ves los viajes confirmados que te asigna administración.
+          </Typography>
         </Stack>
       </Box>
     </Box>

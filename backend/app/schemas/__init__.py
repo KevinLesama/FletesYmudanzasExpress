@@ -234,6 +234,16 @@ class SolicitudUpdate(BaseModel):
     motivo_cancelacion: str | None = None
 
 
+class FinishedIn(BaseModel):
+    """Cierre del viaje por parte del chofer.
+
+    El timestamp es informativo: el backend sella `finalizada_en` con la hora
+    del servidor para que la agenda no dependa del reloj del dispositivo.
+    """
+
+    finished_at: DateTimeType | None = None
+
+
 class ItemCargaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

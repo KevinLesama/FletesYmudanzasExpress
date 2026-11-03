@@ -55,6 +55,7 @@ export interface Place {
   barrio: string
   floor: string
   elevator: boolean
+  notes?: string
   // Identidad del lugar elegido en el autocompletado. Si esta presente, el
   // backend resuelve direccion y coordenadas contra Google Maps.
   placeId?: string
