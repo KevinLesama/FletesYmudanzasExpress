@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { buildUpdates, depositTimestamp, groupUpdatesByDay } from '../src/tripUpdates.ts'
+import { buildUpdates, depositTimestamp, groupUpdatesByDay, stageIndex } from '../src/tripUpdates.ts'
 import type { ShiftRequest } from '../src/types.ts'
 
 const NOW = new Date('2026-11-02T15:00:00-03:00')
@@ -44,6 +44,23 @@ test('buildUpdates ordena de mas reciente a mas antigua por timestamp real', () 
     updates.map((update) => update.at),
     ['2026-11-02T15:30', '2026-11-02T14:00', '2026-11-02T13:15', '2026-11-02T02:17', '2026-11-01T17:00'],
   )
+})
+
+test('un viaje finalizado conserva el cierre y registra modalidad y remito', () => {
+  const updates = buildUpdates(
+    trip({
+      status: 'Finalizada',
+      finishedAt: '2026-11-02T18:30:00+00:00',
+      closeoutPaymentMethod: 'Efectivo',
+      remitoCapturedAt: '2026-11-02T18:29:00+00:00',
+    }),
+  )
+
+  const finished = updates.find((update) => update.id === 'finished')
+  assert.ok(finished)
+  assert.match(finished.detail, /Saldo: Efectivo\./)
+  assert.match(finished.detail, /Remito fotografiado en el dispositivo\./)
+  assert.equal(stageIndex(trip({ status: 'Finalizada' })), 4)
 })
 
 test('un evento real se intercala entre los calculados sin contradecirlos', () => {

@@ -9,6 +9,7 @@ export function stageIndex(trip: ShiftRequest): number {
   // El estado es la fuente de verdad: hay datos de demo con marcas de llegada en
   // viajes que todavía no están confirmados, y no queremos que el stepper y el
   // estado se contradigan en la misma pantalla.
+  if (trip.status === 'Finalizada') return 4
   if (trip.status !== 'Confirmada') return trip.status === 'Pendiente de seña' ? 1 : 0
   if (trip.finishedAt) return 4
   if (trip.arrivedAt) return 3
@@ -93,14 +94,18 @@ export function buildUpdates(trip: ShiftRequest, driverName?: string, vehicleNam
     })
   }
 
-  const confirmed = trip.status === 'Confirmada'
+  const confirmed = trip.status === 'Confirmada' || trip.status === 'Finalizada'
 
   if (confirmed && trip.finishedAt) {
     updates.push({
       id: 'finished',
       ...event(toArgentinaStamp(trip.finishedAt)),
       title: 'Entregado',
-      detail: `Descarga terminada en ${shortDestination}.`,
+      detail: joinParts([
+        `Descarga terminada en ${shortDestination}.`,
+        trip.closeoutPaymentMethod ? `Saldo: ${trip.closeoutPaymentMethod}.` : '',
+        trip.remitoCapturedAt ? 'Remito fotografiado en el dispositivo.' : '',
+      ]),
       done: true,
       photo: trip.remitoPhoto?.dataUrl,
     })

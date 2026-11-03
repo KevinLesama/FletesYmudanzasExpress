@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css'
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet'
 import { Box, Button, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import { MyLocation, OpenInNew, Refresh } from '@mui/icons-material'
+import { api } from '../api'
 import { color, radius, shadow, type as typeScale } from '../design/tokens'
 import type { Place } from '../types'
 
@@ -19,7 +20,6 @@ const TILE_URL =
   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 const OSM_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>'
-const ROUTER_URL = 'https://router.project-osrm.org/route/v1/driving'
 
 function pointOf(place?: Place | null): LatLngTuple | null {
   if (place?.lat == null || place?.lng == null) return null
@@ -143,8 +143,8 @@ export function DriverRouteMap({
   const [routedFrom, setRoutedFrom] = useState<LatLngTuple | null>(null)
 
   // Recalcular el camino solo cuando el chofer se movio lo suficiente: el
-  // GPS del celular actualiza varias veces por minuto y el router publico de
-  // OSRM no debe recibir una request por cada lectura.
+  // GPS del celular actualiza varias veces por minuto y no conviene consultar
+  // Google Routes API por cada lectura.
   useEffect(() => {
     if (!currentPoint) {
       setRoutedFrom(null)
@@ -161,47 +161,44 @@ export function DriverRouteMap({
       return
     }
 
-    const controller = new AbortController()
     let cancelled = false
     setRoute({ status: 'loading' })
 
-    const url = `${ROUTER_URL}/${routedFrom[1]},${routedFrom[0]};${targetPoint[1]},${targetPoint[0]}?overview=full&geometries=geojson`
-
-    fetch(url, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error('route')
-        return response.json()
+    api
+      .route(
+        { lat: routedFrom[0], lng: routedFrom[1] },
+        { lat: targetPoint[0], lng: targetPoint[1] },
+      )
+      .then((estimate) => {
+        if (cancelled) return
+        const geometry = (estimate.geometry ?? []).map(
+          ([lng, lat]) => [lat, lng] as LatLngTuple,
+        )
+        setRoute({
+          status: 'ready',
+          geometry,
+          km: estimate.kmIda,
+          minutes: estimate.etaMinutes,
+        })
       })
-      .then((data) => {
-        const first = data?.routes?.[0]
-        const coordinates = first?.geometry?.coordinates
-        if (!Array.isArray(coordinates) || coordinates.length < 2) throw new Error('route')
-        const geometry = coordinates.map(([lng, lat]: [number, number]) => [lat, lng] as LatLngTuple)
-        if (!cancelled) {
-          setRoute({
-            status: 'ready',
-            geometry,
-            km: Number(first.distance ?? 0) / 1000,
-            minutes: Math.max(1, Math.round(Number(first.duration ?? 0) / 60)),
-          })
-        }
-      })
-      .catch((error) => {
-        if (!cancelled && error?.name !== 'AbortError') setRoute({ status: 'error' })
+      .catch(() => {
+        if (!cancelled) setRoute({ status: 'error' })
       })
 
     return () => {
       cancelled = true
-      controller.abort()
     }
   }, [routedFrom, targetPoint])
 
-  const osmHref = useMemo(() => {
+  const mapsHref = useMemo(() => {
     if (currentPoint && targetPoint) {
-      return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${currentPoint[0]}%2C${currentPoint[1]}%3B${targetPoint[0]}%2C${targetPoint[1]}`
+      return `https://www.google.com/maps/dir/?api=1&origin=${currentPoint[0]},${currentPoint[1]}&destination=${targetPoint[0]},${targetPoint[1]}&travelmode=driving`
+    }
+    if (targetPoint) {
+      return `https://www.google.com/maps/search/?api=1&query=${targetPoint[0]},${targetPoint[1]}`
     }
     const query = [target.address, target.barrio].filter(Boolean).join(', ')
-    return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
   }, [currentPoint, targetPoint, target.address, target.barrio])
 
   const bounds = useMemo(() => {
@@ -241,12 +238,12 @@ export function DriverRouteMap({
         <Button
           size="small"
           endIcon={<OpenInNew sx={{ fontSize: 15 }} />}
-          href={osmHref}
+          href={mapsHref}
           target="_blank"
           rel="noreferrer"
           sx={{ color: color.navy, fontSize: typeScale.caption, minHeight: 36 }}
         >
-          Abrir en OpenStreetMap
+          Abrir en Google Maps
         </Button>
       </Stack>
 
@@ -338,8 +335,8 @@ export function DriverRouteMap({
             <Typography sx={{ fontSize: typeScale.caption, color: color.muted, maxWidth: 360 }}>
               {[target.address, target.barrio].filter(Boolean).join(', ') || 'Abrí el mapa y buscá la dirección.'}
             </Typography>
-            <Button size="small" href={osmHref} target="_blank" rel="noreferrer" sx={{ color: color.navy }}>
-              Buscar en OpenStreetMap
+            <Button size="small" href={mapsHref} target="_blank" rel="noreferrer" sx={{ color: color.navy }}>
+              Buscar en Google Maps
             </Button>
           </Box>
         )}

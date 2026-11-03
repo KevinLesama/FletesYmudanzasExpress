@@ -269,7 +269,10 @@ export function DriverTripFlow({
   const finish = async () => {
     setBusy(true)
     try {
-      await api.markFinished(trip.id, nowLocal())
+      await api.markFinished(trip.id, nowLocal(), {
+        paymentMethod: progress.paymentMethod,
+        remitoCaptured: Boolean(photo),
+      })
       clearDriverProgress(trip.id)
       setConfirmOpen(false)
       onNotify('Viaje finalizado · buen servicio', 'success')

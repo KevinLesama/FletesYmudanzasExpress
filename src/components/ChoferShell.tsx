@@ -33,12 +33,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: 'viajes', label: 'Mis viajes', icon: Route, href: R.chofer },
+  { key: 'config', label: 'Mi configuración', icon: Settings, href: R.choferConfig },
 ]
 
-/**
- * The driver view is mobile-only and has exactly two screens, so the account
- * menu doubles as navigation: the bottom bar no longer needs to carry them.
- */
 const ACCOUNT_ITEMS: AccountMenuItem[] = [
   { key: 'viajes', label: 'Mis viajes', icon: Route, href: R.chofer },
   { key: 'config', label: 'Mi configuración', icon: Settings, href: R.choferConfig },
@@ -211,8 +208,14 @@ export function ChoferShell({
           </AppBar>
         )}
 
-        {/* No mobile bottom bar on the driver view, so it does not reserve space for one. */}
-        <Box sx={{ pt: { xs: 9.5, md: 3.5 }, px: { xs: 2, md: 4 }, pb: 4 }}>
+        <Box
+          sx={{
+            pt: { xs: 9.5, md: 3.5 },
+            px: { xs: 2, md: 4 },
+            // En móvil hay barra inferior con dos accesos; reservamos su alto.
+            pb: { xs: 12, md: 4 },
+          }}
+        >
           <Box sx={{ maxWidth: 980, mx: 'auto' }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
               <Box sx={{ flexGrow: 1 }}>

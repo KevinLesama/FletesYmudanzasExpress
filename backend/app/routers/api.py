@@ -786,13 +786,34 @@ def finish_request(
     El timestamp que manda el navegador no se usa como fuente de verdad.
     """
     request = _get_request_or_404(db, request_ref)
-    if user["rol"] == "chofer" and request.chofer_id != user["usuario_id"]:
+    chofer = user["rol"] == "chofer"
+    if chofer and request.chofer_id != user["usuario_id"]:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
     if request.estado == "finalizada":
         return serializers.serialize_solicitud(request)
     if request.estado != "confirmada":
         raise HTTPException(status_code=409, detail="Solo se puede finalizar un viaje confirmado.")
 
+    if chofer:
+        if not payload.remito_captured:
+            raise HTTPException(
+                status_code=409,
+                detail="Confirmá la foto del remito antes de finalizar el viaje.",
+            )
+        sena_total = sum(float(p.monto) for p in request.pagos if p.concepto == "sena")
+        saldo_total = sum(float(p.monto) for p in request.pagos if p.concepto == "saldo")
+        balance = float(request.precio_final) - sena_total - saldo_total
+        if balance > 0.5 and payload.payment_method is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Indicá si el saldo se cobra en efectivo o por transferencia.",
+            )
+        request.metodo_cobro_saldo = payload.payment_method if balance > 0.5 else None
+    elif payload.payment_method is not None:
+        request.metodo_cobro_saldo = payload.payment_method
+
+    if payload.remito_captured:
+        request.remito_foto_tomada_en = datetime.now(timezone.utc)
     request.estado = "finalizada"
     request.finalizada_en = datetime.now(timezone.utc)
     try:

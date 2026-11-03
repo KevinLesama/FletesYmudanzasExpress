@@ -13,6 +13,7 @@ import type {
   Client,
   Driver,
   Payment,
+  PaymentMethod,
   PaymentSummary,
   PlaceDetail,
   PlaceSuggestion,
@@ -210,6 +211,13 @@ function mapRequest(r: Json): ShiftRequest {
         : undefined,
     arrivedAt: r.arrived_at ?? undefined,
     finishedAt: r.finished_at ?? undefined,
+    closeoutPaymentMethod:
+      r.metodo_cobro_saldo === 'efectivo'
+        ? 'Efectivo'
+        : r.metodo_cobro_saldo === 'transferencia'
+          ? 'Transferencia'
+          : undefined,
+    remitoCapturedAt: r.remito_foto_tomada_en ?? undefined,
     createdAt: r.created_at ?? r.creado_en ?? undefined,
     incidents: (r.incidents ?? []).map((i: Json) => ({ id: i.id, type: i.type, description: i.description, time: i.time })),
     remitoPhoto: r.remito_data_url ? { name: r.remito_name ?? 'remito', dataUrl: r.remito_data_url } : undefined,
@@ -378,8 +386,8 @@ export const api = {
   // Identidad. El rol lo resuelve el backend contra `usuarios`; el JWT no lo
   // lleva, asi un cambio de permisos aplica sin esperar a que venza el token.
   me: async (): Promise<SessionUser> => {
-    const raw = await http<{ email: string; nombre: string; rol: Role }>('/me')
-    return { email: raw.email, nombre: raw.nombre, role: raw.rol }
+    const raw = await http<{ id: number; email: string | null; nombre: string; rol: Role }>('/me')
+    return { id: raw.id, email: raw.email ?? '', nombre: raw.nombre, role: raw.rol }
   },
 
   // Geolocalización (Google Maps, resuelto por el backend)
@@ -451,6 +459,8 @@ export const api = {
 
   // Choferes
   listDrivers: async (): Promise<Driver[]> => (await http<Json[]>('/drivers')).map(mapDriver),
+  getDriver: async (id: string): Promise<Driver> =>
+    mapDriver(await http<Json>(`/drivers/${encodeURIComponent(id)}`)),
   createDriver: async (payload: {
     name: string
     phone: string
@@ -591,8 +601,26 @@ export const api = {
     ),
   markArrived: async (id: string, arrivedAt: string): Promise<ShiftRequest> =>
     mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}/arrived`, { method: 'POST', body: JSON.stringify({ arrived_at: arrivedAt }) })),
-  markFinished: async (id: string, finishedAt: string): Promise<ShiftRequest> =>
-    mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}/finished`, { method: 'POST', body: JSON.stringify({ finished_at: finishedAt }) })),
+  markFinished: async (
+    id: string,
+    finishedAt: string,
+    closeout?: { paymentMethod?: PaymentMethod; remitoCaptured?: boolean },
+  ): Promise<ShiftRequest> =>
+    mapRequest(
+      await http<Json>(`/requests/${encodeURIComponent(id)}/finished`, {
+        method: 'POST',
+        body: JSON.stringify({
+          finished_at: finishedAt,
+          payment_method:
+            closeout?.paymentMethod === 'Efectivo'
+              ? 'efectivo'
+              : closeout?.paymentMethod === 'Transferencia'
+                ? 'transferencia'
+                : null,
+          remito_captured: Boolean(closeout?.remitoCaptured),
+        }),
+      }),
+    ),
   addIncident: async (id: string, incident: { type: string; description: string; time: string }): Promise<TripIncident> =>
     http<TripIncident>(`/requests/${encodeURIComponent(id)}/incidents`, { method: 'POST', body: JSON.stringify(incident) }),
   setRemito: async (id: string, remito: RemitoPhoto): Promise<ShiftRequest> =>

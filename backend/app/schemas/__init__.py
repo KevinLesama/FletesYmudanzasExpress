@@ -239,9 +239,13 @@ class FinishedIn(BaseModel):
 
     El timestamp es informativo: el backend sella `finalizada_en` con la hora
     del servidor para que la agenda no dependa del reloj del dispositivo.
+    `remito_captured` indica que el chofer fotografió el remito en el
+    dispositivo; la imagen no se sube.
     """
 
     finished_at: DateTimeType | None = None
+    payment_method: PagoMetodo | None = None
+    remito_captured: bool = False
 
 
 class ItemCargaOut(BaseModel):

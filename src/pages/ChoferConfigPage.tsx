@@ -37,11 +37,13 @@ function toConfig(driver: Driver): ChoferConfig {
 
 export function ChoferConfigPage() {
   const user = currentUser()
-  const driverState = useAsync(() => api.listDrivers(), [])
-  const drivers: Driver[] = driverState.data ?? []
-  // El perfil se resuelve por el email de la sesion: el backend solo deja que
-  // cada chofer edite sus propias tarifas.
-  const driver = drivers.find((d) => user?.email && d.email.toLowerCase() === user.email.toLowerCase())
+  // El perfil sale del id que el backend resolvio en /me. No se busca por
+  // email: el email de Auth y el de `usuarios` pueden no coincidir.
+  const driverState = useAsync(() => {
+    if (!user) throw new Error('No hay una sesión activa.')
+    return api.getDriver(String(user.id))
+  }, [user?.id])
+  const driver: Driver | null = driverState.data
 
   const [config, setConfig] = useState<ChoferConfig | null>(null)
   const [preview, setPreview] = useState<Quote | null>(null)

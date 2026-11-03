@@ -140,6 +140,8 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "receptor_documento": solicitud.receptor_documento,
         "remito_cargado": solicitud.remito_ruta is not None,
         "finalizada_en": solicitud.finalizada_en.isoformat() if solicitud.finalizada_en else None,
+        "metodo_cobro_saldo": solicitud.metodo_cobro_saldo,
+        "remito_foto_tomada_en": solicitud.remito_foto_tomada_en.isoformat() if solicitud.remito_foto_tomada_en else None,
         "motivo_cancelacion": solicitud.motivo_cancelacion,
         "notas": solicitud.notas,
         "items_carga": [i.model_dump() for i in items],

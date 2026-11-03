@@ -39,6 +39,22 @@ class GeoProvider(Protocol):
 class GoogleProvider:
     name = "google"
 
+    def __init__(self) -> None:
+        self._route_geometry_cache: dict[
+            tuple[float, float, float, float], list[tuple[float, float]] | None
+        ] = {}
+
+    @staticmethod
+    def _route_key(
+        origin: tuple[float, float], destination: tuple[float, float]
+    ) -> tuple[float, float, float, float]:
+        return (
+            round(origin[0], 6),
+            round(origin[1], 6),
+            round(destination[0], 6),
+            round(destination[1], 6),
+        )
+
     def search(self, query: str, limit: int) -> list[Suggestion]:
         try:
             return [
@@ -74,12 +90,16 @@ class GoogleProvider:
             route = geo.compute_route(origin, destination)
         except (geo.GeoNotConfiguredError, geo.GeoUnavailableError) as exc:
             raise ProviderUnavailable(str(exc)) from exc
-        return Route(route.distance_km, route.duration_min, self.name), None
+        key = self._route_key(origin, destination)
+        if key not in self._route_geometry_cache and len(self._route_geometry_cache) >= 256:
+            self._route_geometry_cache.pop(next(iter(self._route_geometry_cache)))
+        self._route_geometry_cache[key] = route.geometry
+        return Route(route.distance_km, route.duration_min, self.name), route.geometry
 
     def route_geometry(
         self, origin: tuple[float, float], destination: tuple[float, float]
     ) -> list[tuple[float, float]] | None:
-        return None
+        return self._route_geometry_cache.get(self._route_key(origin, destination))
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/telefono.test.ts tests/tripWhatsApp.test.ts tests/agendaModal.test.ts tests/modalSmoke.test.ts tests/formatShortAddress.test.ts tests/joinParts.test.ts tests/formatEventDate.test.ts tests/tripUpdates.test.ts"
+    "test": "node --test tests/telefono.test.ts tests/tripWhatsApp.test.ts tests/agendaModal.test.ts tests/modalSmoke.test.ts tests/formatShortAddress.test.ts tests/joinParts.test.ts tests/formatEventDate.test.ts tests/tripUpdates.test.ts tests/driverTripProgress.test.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.13.5",

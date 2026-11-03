@@ -18,7 +18,7 @@ const hhmm = (iso?: string) => (iso && iso.length >= 16 ? iso.slice(11, 16) : ''
 
 export function updatedAt(trip: ShiftRequest) {
   const lastIncident = trip.incidents?.[trip.incidents.length - 1]?.time
-  const confirmed = trip.status === 'Confirmada'
+  const confirmed = trip.status === 'Confirmada' || trip.status === 'Finalizada'
   const realTime = confirmed ? hhmm(trip.finishedAt) || hhmm(trip.arrivedAt) : ''
   return realTime || hhmm(lastIncident) || trip.serviceRange[1]
 }

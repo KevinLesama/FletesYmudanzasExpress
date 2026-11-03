@@ -311,6 +311,10 @@ CREATE TABLE IF NOT EXISTS solicitudes (
 
     -- Cierre
     finalizada_en          timestamptz,
+    -- Cierre desde el portal del chofer. La foto del remito queda en el
+    -- dispositivo (no se sube): solo se registra que se tomó.
+    metodo_cobro_saldo     text,
+    remito_foto_tomada_en  timestamptz,
     motivo_cancelacion     text,
     notas                  text,
 
@@ -361,6 +365,12 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     -- Si hay nombre de archivo, tiene que haber ruta en Storage.
     CONSTRAINT ck_solicitudes_remito CHECK (
         remito_nombre IS NULL OR remito_ruta IS NOT NULL),
+
+    -- Modalidad elegida por el chofer para cobrar el saldo. NULL cuando el
+    -- viaje no tenía saldo pendiente o el cierre no vino del portal.
+    CONSTRAINT ck_solicitudes_metodo_cobro_saldo CHECK (
+        metodo_cobro_saldo IS NULL
+        OR metodo_cobro_saldo IN ('efectivo', 'transferencia')),
 
     -- Roles atados: un cliente no puede ser chofer y un chofer no puede ser el
     -- cliente del viaje. MATCH SIMPLE: con chofer_id NULL la FK no se controla.
@@ -429,6 +439,10 @@ COMMENT ON COLUMN solicitudes.remito_ruta IS
     'Ruta de la foto del remito en Supabase Storage (nunca el archivo embebido).';
 COMMENT ON COLUMN solicitudes.remito_subido_por_id IS
     'Quién subió la foto del remito (normalmente el chofer del viaje).';
+COMMENT ON COLUMN solicitudes.metodo_cobro_saldo IS
+    'Modalidad elegida por el chofer para cobrar el saldo: efectivo | transferencia.';
+COMMENT ON COLUMN solicitudes.remito_foto_tomada_en IS
+    'Momento en que el chofer fotografió el remito en su dispositivo (la imagen no se sube).';
 COMMENT ON COLUMN solicitudes.receptor_nombre IS
     'Quien firmó la conformidad en el remito (no es un usuario del sistema).';
 COMMENT ON COLUMN solicitudes.motivo_cancelacion IS

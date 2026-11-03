@@ -160,6 +160,10 @@ export interface ShiftRequest {
   tariffs?: RequestTariffs
   arrivedAt?: string
   finishedAt?: string
+  // Cierre desde el portal del chofer: modalidad elegida para el saldo y
+  // momento en que se fotografió el remito en el dispositivo (no se sube).
+  closeoutPaymentMethod?: PaymentMethod
+  remitoCapturedAt?: string
   // Timestamp completo de creacion (solicitudes.creado_en). Solo lectura.
   createdAt?: string
   incidents?: TripIncident[]
