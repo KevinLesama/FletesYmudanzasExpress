@@ -32,7 +32,7 @@ import { loadSettings } from '../settingsStore'
 import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
 import { useMapTrips } from '../useMapTrips'
-import { countPendingReview } from '../requestMetrics'
+import { countPendingRequests } from '../requestMetrics'
 
 const SEPARADOR_BREADCRUMB = '·'
 export const SECCION_BREADCRUMB = 'Operación'
@@ -197,11 +197,12 @@ export function AppShell({
   const effectiveMapTrips = mapTrips ?? fallbackMap.trips
   const effectiveMapTrip = mapTrip ?? effectiveMapTrips[0] ?? null
   const effectiveMapLoading = mapRequestsLoading ?? fallbackMap.loading
-  // Mismo dato y misma regla que el resumen de la agenda: solicitudes en
-  // "Pendiente de revisión" sobre la lista completa, no sólo la ventana del mapa.
-  const pendingReviewCount = countPendingReview(mapRequests ?? fallbackMap.requests)
+  // Badge del menú: todo viaje que espera una acción del administrador (sin
+  // planificar o esperando la seña) sobre la lista completa, no sólo la
+  // ventana del mapa. El resumen de la agenda usa el desglose por estado.
+  const pendingRequestCount = countPendingRequests(mapRequests ?? fallbackMap.requests)
   const navItems = NAV.map((item) =>
-    item.key === 'solicitudes' ? { ...item, badge: pendingReviewCount } : item,
+    item.key === 'solicitudes' ? { ...item, badge: pendingRequestCount } : item,
   )
 
   const sidebarContent = (
