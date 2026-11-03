@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     pricing_margin: float = 1.5
     # Espera estandar de una mudanza, en minutos (ida, descarga y vuelta).
     default_wait_minutes: int = 120
+    # Telegram: aviso opcional de nuevas solicitudes. Si falta el token o el
+    # chat, no se envia nada y el alta de la solicitud sigue funcionando igual.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    telegram_timeout_seconds: float = 5.0
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -66,6 +71,10 @@ class Settings(BaseSettings):
     @property
     def geo_configured(self) -> bool:
         return bool(self.google_maps_api_key.strip())
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token.strip() and self.telegram_chat_id.strip())
 
 
 @lru_cache
