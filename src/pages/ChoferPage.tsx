@@ -22,7 +22,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import { fmtLong } from '../format'
+import { fmtLong, joinParts } from '../format'
 import { getTodayISO } from '../agendaDates'
 import { currentUser } from '../supabase'
 import type { Driver, ShiftRequest } from '../types'
@@ -78,8 +78,11 @@ export function ChoferPage() {
 
   const dayTrips = useMemo(() => trips.filter((t) => t.date === date), [trips, date])
   const selected = trips.find((t) => t.id === selectedId) ?? null
-  const selectedVehicleName = selected?.vehicleId
-    ? `${selected.vehicleId} · ${(vehicles.data ?? []).find((v) => v.id === selected.vehicleId)?.type ?? ''}`
+  const selectedVehicle = selected?.vehicleId
+    ? (vehicles.data ?? []).find((v) => v.vehicleId === selected.vehicleId)
+    : undefined
+  const selectedVehicleName = selectedVehicle
+    ? joinParts([selectedVehicle.type, selectedVehicle.id]) || undefined
     : undefined
 
   const runAction = async (fn: () => Promise<unknown>, message: string) => {

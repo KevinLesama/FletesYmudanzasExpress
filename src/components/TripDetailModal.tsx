@@ -25,7 +25,8 @@ import {
 } from '@mui/icons-material'
 import { StatusChip } from './StatusChip'
 import { TrackingAside, TrackingHero, StatusStepper, UpdatesTimeline, buildUpdates, stageIndex, updatedAt } from './TripTracking'
-import { ars, fmtDateEs, waLink } from '../format'
+import { ars, fmtDateEs, joinParts } from '../format'
+import { tripWhatsAppHref } from '../tripWhatsApp'
 import { WhatsAppIcon } from './WhatsAppIcon'
 import { brand } from '../theme'
 import { color, type } from '../design/tokens'
@@ -88,10 +89,8 @@ export function TripDetailModal({
     mapPoint(trip.origin),
   )}&destination=${encodeURIComponent(mapPoint(trip.destination))}`
 
-  const wa = waLink(
-    trip.phone,
-    `Hola ${trip.client}, te escribimos por tu viaje ${trip.id} del ${fmtDateEs(trip.date)} · servicio ${trip.serviceRange.join(' a ')}.`,
-  )
+  const wa = tripWhatsAppHref(trip)
+  const contact = joinParts([trip.client, trip.phone])
 
   const stage = stageIndex(trip)
   const updates = buildUpdates(trip, driverName, vehicleName)
@@ -122,9 +121,11 @@ export function TripDetailModal({
             {trip.id}
           </Typography>
           <StatusChip label={trip.status} />
-          <Typography sx={{ display: { xs: 'none', sm: 'block' }, fontSize: type.micro, color: color.muted }}>
-            {trip.client} · {trip.phone}
-          </Typography>
+          {contact && (
+            <Typography sx={{ display: { xs: 'none', sm: 'block' }, fontSize: type.micro, color: color.muted }}>
+              {contact}
+            </Typography>
+          )}
 
           <Box sx={{ flexGrow: 1 }} />
 
@@ -133,11 +134,13 @@ export function TripDetailModal({
               <Map fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="WhatsApp con el cliente">
-            <IconButton component="a" href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp con el cliente" size="small" sx={{ color: color.green }}>
-              <WhatsAppIcon size={18} />
-            </IconButton>
-          </Tooltip>
+          {wa && (
+            <Tooltip title="WhatsApp con el cliente">
+              <IconButton component="a" href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp con el cliente" size="small" sx={{ color: color.green }}>
+                <WhatsAppIcon size={18} />
+              </IconButton>
+            </Tooltip>
+          )}
           {role === 'chofer' && (
             <Tooltip title={trip.remitoPhoto ? 'Cambiar foto del remito' : 'Subir foto del remito'}>
               <IconButton onClick={() => fileRef.current?.click()} aria-label="Foto del remito" size="small">

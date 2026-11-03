@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date as DateType
+from datetime import datetime as DateTimeType
 from datetime import time as TimeType
 from typing import Literal
 
@@ -432,6 +433,9 @@ class PagoOut(BaseModel):
     comprobante_ruta: str | None = None
     comprobante_nombre: str | None = None
     notas: str | None = None
+    # Timestamp completo del pago: la `fecha` es solo el dia elegido por el
+    # usuario; `creado_en` es cuando se registro y sirve para Novedades.
+    creado_en: DateTimeType | None = None
 
 
 PaymentIn = PagoIn

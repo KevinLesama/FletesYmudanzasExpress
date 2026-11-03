@@ -47,6 +47,7 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
             comprobante_ruta=p.comprobante_ruta,
             comprobante_nombre=p.comprobante_nombre,
             notas=p.notas,
+            creado_en=getattr(p, "creado_en", None),
         )
         for p in pagos_list
     ]
@@ -75,6 +76,7 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
             "received_by": p.recibido_por_id,
             "amount": float(p.monto),
             "date": p.fecha.isoformat() if hasattr(p.fecha, "isoformat") else p.fecha,
+            "created_at": p.creado_en.isoformat() if getattr(p, "creado_en", None) else None,
             "notes": p.notas,
         }
         for p in pagos

@@ -25,6 +25,7 @@ import type {
   TripIncident,
   Vehicle,
 } from './types'
+import { normalizeArgentinaPhoneForStorage } from './utils/telefono'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
@@ -207,6 +208,7 @@ function mapRequest(r: Json): ShiftRequest {
         : undefined,
     arrivedAt: r.arrived_at ?? undefined,
     finishedAt: r.finished_at ?? undefined,
+    createdAt: r.created_at ?? r.creado_en ?? undefined,
     incidents: (r.incidents ?? []).map((i: Json) => ({ id: i.id, type: i.type, description: i.description, time: i.time })),
     remitoPhoto: r.remito_data_url ? { name: r.remito_name ?? 'remito', dataUrl: r.remito_data_url } : undefined,
     payments: (r.payments ?? []).map((p: Json) => ({
@@ -216,6 +218,7 @@ function mapRequest(r: Json): ShiftRequest {
       receivedBy: p.received_by,
       amount: Number(p.amount),
       date: p.date,
+      createdAt: p.created_at ?? p.creado_en ?? undefined,
       notes: p.notes ?? undefined,
     })),
   }
@@ -277,7 +280,7 @@ function legacySolicitudPayload(payload: Json): Json {
   const contactName = payload.contacto_nombre ?? payload.contact_name
   const contactPhone = payload.contacto_telefono ?? payload.contact_phone
   if (contactName) out.contacto_nombre = String(contactName)
-  if (contactPhone) out.contacto_telefono = String(contactPhone)
+  if (contactPhone) out.contacto_telefono = normalizeArgentinaPhoneForStorage(String(contactPhone))
 
   const fecha = payload.fecha ?? payload.date
   if (fecha) out.fecha = fecha
@@ -559,7 +562,7 @@ export const api = {
     mapClient(
       await http<Json>('/clients', {
         method: 'POST',
-        body: JSON.stringify({ nombre: payload.name, telefono: payload.phone }),
+        body: JSON.stringify({ nombre: payload.name, telefono: normalizeArgentinaPhoneForStorage(payload.phone) }),
       }),
     ),
 

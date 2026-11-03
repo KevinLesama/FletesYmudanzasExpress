@@ -159,6 +159,8 @@ export interface ShiftRequest {
   tariffs?: RequestTariffs
   arrivedAt?: string
   finishedAt?: string
+  // Timestamp completo de creacion (solicitudes.creado_en). Solo lectura.
+  createdAt?: string
   incidents?: TripIncident[]
   remitoPhoto?: RemitoPhoto
   payments?: Payment[]
@@ -171,6 +173,8 @@ export interface Payment {
   receivedBy: ReceivedBy
   amount: number
   date: string
+  // Timestamp completo del registro del pago (pagos.creado_en).
+  createdAt?: string
   notes?: string
 }
 
