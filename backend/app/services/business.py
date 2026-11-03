@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from datetime import date, time
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Solicitud, Usuario, Vehiculo
+from app.services import pricing
 
 
 def _overlaps(a_from: time, a_to: time, b_from: time, b_to: time) -> bool:
@@ -93,3 +95,41 @@ def count_requests_for_driver(db: Session, driver_id: int) -> int:
         db.scalar(select(func.count()).select_from(Solicitud).where(Solicitud.chofer_id == driver_id))
         or 0
     )
+
+
+class PaymentAmountError(ValueError):
+    """El importe del pago no respeta el tope del concepto."""
+
+
+def validate_payment_amount(solicitud: Solicitud, concepto: str, monto: float | Decimal) -> None:
+    """Valida que el pago no supere lo que falta cobrar del viaje.
+
+    La seña se mide contra la seña requerida (50 % del precio acordado); el
+    saldo, contra el total del viaje menos todo lo ya cobrado. Sin este limite
+    se puede cobrar la seña dos veces o mas que el precio acordado.
+    """
+    pagos = list(getattr(solicitud, "pagos", None) or [])
+    precio_acordado = Decimal(str(solicitud.precio_final or 0))
+    importe = Decimal(str(monto))
+
+    if concepto == "sena":
+        sena_requerida = pricing.sena(precio_acordado)
+        if sena_requerida <= 0:
+            raise PaymentAmountError("El viaje todavía no tiene un precio acordado.")
+        sena_recibida = sum(
+            (Decimal(str(p.monto)) for p in pagos if p.concepto == "sena"),
+            Decimal("0"),
+        )
+        faltante = max(sena_requerida - sena_recibida, Decimal("0"))
+        if importe > faltante:
+            raise PaymentAmountError(
+                f"El importe supera lo que falta de la seña ({faltante})."
+            )
+        return
+
+    total_recibido = sum((Decimal(str(p.monto)) for p in pagos), Decimal("0"))
+    faltante = max(precio_acordado - total_recibido, Decimal("0"))
+    if importe > faltante:
+        raise PaymentAmountError(
+            f"El importe supera el saldo pendiente ({faltante})."
+        )

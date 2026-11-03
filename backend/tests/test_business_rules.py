@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
 from fastapi.testclient import TestClient
+
+from app.services import business
 
 BASE_REQUEST = {
     "date": "2026-09-24",
@@ -126,3 +132,47 @@ def test_cancel_releases_vehicle(client: TestClient, seeded: dict) -> None:
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == "Cancelada"
     assert client.get(f"/api/vehicles/{seeded['vehicle_id']}").json()["status"] == "Disponible"
+
+
+# --------------------------------------------------------------------------- #
+# Tope de pagos: regla pura, sin base de datos ni API.
+# --------------------------------------------------------------------------- #
+def _solicitud(precio: Decimal, pagos: list[tuple[str, Decimal]]):
+    return SimpleNamespace(
+        precio_final=precio,
+        pagos=[SimpleNamespace(concepto=c, monto=m) for c, m in pagos],
+    )
+
+
+def test_validate_payment_amount_accumulates_sena() -> None:
+    """Dos señas parciales no pueden superar la seña requerida (50 %)."""
+    solicitud = _solicitud(Decimal("100000"), [("sena", Decimal("20000"))])
+
+    business.validate_payment_amount(solicitud, "sena", Decimal("30000"))
+    with pytest.raises(business.PaymentAmountError):
+        business.validate_payment_amount(solicitud, "sena", Decimal("30001"))
+
+
+def test_validate_payment_amount_rejects_full_sena_twice() -> None:
+    solicitud = _solicitud(Decimal("100000"), [("sena", Decimal("50000"))])
+
+    with pytest.raises(business.PaymentAmountError):
+        business.validate_payment_amount(solicitud, "sena", Decimal("1"))
+
+
+def test_validate_payment_amount_caps_balance_against_total() -> None:
+    solicitud = _solicitud(
+        Decimal("100000"),
+        [("sena", Decimal("50000")), ("saldo", Decimal("20000"))],
+    )
+
+    business.validate_payment_amount(solicitud, "saldo", Decimal("30000"))
+    with pytest.raises(business.PaymentAmountError):
+        business.validate_payment_amount(solicitud, "saldo", Decimal("30001"))
+
+
+def test_validate_payment_amount_requires_price_for_sena() -> None:
+    solicitud = _solicitud(Decimal("0"), [])
+
+    with pytest.raises(business.PaymentAmountError):
+        business.validate_payment_amount(solicitud, "sena", Decimal("1"))

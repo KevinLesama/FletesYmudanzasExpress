@@ -876,6 +876,14 @@ def add_payment(
     recibido_por = db.get(Usuario, recibido_por_id)
     if recibido_por is None:
         raise HTTPException(status_code=404, detail="Usuario receptor no encontrado.")
+
+    # Tope por concepto: una seña no puede superar lo que falta de la seña
+    # requerida, y un saldo no puede superar lo que falta cobrar del viaje.
+    try:
+        business.validate_payment_amount(request, payload.concepto, payload.monto)
+    except business.PaymentAmountError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     payment = Pago(
         solicitud_id=request.id,
         concepto=payload.concepto,
@@ -941,6 +949,7 @@ def payments_summary(
                 "date": solicitud.fecha.isoformat(),
                 "price": precio,
                 "deposit": sena,
+                "deposit_received": sena,
                 "collected": cobrado,
                 "balance": max(precio - cobrado, 0.0),
                 "state": estado,
