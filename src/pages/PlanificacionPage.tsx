@@ -386,6 +386,7 @@ export function PlanificacionPage() {
   }, [catalogState.loading, request?.driverId, request?.vehicleId, driverId, vehicleId, availableDrivers, availableVehicles])
 
   const depositReceived = request?.depositReceived ?? 0
+  const collectedTotal = (request?.payments ?? []).reduce((total, payment) => total + payment.amount, 0)
   // La seña es siempre el 50 % del precio acordado. El backend es la fuente de
   // verdad (pricing.sena); aca se replica solo para mostrarla mientras se edita.
   const depositRequired = Math.round(Number(price || 0) / 2)
@@ -1086,6 +1087,7 @@ export function PlanificacionPage() {
         depositRequired={Number(depositRequired || 0)}
         price={Number(price || 0)}
         received={depositReceived}
+        collected={collectedTotal}
         onSave={(amount, date, concept, method, receivedBy, notes) => {
           setDialogOpen(false)
           runAction(
@@ -1199,6 +1201,7 @@ function DepositDialog({
   depositRequired,
   price,
   received,
+  collected,
   onSave,
 }: {
   open: boolean
@@ -1208,9 +1211,10 @@ function DepositDialog({
   depositRequired: number
   price: number
   received: number
+  collected: number
   onSave: (amount: number, date: string, concept: 'Seña' | 'Saldo', method: 'Transferencia' | 'Efectivo', receivedBy: ReceivedBy, notes?: string) => void
 }) {
-  const [amount, setAmount] = useState(String(depositRequired || ''))
+  const [amount, setAmount] = useState('')
   const [date, setDate] = useState(getTodayISO)
   const [concept, setConcept] = useState<'Seña' | 'Saldo'>('Seña')
   const [method, setMethod] = useState<'Transferencia' | 'Efectivo'>('Transferencia')
@@ -1220,9 +1224,30 @@ function DepositDialog({
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
+  // Lo que falta cobrar según el concepto elegido. La seña se mide contra la
+  // seña requerida; el saldo, contra el total del viaje menos todo lo cobrado.
+  const faltaSena = Math.max(depositRequired - received, 0)
+  const faltaSaldo = Math.max(price - collected, 0)
+  const max = concept === 'Seña' ? faltaSena : faltaSaldo
+
+  // Al abrir, el concepto arranca en lo que todavía se debe: seña si falta
+  // seña, saldo si la seña ya está completa.
+  useEffect(() => {
+    if (!open) return
+    setConcept(faltaSena > 0 ? 'Seña' : 'Saldo')
+    setError(null)
+  }, [open, faltaSena])
+
+  // El importe arranca siempre en lo que falta del concepto elegido, nunca en
+  // la seña completa: si ya se cobró una parte, no se vuelve a pedir entera.
+  useEffect(() => {
+    if (!open) return
+    const cap = concept === 'Seña' ? faltaSena : faltaSaldo
+    setAmount(cap > 0 ? String(cap) : '')
+  }, [open, concept, faltaSena, faltaSaldo])
+
   const save = () => {
     const num = Number(amount || 0)
-    const max = Math.max(price - received, 0)
     if (num <= 0 || num > max) {
       setError(`Ingresá un importe entre $ 1 y ${ars(max)}.`)
       return
@@ -1247,9 +1272,24 @@ function DepositDialog({
       </DialogTitle>
       <DialogContent sx={{ px: { xs: 2.5, md: 3 }, pt: 2 }}>
         <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: color.amberSoft, border: '1px solid', borderColor: color.amber, mb: 2 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>Seña requerida</Typography>
-            <Typography sx={{ fontSize: 15, fontWeight: 800, color: color.amberInk }}>{ars(depositRequired)}</Typography>
+          <Stack spacing={0.5}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>Seña requerida</Typography>
+              <Typography sx={{ fontSize: 15, fontWeight: 800, color: color.amberInk }}>{ars(depositRequired)}</Typography>
+            </Stack>
+            {received > 0 && (
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: color.amberInk }}>Ya registrado</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: color.amberInk }}>{ars(received)}</Typography>
+              </Stack>
+            )}
+            <Divider sx={{ borderColor: color.amber, opacity: 0.5 }} />
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>
+                {concept === 'Seña' ? 'Falta de seña' : 'Saldo pendiente'}
+              </Typography>
+              <Typography sx={{ fontSize: 15, fontWeight: 800, color: color.amberInk }}>{ars(max)}</Typography>
+            </Stack>
           </Stack>
         </Box>
 
@@ -1263,7 +1303,7 @@ function DepositDialog({
             }}
             fullWidth
             error={!!error}
-            mensaje={error}
+            mensaje={error ?? (max <= 0 ? 'Ya está registrado el importe completo.' : undefined)}
             autoComplete="off"
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           />
@@ -1287,7 +1327,7 @@ function DepositDialog({
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2.5, md: 3 }, pb: 3, justifyContent: 'space-between' }}>
         <Button onClick={onClose} sx={{ color: color.ink }}>Cancelar</Button>
-        <Button variant="contained" startIcon={<Check />} onClick={save}>Guardar seña</Button>
+        <Button variant="contained" startIcon={<Check />} onClick={save} disabled={max <= 0}>Guardar seña</Button>
       </DialogActions>
     </Dialog>
   )

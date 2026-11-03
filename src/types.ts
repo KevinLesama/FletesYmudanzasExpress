@@ -192,6 +192,7 @@ export interface PaymentSummary {
   date: string
   price: number
   deposit: number
+  depositReceived: number
   collected: number
   balance: number
   state: PaymentState

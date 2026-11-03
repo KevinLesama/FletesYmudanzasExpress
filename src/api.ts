@@ -250,6 +250,7 @@ function mapSummary(s: Json): PaymentSummary {
     date: String(s.date ?? ''),
     price: Number(s.price ?? 0),
     deposit: Number(s.deposit ?? 0),
+    depositReceived: Number(s.deposit_received ?? s.deposit ?? 0),
     collected: Number(s.collected ?? 0),
     balance: Number(s.balance ?? 0),
     state: s.state,

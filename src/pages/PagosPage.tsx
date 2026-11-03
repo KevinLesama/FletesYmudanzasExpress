@@ -49,6 +49,7 @@ function toPaymentSummary(request: ShiftRequest): PaymentSummary {
     date: request.date,
     price: request.price,
     deposit: request.depositRequired,
+    depositReceived: request.depositReceived,
     collected,
     balance: Math.max(request.price - collected, 0),
     state,
@@ -129,7 +130,7 @@ export function PagosPage() {
                 <Typography sx={{ fontSize: 12, color: color.muted }}>{fmtDate(r.date)}</Typography>
               </TableCell>
               <TableCell align="right">{ars(r.price)}</TableCell>
-              <TableCell align="right">{ars(r.deposit)}</TableCell>
+              <TableCell align="right">{ars(r.depositReceived)}</TableCell>
               <TableCell align="right">{ars(r.collected)}</TableCell>
               <TableCell align="right">
                 <Typography sx={{ fontWeight: 800, color: r.balance > 0 ? color.amberInk : brand.navy }}>{ars(r.balance)}</Typography>
@@ -169,7 +170,7 @@ export function PagosPage() {
           <Typography sx={{ fontSize: 12, color: color.muted }}>{fmtDate(r.date)}</Typography>
           <Box sx={{ my: 1.4, p: 1.4, borderRadius: 2, bgcolor: color.sand, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2 }}>
             <Money label="Precio acordado" value={ars(r.price)} />
-            <Money label="Seña recibida" value={ars(r.deposit)} />
+            <Money label="Seña recibida" value={ars(r.depositReceived)} />
             <Money label="Total cobrado" value={ars(r.collected)} />
             <Money label="Saldo pendiente" value={ars(r.balance)} strong />
           </Box>
@@ -321,6 +322,7 @@ function PaymentDialog({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const cobrado = trip.collected
   const saldo = Math.max(trip.price - cobrado, 0)
+  const faltaSena = Math.max(trip.deposit - trip.depositReceived, 0)
 
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(getTodayISO)
@@ -330,10 +332,14 @@ function PaymentDialog({
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // El tope depende del concepto: la seña no puede pasar lo que falta de la
+  // seña requerida, y el saldo no puede pasar lo que falta cobrar del viaje.
+  const max = concept === 'Seña' ? faltaSena : saldo
+
   const save = () => {
     const num = Number(amount || 0)
-    if (!num || num <= 0 || num > saldo) {
-      setError(`Ingresá un importe válido entre $ 1 y ${ars(saldo)}.`)
+    if (!num || num <= 0 || num > max) {
+      setError(`Ingresá un importe válido entre $ 1 y ${ars(max)}.`)
       return
     }
     setError(null)
@@ -359,8 +365,8 @@ function PaymentDialog({
       <DialogContent sx={{ px: 3, pt: 2 }}>
         <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: color.amberSoft, border: `1px solid ${color.border}`, mb: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>Saldo pendiente</Typography>
-            <Typography sx={{ fontSize: 15, fontWeight: 800, color: color.amberInk }}>{ars(saldo)}</Typography>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>{concept === 'Seña' ? 'Falta de seña' : 'Saldo pendiente'}</Typography>
+            <Typography sx={{ fontSize: 15, fontWeight: 800, color: color.amberInk }}>{ars(max)}</Typography>
           </Stack>
         </Box>
 
