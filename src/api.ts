@@ -129,9 +129,10 @@ function mapVehicle(v: Json): Vehicle {
 }
 
 function mapRequest(r: Json): ShiftRequest {
-  const estado = String(r.estado ?? r.status ?? '')
+  const estado = String(r.estado_visible ?? r.estado ?? r.status ?? '')
   const ESTADOS: Record<string, RequestStatus> = {
     pendiente: 'Pendiente de revisión',
+    pendiente_sena: 'Pendiente de seña',
     confirmada: 'Confirmada',
     finalizada: 'Finalizada',
     cancelada: 'Cancelada',
@@ -218,6 +219,7 @@ function mapRequest(r: Json): ShiftRequest {
       date: p.date,
       notes: p.notes ?? undefined,
     })),
+    autoConfirmError: r.auto_confirm_error ? String(r.auto_confirm_error) : undefined,
   }
 }
 

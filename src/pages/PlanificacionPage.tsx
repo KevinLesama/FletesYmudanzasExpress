@@ -475,9 +475,16 @@ export function PlanificacionPage() {
   const runAction = async (fn: () => Promise<ShiftRequest | unknown>, successMessage: string) => {
     setBusy(true)
     try {
-      await fn()
+      const result = await fn()
       await requestState.reload()
-      setToast({ message: successMessage, tone: 'success' })
+      const updated = (result ?? {}) as Partial<ShiftRequest>
+      if (updated.autoConfirmError) {
+        setToast({ message: updated.autoConfirmError, tone: 'error' })
+      } else if (updated.status === 'Confirmada' && request?.status !== 'Confirmada') {
+        setToast({ message: `Viaje confirmado automáticamente · ${requestId}`, tone: 'success' })
+      } else {
+        setToast({ message: successMessage, tone: 'success' })
+      }
       return true
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'No pudimos completar la operación.', tone: 'error' })

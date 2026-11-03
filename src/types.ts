@@ -162,6 +162,9 @@ export interface ShiftRequest {
   incidents?: TripIncident[]
   remitoPhoto?: RemitoPhoto
   payments?: Payment[]
+  // Motivo por el que la confirmación automática no pudo aplicarse; el viaje
+  // quedó pendiente aunque la seña esté completa.
+  autoConfirmError?: string
 }
 
 export interface Payment {
