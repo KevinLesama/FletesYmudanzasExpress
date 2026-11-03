@@ -190,6 +190,8 @@ class Solicitud(Base):
     receptor_documento: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     finalizada_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    metodo_cobro_saldo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    remito_foto_tomada_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     motivo_cancelacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -272,6 +274,10 @@ class Solicitud(Base):
             name="ck_solicitudes_finalizada_en",
         ),
         CheckConstraint("remito_nombre IS NULL OR remito_ruta IS NOT NULL", name="ck_solicitudes_remito"),
+        CheckConstraint(
+            "metodo_cobro_saldo IS NULL OR metodo_cobro_saldo IN ('efectivo', 'transferencia')",
+            name="ck_solicitudes_metodo_cobro_saldo",
+        ),
         ForeignKeyConstraint(
             ["cliente_id", "cliente_rol"],
             ["usuarios.id", "usuarios.rol"],

@@ -23,6 +23,7 @@ import {
 import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState } from '../components/EmptyState'
+import { TruckLoader } from '../components/TruckLoader'
 import { CampoSelect, CampoTexto, EtiquetaCampo } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
@@ -260,7 +261,21 @@ export function PagosPage() {
         </Box>
 
         {paymentsState.loading ? (
-          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, px: 2, py: 1 }}>
+          <Box
+            role="status"
+            aria-live="polite"
+            sx={{
+              bgcolor: color.paper,
+              border: `1px solid ${color.border}`,
+              borderRadius: 3,
+              px: 2,
+              py: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <TruckLoader size="sm" />
             <Typography sx={{ fontSize: 13, color: color.muted }}>Cargando cobros...</Typography>
           </Box>
         ) : paymentsState.error ? (

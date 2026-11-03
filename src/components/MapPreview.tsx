@@ -31,6 +31,8 @@ import { fmtDate, formatShortPlace } from '../format'
 import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
 import { StatusChip } from './StatusChip'
+import { PlaceMarker } from './PlaceMarker'
+import { TruckLoader } from './TruckLoader'
 import { WINDOW_DAYS } from '../useMapTrips'
 
 export interface MapPreviewProps {
@@ -58,9 +60,9 @@ const MAP_STYLE_URL =
     ? `https://api.maptiler.com/maps/${MAP_STYLE_ID}/style.json?key=${MAP_TILES_KEY}`
     : ''
 const COLORS = {
-  origin: '#1E2A4A',
-  route: '#1E2A4A',
-  destination: '#C2410C',
+  origin: color.navy,
+  route: color.navy,
+  destination: color.orangeInk,
 } as const
 const ROUTE_CACHE_LIMIT = 128
 
@@ -133,36 +135,6 @@ function MapLibreLayer() {
 }
 
 type MarkerKind = 'origin' | 'destination'
-
-function markerColor(kind: MarkerKind): string {
-  return kind === 'origin' ? COLORS.origin : COLORS.destination
-}
-
-function MarkerGlyph({ kind, size }: { kind: MarkerKind; size: number }) {
-  return (
-    <Box
-      aria-hidden="true"
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: kind === 'origin' ? size : size * 0.9,
-        height: kind === 'origin' ? size : size * 1.15,
-        flexShrink: 0,
-        borderRadius: kind === 'origin' ? '50%' : '50% 50% 50% 0',
-        bgcolor: kind === 'origin' ? color.paper : markerColor(kind),
-        border: kind === 'origin' ? `${Math.max(2, size * 0.22)}px solid` : 'none',
-        borderColor: COLORS.origin,
-        boxShadow: shadow.raised,
-        transform: kind === 'destination' ? 'rotate(-45deg)' : 'none',
-      }}
-    >
-      {kind === 'destination' && (
-        <Box sx={{ width: size * 0.35, height: size * 0.35, borderRadius: '50%', bgcolor: color.paper }} />
-      )}
-    </Box>
-  )
-}
 
 function MarkerIcon(kind: MarkerKind) {
   if (kind === 'destination') {
@@ -577,12 +549,12 @@ function MapContents({
             left: '50%',
             transform: 'translate(-50%, -50%)',
             zIndex: 1000,
-            p: 0.75,
+            p: 1,
             borderRadius: 2,
             bgcolor: alpha(color.paper, 0.92),
           }}
         >
-          <Skeleton width={88} height={16} />
+          <TruckLoader size="sm" />
         </Box>
       )}
       {trip && !bothCoordinates && (
@@ -659,13 +631,25 @@ function TripCard({
           ['Origen', trip.origin],
           ['Destino', trip.destination],
         ] as const).map(([label, place]) => (
-          <Stack key={label} direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
-            <MarkerGlyph kind={label === 'Origen' ? 'origin' : 'destination'} size={18} />
-            <Typography sx={{ width: 42, flexShrink: 0, fontSize: 11, fontWeight: 800, color: label === 'Origen' ? color.navy : color.orangeStrong }}>
+          <Stack key={label} direction="row" spacing={0.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+            <PlaceMarker kind={label === 'Origen' ? 'origin' : 'destination'} size={14} lineHeight={11 * 1.5} />
+            <Typography sx={{ width: 42, flexShrink: 0, fontSize: 11, lineHeight: 1.5, fontWeight: 800, color: label === 'Origen' ? color.navy : color.orangeStrong }}>
               {label}
             </Typography>
             <Tooltip title={addressFor(place)} placement="top">
-              <Typography noWrap sx={{ minWidth: 0, fontSize: 11, color: color.ink }}>
+              <Typography
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                  color: color.ink,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
                 {addressFor(place)}
               </Typography>
             </Tooltip>
@@ -928,8 +912,26 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
             <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />
           )}
           {!currentTrip && tripsLoading && (
-            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92) }}>
-              <Skeleton width={160} height={20} />
+            <Box
+              role="status"
+              aria-live="polite"
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 1000,
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: alpha(color.paper, 0.94),
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 0.75,
+              }}
+            >
+              <TruckLoader size="sm" />
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: color.navy }}>Cargando viajes...</Typography>
             </Box>
           )}
           {!currentTrip && !tripsLoading && (

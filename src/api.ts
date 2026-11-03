@@ -13,6 +13,7 @@ import type {
   Client,
   Driver,
   Payment,
+  PaymentMethod,
   PaymentSummary,
   PlaceDetail,
   PlaceSuggestion,
@@ -25,6 +26,7 @@ import type {
   TripIncident,
   Vehicle,
 } from './types'
+import { normalizeArgentinaPhoneForStorage } from './utils/telefono'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
@@ -159,6 +161,7 @@ function mapRequest(r: Json): ShiftRequest {
       barrio: String(r.origin_barrio ?? r.origen_barrio ?? ''),
       floor: String(r.origin_floor ?? r.origen_piso ?? ''),
       elevator: Boolean(r.origin_elevator ?? r.origen_ascensor),
+      notes: r.origin_notes ?? r.origen_notas ?? undefined,
       placeId: r.origen_place_id ?? undefined,
       lat: coordinate(r.origen_lat ?? r.origin_lat),
       lng: coordinate(r.origen_lng ?? r.origin_lng),
@@ -169,6 +172,7 @@ function mapRequest(r: Json): ShiftRequest {
       barrio: String(r.destination_barrio ?? r.destino_barrio ?? ''),
       floor: String(r.destination_floor ?? r.destino_piso ?? ''),
       elevator: Boolean(r.destination_elevator ?? r.destino_ascensor),
+      notes: r.destination_notes ?? r.destino_notas ?? undefined,
       placeId: r.destino_place_id ?? undefined,
       lat: coordinate(r.destino_lat ?? r.destination_lat),
       lng: coordinate(r.destino_lng ?? r.destination_lng),
@@ -208,6 +212,14 @@ function mapRequest(r: Json): ShiftRequest {
         : undefined,
     arrivedAt: r.arrived_at ?? undefined,
     finishedAt: r.finished_at ?? undefined,
+    closeoutPaymentMethod:
+      r.metodo_cobro_saldo === 'efectivo'
+        ? 'Efectivo'
+        : r.metodo_cobro_saldo === 'transferencia'
+          ? 'Transferencia'
+          : undefined,
+    remitoCapturedAt: r.remito_foto_tomada_en ?? undefined,
+    createdAt: r.created_at ?? r.creado_en ?? undefined,
     incidents: (r.incidents ?? []).map((i: Json) => ({ id: i.id, type: i.type, description: i.description, time: i.time })),
     remitoPhoto: r.remito_data_url ? { name: r.remito_name ?? 'remito', dataUrl: r.remito_data_url } : undefined,
     payments: (r.payments ?? []).map((p: Json) => ({
@@ -217,6 +229,7 @@ function mapRequest(r: Json): ShiftRequest {
       receivedBy: p.received_by,
       amount: Number(p.amount),
       date: p.date,
+      createdAt: p.created_at ?? p.creado_en ?? undefined,
       notes: p.notes ?? undefined,
     })),
     autoConfirmError: r.auto_confirm_error ? String(r.auto_confirm_error) : undefined,
@@ -281,7 +294,7 @@ function legacySolicitudPayload(payload: Json): Json {
   const contactName = payload.contacto_nombre ?? payload.contact_name
   const contactPhone = payload.contacto_telefono ?? payload.contact_phone
   if (contactName) out.contacto_nombre = String(contactName)
-  if (contactPhone) out.contacto_telefono = String(contactPhone)
+  if (contactPhone) out.contacto_telefono = normalizeArgentinaPhoneForStorage(String(contactPhone))
 
   const fecha = payload.fecha ?? payload.date
   if (fecha) out.fecha = fecha
@@ -377,8 +390,8 @@ export const api = {
   // Identidad. El rol lo resuelve el backend contra `usuarios`; el JWT no lo
   // lleva, asi un cambio de permisos aplica sin esperar a que venza el token.
   me: async (): Promise<SessionUser> => {
-    const raw = await http<{ email: string; nombre: string; rol: Role }>('/me')
-    return { email: raw.email, nombre: raw.nombre, role: raw.rol }
+    const raw = await http<{ id: number; email: string | null; nombre: string; rol: Role }>('/me')
+    return { id: raw.id, email: raw.email ?? '', nombre: raw.nombre, role: raw.rol }
   },
 
   // Geolocalización (Google Maps, resuelto por el backend)
@@ -450,6 +463,8 @@ export const api = {
 
   // Choferes
   listDrivers: async (): Promise<Driver[]> => (await http<Json[]>('/drivers')).map(mapDriver),
+  getDriver: async (id: string): Promise<Driver> =>
+    mapDriver(await http<Json>(`/drivers/${encodeURIComponent(id)}`)),
   createDriver: async (payload: {
     name: string
     phone: string
@@ -563,7 +578,7 @@ export const api = {
     mapClient(
       await http<Json>('/clients', {
         method: 'POST',
-        body: JSON.stringify({ nombre: payload.name, telefono: payload.phone }),
+        body: JSON.stringify({ nombre: payload.name, telefono: normalizeArgentinaPhoneForStorage(payload.phone) }),
       }),
     ),
 
@@ -592,8 +607,26 @@ export const api = {
     ),
   markArrived: async (id: string, arrivedAt: string): Promise<ShiftRequest> =>
     mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}/arrived`, { method: 'POST', body: JSON.stringify({ arrived_at: arrivedAt }) })),
-  markFinished: async (id: string, finishedAt: string): Promise<ShiftRequest> =>
-    mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}/finished`, { method: 'POST', body: JSON.stringify({ finished_at: finishedAt }) })),
+  markFinished: async (
+    id: string,
+    finishedAt: string,
+    closeout?: { paymentMethod?: PaymentMethod; remitoCaptured?: boolean },
+  ): Promise<ShiftRequest> =>
+    mapRequest(
+      await http<Json>(`/requests/${encodeURIComponent(id)}/finished`, {
+        method: 'POST',
+        body: JSON.stringify({
+          finished_at: finishedAt,
+          payment_method:
+            closeout?.paymentMethod === 'Efectivo'
+              ? 'efectivo'
+              : closeout?.paymentMethod === 'Transferencia'
+                ? 'transferencia'
+                : null,
+          remito_captured: Boolean(closeout?.remitoCaptured),
+        }),
+      }),
+    ),
   addIncident: async (id: string, incident: { type: string; description: string; time: string }): Promise<TripIncident> =>
     http<TripIncident>(`/requests/${encodeURIComponent(id)}/incidents`, { method: 'POST', body: JSON.stringify(incident) }),
   setRemito: async (id: string, remito: RemitoPhoto): Promise<ShiftRequest> =>

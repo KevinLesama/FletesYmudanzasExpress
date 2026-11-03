@@ -23,6 +23,7 @@ from app.schemas import (
     ClienteOut,
     CotizacionOut,
     CotizacionPreviewIn,
+    FinishedIn,
     LugarIn,
     MeOut,
     PagoIn,
@@ -587,6 +588,7 @@ def list_requests(
     chofer_id: int | None = Query(default=None),
     vehiculo_id: int | None = Query(default=None),
     search: str | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
 ) -> list:
     stmt = (
         select(Solicitud)
@@ -602,7 +604,14 @@ def list_requests(
         stmt = stmt.where(Solicitud.estado == estado)
     if fecha:
         stmt = stmt.where(Solicitud.fecha == fecha)
-    if chofer_id:
+    # El chofer solo ve sus viajes confirmados: el filtro del cliente se
+    # ignora para que no pueda pedir la agenda de otro cambiando el query param.
+    if user["rol"] == "chofer":
+        stmt = stmt.where(
+            Solicitud.chofer_id == user["usuario_id"],
+            Solicitud.estado == "confirmada",
+        )
+    elif chofer_id:
         stmt = stmt.where(Solicitud.chofer_id == chofer_id)
     if vehiculo_id:
         stmt = stmt.where(Solicitud.vehiculo_id == vehiculo_id)
@@ -751,8 +760,71 @@ def quote_request(
 
 
 @requests_router.get("/{request_ref}")
-def get_request(request_ref: str, db: Session = Depends(get_db)) -> dict:
-    return serializers.serialize_solicitud(_get_request_or_404(db, request_ref))
+def get_request(
+    request_ref: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    request = _get_request_or_404(db, request_ref)
+    if user["rol"] == "chofer" and (
+        request.chofer_id != user["usuario_id"] or request.estado != "confirmada"
+    ):
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
+    return serializers.serialize_solicitud(request)
+
+
+@requests_router.post("/{request_ref}/finished")
+def finish_request(
+    request_ref: str,
+    payload: FinishedIn,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("administrador", "chofer")),
+) -> dict:
+    """Cierre del viaje: confirmada -> finalizada.
+
+    La base sella `finalizada_en` y exige remito si hubo cobros en efectivo.
+    El timestamp que manda el navegador no se usa como fuente de verdad.
+    """
+    request = _get_request_or_404(db, request_ref)
+    chofer = user["rol"] == "chofer"
+    if chofer and request.chofer_id != user["usuario_id"]:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
+    if request.estado == "finalizada":
+        return serializers.serialize_solicitud(request)
+    if request.estado != "confirmada":
+        raise HTTPException(status_code=409, detail="Solo se puede finalizar un viaje confirmado.")
+
+    if chofer:
+        if not payload.remito_captured:
+            raise HTTPException(
+                status_code=409,
+                detail="Confirmá la foto del remito antes de finalizar el viaje.",
+            )
+        sena_total = sum(float(p.monto) for p in request.pagos if p.concepto == "sena")
+        saldo_total = sum(float(p.monto) for p in request.pagos if p.concepto == "saldo")
+        balance = float(request.precio_final) - sena_total - saldo_total
+        if balance > 0.5 and payload.payment_method is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Indicá si el saldo se cobra en efectivo o por transferencia.",
+            )
+        request.metodo_cobro_saldo = payload.payment_method if balance > 0.5 else None
+    elif payload.payment_method is not None:
+        request.metodo_cobro_saldo = payload.payment_method
+
+    if payload.remito_captured:
+        request.remito_foto_tomada_en = datetime.now(timezone.utc)
+    request.estado = "finalizada"
+    request.finalizada_en = datetime.now(timezone.utc)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="No se pudo finalizar el viaje. Si hubo cobros en efectivo, falta la foto del remito.",
+        ) from exc
+    return serializers.serialize_solicitud(request)
 
 
 def _auto_confirm(db: Session, request: Solicitud) -> str | None:

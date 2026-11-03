@@ -14,7 +14,7 @@ import { R } from '../routes'
 import { brand } from '../theme'
 import { color } from '../design/tokens'
 import { addDays, getInitialAnchor, getInitialWeekStart, getTodayISO, workWeekDays } from '../agendaDates'
-import { givenName } from '../format'
+import { givenName, joinParts } from '../format'
 import { countPendingReview, PENDING_DEPOSIT_STATUS, PENDING_REVIEW_STATUS } from '../requestMetrics'
 import { loadSettings } from '../settingsStore'
 import { currentUser } from '../supabase'
@@ -147,8 +147,11 @@ export function AgendaPage() {
   const mapTrips = selectedMapTrip ? [selectedMapTrip] : upcomingMapTrips
   const mapChoice = selectedMapTrip ?? upcomingMapTrips[0] ?? null
   const selectedDriverName = selected?.driverId ? drivers.find((driver) => driver.id === selected.driverId)?.name : undefined
-  const selectedVehicleName = selected?.vehicleId
-    ? `${selected.vehicleId} · ${vehicles.find((vehicle) => vehicle.id === selected.vehicleId)?.type ?? ''}`
+  const selectedVehicle = selected?.vehicleId
+    ? vehicles.find((vehicle) => vehicle.vehicleId === selected.vehicleId)
+    : undefined
+  const selectedVehicleName = selectedVehicle
+    ? joinParts([selectedVehicle.type, selectedVehicle.id]) || undefined
     : undefined
 
   // El nombre de pila sale del perfil local (el mismo que alimenta la foto y el
@@ -201,7 +204,7 @@ export function AgendaPage() {
     <Box component="span">
       {todayTrips.length > 0 ? (
         <>
-          Hoy tenés{' '}
+          Durante el trayecto del día tenes{' '}
           <Link component="button" type="button" onClick={openToday} aria-label="Ver los viajes de hoy" sx={summaryLinkSx}>
             {todayTrips.length} {todayTrips.length === 1 ? 'viaje' : 'viajes'}
           </Link>
@@ -275,10 +278,6 @@ export function AgendaPage() {
       }
     />
   )
-
-  const handleGridSelection = (tripId: string) => {
-    selectMapTrip(mapTripId === tripId ? null : tripId)
-  }
 
   const openTripDetail = (tripId: string) => {
     selectMapTrip(tripId)
@@ -383,7 +382,7 @@ export function AgendaPage() {
               today={today}
               now={now}
               fill={!isMobile}
-              onOpenTrip={(trip) => handleGridSelection(trip.id)}
+              onOpenTrip={(trip) => openTripDetail(trip.id)}
             />
           </Box>
         )}

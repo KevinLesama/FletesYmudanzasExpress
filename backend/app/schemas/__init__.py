@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date as DateType
+from datetime import datetime as DateTimeType
 from datetime import time as TimeType
 from typing import Literal
 
@@ -233,6 +234,20 @@ class SolicitudUpdate(BaseModel):
     motivo_cancelacion: str | None = None
 
 
+class FinishedIn(BaseModel):
+    """Cierre del viaje por parte del chofer.
+
+    El timestamp es informativo: el backend sella `finalizada_en` con la hora
+    del servidor para que la agenda no dependa del reloj del dispositivo.
+    `remito_captured` indica que el chofer fotografió el remito en el
+    dispositivo; la imagen no se sube.
+    """
+
+    finished_at: DateTimeType | None = None
+    payment_method: PagoMetodo | None = None
+    remito_captured: bool = False
+
+
 class ItemCargaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -432,6 +447,9 @@ class PagoOut(BaseModel):
     comprobante_ruta: str | None = None
     comprobante_nombre: str | None = None
     notas: str | None = None
+    # Timestamp completo del pago: la `fecha` es solo el dia elegido por el
+    # usuario; `creado_en` es cuando se registro y sirve para Novedades.
+    creado_en: DateTimeType | None = None
 
 
 PaymentIn = PagoIn

@@ -55,6 +55,7 @@ export interface Place {
   barrio: string
   floor: string
   elevator: boolean
+  notes?: string
   // Identidad del lugar elegido en el autocompletado. Si esta presente, el
   // backend resuelve direccion y coordenadas contra Google Maps.
   placeId?: string
@@ -159,6 +160,12 @@ export interface ShiftRequest {
   tariffs?: RequestTariffs
   arrivedAt?: string
   finishedAt?: string
+  // Cierre desde el portal del chofer: modalidad elegida para el saldo y
+  // momento en que se fotografió el remito en el dispositivo (no se sube).
+  closeoutPaymentMethod?: PaymentMethod
+  remitoCapturedAt?: string
+  // Timestamp completo de creacion (solicitudes.creado_en). Solo lectura.
+  createdAt?: string
   incidents?: TripIncident[]
   remitoPhoto?: RemitoPhoto
   payments?: Payment[]
@@ -176,6 +183,8 @@ export interface Payment {
   receivedBy: ReceivedBy
   amount: number
   date: string
+  // Timestamp completo del registro del pago (pagos.creado_en).
+  createdAt?: string
   notes?: string
 }
 
