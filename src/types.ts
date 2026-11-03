@@ -165,6 +165,8 @@ export interface ShiftRequest {
   // Motivo por el que la confirmación automática no pudo aplicarse; el viaje
   // quedó pendiente aunque la seña esté completa.
   autoConfirmError?: string
+  // Motivo persistente, recalculado en cada lectura (no se guarda).
+  bloqueoConfirmacion?: string
 }
 
 export interface Payment {

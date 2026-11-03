@@ -795,6 +795,32 @@ export function PlanificacionPage() {
           </Button>
         </Stack>
 
+        {request.bloqueoConfirmacion && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 1,
+              mb: 2,
+              p: 1.5,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: color.amber,
+              bgcolor: color.amberSoft,
+            }}
+          >
+            <ErrorOutline sx={{ fontSize: 18, color: color.amberInk, mt: '1px' }} />
+            <Box>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: color.amberInk }}>
+                Confirmación bloqueada
+              </Typography>
+              <Typography sx={{ fontSize: 12.5, color: color.amberInk }}>
+                {request.bloqueoConfirmacion}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '0.95fr 1.05fr' }, gap: 2.5, alignItems: 'start' }}>
           <Stack spacing={2.5}>
             {request && (

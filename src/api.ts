@@ -220,6 +220,7 @@ function mapRequest(r: Json): ShiftRequest {
       notes: p.notes ?? undefined,
     })),
     autoConfirmError: r.auto_confirm_error ? String(r.auto_confirm_error) : undefined,
+    bloqueoConfirmacion: r.bloqueo_confirmacion ? String(r.bloqueo_confirmacion) : undefined,
   }
 }
 
