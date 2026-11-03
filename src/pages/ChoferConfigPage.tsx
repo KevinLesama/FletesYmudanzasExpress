@@ -11,6 +11,7 @@ import { InfoOutlined, Paid, RestartAlt, Save } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
 import { CampoTexto } from '../components/FormFields'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { TruckLoader } from '../components/TruckLoader'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -207,7 +208,10 @@ export function ChoferConfigPage() {
             </Stack>
 
             {previewLoading && !preview && (
-              <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>Calculando...</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <TruckLoader size="sm" />
+                <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>Calculando...</Typography>
+              </Box>
             )}
             {previewError && (
               <Typography sx={{ fontSize: 12.5, color: '#B3261E' }}>{previewError}</Typography>

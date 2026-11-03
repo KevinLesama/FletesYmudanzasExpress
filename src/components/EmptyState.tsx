@@ -1,5 +1,6 @@
-import { Box, Button, CircularProgress, Typography } from '@mui/material'
+import { Box, Button, Typography } from '@mui/material'
 import { ErrorOutline, SearchOff } from '@mui/icons-material'
+import { TruckLoader } from './TruckLoader'
 
 export function EmptyState({ title, subtext }: { title: string; subtext: string }) {
   return (
@@ -37,8 +38,12 @@ export function EmptyState({ title, subtext }: { title: string; subtext: string 
 
 export function LoadingState({ label = 'Cargando...' }: { label?: string }) {
   return (
-    <Box sx={{ textAlign: 'center', py: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-      <CircularProgress size={26} sx={{ color: '#132B4A' }} />
+    <Box
+      role="status"
+      aria-live="polite"
+      sx={{ textAlign: 'center', py: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}
+    >
+      <TruckLoader size="lg" />
       <Typography sx={{ fontSize: 13.5, color: '#64707C' }}>{label}</Typography>
     </Box>
   )

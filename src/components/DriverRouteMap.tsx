@@ -7,6 +7,7 @@ import { MyLocation, OpenInNew, Refresh } from '@mui/icons-material'
 import { api } from '../api'
 import { color, radius, shadow, type as typeScale } from '../design/tokens'
 import type { Place } from '../types'
+import { TruckLoader } from './TruckLoader'
 
 type LocationState = 'requesting' | 'granted' | 'denied' | 'unavailable'
 type RouteState =
@@ -361,7 +362,12 @@ export function DriverRouteMap({
             }}
           >
             {route.status === 'loading' ? (
-              <CircularProgress size={13} sx={{ color: color.navy }} />
+              <>
+                <TruckLoader size="sm" />
+                <Typography sx={{ fontSize: typeScale.micro, fontWeight: 700, color: color.navy }}>
+                  Calculando ruta...
+                </Typography>
+              </>
             ) : (
               <Typography sx={{ fontSize: typeScale.micro, fontWeight: 700, color: color.navy }}>
                 {routeCopy}

@@ -32,6 +32,7 @@ import type { TripForMapReason } from '../tripForMap'
 import type { ShiftRequest } from '../types'
 import { StatusChip } from './StatusChip'
 import { PlaceMarker } from './PlaceMarker'
+import { TruckLoader } from './TruckLoader'
 import { WINDOW_DAYS } from '../useMapTrips'
 
 export interface MapPreviewProps {
@@ -548,12 +549,12 @@ function MapContents({
             left: '50%',
             transform: 'translate(-50%, -50%)',
             zIndex: 1000,
-            p: 0.75,
+            p: 1,
             borderRadius: 2,
             bgcolor: alpha(color.paper, 0.92),
           }}
         >
-          <Skeleton width={88} height={16} />
+          <TruckLoader size="sm" />
         </Box>
       )}
       {trip && !bothCoordinates && (
@@ -911,8 +912,26 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
             <TripReasonBadge trip={currentTrip} selectedMode={selectedMode} now={now} onClear={onClear} index={currentIndex} total={totalTrips} onNavigate={navigate} />
           )}
           {!currentTrip && tripsLoading && (
-            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, p: 1, borderRadius: 2, bgcolor: alpha(color.paper, 0.92) }}>
-              <Skeleton width={160} height={20} />
+            <Box
+              role="status"
+              aria-live="polite"
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 1000,
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: alpha(color.paper, 0.94),
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 0.75,
+              }}
+            >
+              <TruckLoader size="sm" />
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: color.navy }}>Cargando viajes...</Typography>
             </Box>
           )}
           {!currentTrip && !tripsLoading && (
