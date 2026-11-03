@@ -1,39 +1,19 @@
 import { useMemo, useState } from 'react'
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Stack,
-  Typography,
-} from '@mui/material'
-import { Check, ChevronLeft, ChevronRight, Close, WarningAmber } from '@mui/icons-material'
+import { Box, Button, Typography } from '@mui/material'
+import { ChevronRight, LocalShipping, SearchOff } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
-import { CampoSelect, CampoTexto } from '../components/FormFields'
-import { StatusChip } from '../components/StatusChip'
-import { AgendaGrid } from '../components/AgendaGrid'
-import { TripDetailModal } from '../components/TripDetailModal'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { DriverTripFlow } from '../components/DriverTripFlow'
+import { PlaceMarker } from '../components/PlaceMarker'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import { fmtLong } from '../format'
+import { fmtDateEs, fmtLong, formatShortPlace, joinParts } from '../format'
 import { getTodayISO } from '../agendaDates'
 import { currentUser } from '../supabase'
+import { loadDriverProgress, DRIVER_PHASES } from '../driverTripProgress'
+import { color, radius, type as typeScale } from '../design/tokens'
 import type { Driver, ShiftRequest } from '../types'
-
-const nowTime = () => new Date().toTimeString().slice(0, 5)
-
-const nowLocal = () => {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
 function shiftDate(date: string, delta: number): string {
   const [y, m, d] = date.split('-').map(Number)
@@ -41,208 +21,290 @@ function shiftDate(date: string, delta: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
 
-/**
- * Desglose del viaje con las tarifas que quedaron guardadas al cotizarlo.
- * El total es el que calculó el backend (costo_chofer); las lineas solo
- * muestran de donde sale ese numero.
- */
-function earningsFromTrip(trip: ShiftRequest) {
-  const tariffs = trip.tariffs
-  const kmTotal = trip.totalKm ?? 0
-  const hours = trip.estimatedHours ?? 0
-  const lines = [
-    { label: 'Tarifa base', value: tariffs?.base ?? 0 },
-    { label: `Kilometraje (${kmTotal} km)`, value: Math.round(kmTotal * (tariffs?.perKm ?? 0)) },
-    { label: `Tiempo (${hours.toString().replace('.', ',')} h)`, value: Math.round(hours * (tariffs?.perHour ?? 0)) },
-  ]
-  return { lines, total: trip.driverCost ?? 0 }
+function dateLabel(date: string, today: string): string {
+  if (date === today) return 'Hoy'
+  if (date === shiftDate(today, 1)) return 'Mañana'
+  return fmtDateEs(date)
+}
+
+function RouteRow({ kind, text }: { kind: 'origin' | 'destination'; text: string }) {
+  return (
+    <Box component="span" sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
+      <PlaceMarker kind={kind} size={13} lineHeight={typeScale.body * 1.45} />
+      <Typography
+        component="span"
+        sx={{
+          fontSize: typeScale.body,
+          lineHeight: 1.45,
+          fontWeight: 600,
+          color: color.navy,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {text}
+      </Typography>
+    </Box>
+  )
+}
+
+function TripCard({ trip, onOpen }: { trip: ShiftRequest; onOpen: () => void }) {
+  const progress = loadDriverProgress(trip.id)
+  const started = progress.originArrived || progress.loadedItems.length > 0 || progress.phase > 1
+
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={onOpen}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: '62px minmax(0, 1fr) auto',
+        alignItems: 'start',
+        gap: 1.5,
+        width: '100%',
+        p: { xs: 1.75, sm: 2 },
+        textAlign: 'left',
+        font: 'inherit',
+        bgcolor: color.paper,
+        border: `1px solid ${color.border}`,
+        borderRadius: `${radius.md}px`,
+        cursor: 'pointer',
+        transition: 'border-color 120ms ease, background-color 120ms ease',
+        '&:hover': { borderColor: color.navy, bgcolor: color.sand },
+        '&:focus-visible': { outline: `2px solid ${color.navy}`, outlineOffset: 2 },
+      }}
+    >
+      <Box
+        component="span"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          pr: 1.5,
+          borderRight: `1px solid ${color.borderSoft}`,
+        }}
+      >
+        <Typography component="span" sx={{ fontSize: typeScale.lead, fontWeight: 800, color: color.navy, lineHeight: 1.2 }}>
+          {trip.serviceRange[0]}
+        </Typography>
+        <Typography component="span" sx={{ fontSize: typeScale.micro, fontWeight: 600, color: color.muted }}>
+          a {trip.serviceRange[1]}
+        </Typography>
+      </Box>
+
+      <Box component="span" sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 0 }}>
+        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography component="span" sx={{ fontSize: typeScale.micro, fontWeight: 800, letterSpacing: '0.05em', color: color.inkStrong }}>
+            {trip.id}
+          </Typography>
+          {started && (
+            <Box
+              component="span"
+              sx={{
+                px: 0.9,
+                py: 0.25,
+                borderRadius: 999,
+                bgcolor: color.amberSoft,
+                color: color.amberInk,
+                fontSize: 11,
+                fontWeight: 800,
+                lineHeight: 1.4,
+              }}
+            >
+              En curso · {DRIVER_PHASES[progress.phase - 1]}
+            </Box>
+          )}
+        </Box>
+
+        <RouteRow kind="origin" text={formatShortPlace(trip.origin) || 'Origen sin dirección'} />
+        <RouteRow kind="destination" text={formatShortPlace(trip.destination) || 'Destino sin dirección'} />
+
+        <Typography component="span" sx={{ fontSize: typeScale.caption, color: color.muted }}>
+          {joinParts([
+            trip.client,
+            trip.cargo.approxUnits ? `${trip.cargo.approxUnits} bultos` : '',
+            trip.cargo.fragile ? 'Frágil' : '',
+          ])}
+        </Typography>
+      </Box>
+
+      <ChevronRight sx={{ fontSize: 20, color: color.mutedSoft, alignSelf: 'center' }} />
+    </Box>
+  )
 }
 
 export function ChoferPage() {
   const user = currentUser()
-  const [date, setDate] = useState(getTodayISO)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [incidentOpen, setIncidentOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
-  const [busy, setBusy] = useState(false)
 
   const driversState = useAsync(() => api.listDrivers(), [])
   const drivers: Driver[] = driversState.data ?? []
   const driver = drivers.find((d) => user?.email && d.email.toLowerCase() === user.email.toLowerCase())
+
   const tripsState = useAsync(
     () => (driver ? api.listRequests({ driver_id: driver.id }) : Promise.resolve([] as ShiftRequest[])),
     [driver?.id],
   )
-  const trips: ShiftRequest[] = tripsState.data ?? []
-  const vehicles = useAsync(() => api.listVehicles(), [])
+  const vehiclesState = useAsync(() => api.listVehicles(), [])
 
-  const dayTrips = useMemo(() => trips.filter((t) => t.date === date), [trips, date])
-  const selected = trips.find((t) => t.id === selectedId) ?? null
-  const selectedVehicleName = selected?.vehicleId
-    ? `${selected.vehicleId} · ${(vehicles.data ?? []).find((v) => v.id === selected.vehicleId)?.type ?? ''}`
+  const confirmed = useMemo(
+    () => (tripsState.data ?? []).filter((trip) => trip.status === 'Confirmada'),
+    [tripsState.data],
+  )
+
+  const groups = useMemo(() => {
+    const sorted = [...confirmed].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.serviceRange[0].localeCompare(b.serviceRange[0]),
+    )
+    const byDate = new Map<string, ShiftRequest[]>()
+    sorted.forEach((trip) => {
+      const list = byDate.get(trip.date) ?? []
+      list.push(trip)
+      byDate.set(trip.date, list)
+    })
+    return Array.from(byDate.entries())
+  }, [confirmed])
+
+  const selected = confirmed.find((trip) => trip.id === selectedId) ?? null
+  const selectedVehicle = selected?.vehicleId
+    ? (vehiclesState.data ?? []).find((vehicle) => vehicle.vehicleId === selected.vehicleId)
+    : undefined
+  const selectedVehicleName = selectedVehicle
+    ? joinParts([selectedVehicle.type, selectedVehicle.id]) || undefined
     : undefined
 
-  const runAction = async (fn: () => Promise<unknown>, message: string) => {
-    setBusy(true)
-    try {
-      await fn()
-      await tripsState.reload()
-      setToast({ message, tone: 'success' })
-    } catch (err) {
-      setToast({ message: err instanceof Error ? err.message : 'No pudimos completar la operación.', tone: 'error' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const markLlegada = (t: ShiftRequest) => runAction(() => api.markArrived(t.id, nowLocal()), 'Llegada marcada · por tu cuenta')
-  const markFin = (t: ShiftRequest) => runAction(() => api.markFinished(t.id, nowLocal()), 'Viaje finalizado · buen servicio')
-
-  const saveRemito = (t: ShiftRequest, file: File) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      runAction(() => api.setRemito(t.id, { name: file.name, dataUrl: String(reader.result) }), 'Remito cargado')
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const removeRemito = (t: ShiftRequest) => runAction(() => api.deleteRemito(t.id), 'Remito quitado')
+  const today = getTodayISO()
+  const subtitle = fmtLong(today)
+  const loadingProfile = driversState.loading
+  const profileMissing = !loadingProfile && !driversState.error && !driver
 
   return (
     <>
       <ChoferShell
         active="viajes"
-        breadcrumb={['Chofer', 'Agenda']}
-        title="Agenda de viajes"
-        description={fmtLong(date)}
-        action={<StatusChip label={trips.some((t) => t.finishedAt) ? 'Finalizado' : 'En destino'} />}
+        breadcrumb={selected ? ['Chofer', 'Viaje en curso'] : ['Chofer', 'Mis viajes']}
+        title={selected ? 'Viaje en curso' : 'Mis viajes'}
+        description={selected ? joinParts([selected.id, fmtLong(selected.date)]) : subtitle}
       >
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-          <IconButton size="small" onClick={() => setDate(shiftDate(date, -1))} aria-label="Día anterior">
-            <ChevronLeft fontSize="small" />
-          </IconButton>
-          <Button size="small" onClick={() => setDate(getTodayISO())} sx={{ fontSize: 12.5 }}>
-            Hoy
-          </Button>
-          <IconButton size="small" onClick={() => setDate(shiftDate(date, 1))} aria-label="Día siguiente">
-            <ChevronRight fontSize="small" />
-          </IconButton>
-        </Stack>
-
-        {tripsState.loading ? (
-          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
-            <LoadingState label="Cargando viajes..." />
+        {selected ? (
+          <DriverTripFlow
+            trip={selected}
+            vehicleName={selectedVehicleName}
+            onClose={() => setSelectedId(null)}
+            onFinished={async () => {
+              await tripsState.reload()
+              setSelectedId(null)
+            }}
+            onNotify={(message, tone) => setToast({ message, tone })}
+          />
+        ) : loadingProfile ? (
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: `${radius.md}px` }}>
+            <LoadingState label="Buscando tu legajo de chofer..." />
+          </Box>
+        ) : driversState.error ? (
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: `${radius.md}px` }}>
+            <ErrorState message={driversState.error} onRetry={driversState.reload} />
+          </Box>
+        ) : profileMissing ? (
+          <Box
+            sx={{
+              bgcolor: color.paper,
+              border: `1px solid ${color.border}`,
+              borderRadius: `${radius.md}px`,
+              textAlign: 'center',
+              py: 5,
+              px: 2.5,
+            }}
+          >
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                mx: 'auto',
+                mb: 1.5,
+                borderRadius: '50%',
+                bgcolor: color.sandDeep,
+                color: color.muted,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <SearchOff />
+            </Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 15, color: color.navy }}>
+              No encontramos tu legajo de chofer
+            </Typography>
+            <Typography sx={{ mt: 0.5, fontSize: 13.5, color: color.muted, maxWidth: 380, mx: 'auto' }}>
+              Pedile a administración que revise que el email de tu legajo coincida con {user?.email ?? 'tu cuenta'}.
+            </Typography>
+            <Button variant="outlined" size="small" onClick={driversState.reload} sx={{ mt: 2, minHeight: 40, color: color.navy }}>
+              Volver a intentar
+            </Button>
+          </Box>
+        ) : tripsState.loading ? (
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: `${radius.md}px` }}>
+            <LoadingState label="Cargando viajes confirmados..." />
           </Box>
         ) : tripsState.error ? (
-          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: `${radius.md}px` }}>
             <ErrorState message={tripsState.error} onRetry={tripsState.reload} />
           </Box>
-        ) : dayTrips.length === 0 ? (
-          <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3 }}>
+        ) : confirmed.length === 0 ? (
+          <Box sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: `${radius.md}px` }}>
             <EmptyState
-              title="Sin viajes asignados para esta fecha"
-              subtext="Cuando la administración te asigne un servicio en este día, va a aparecer acá."
+              title="No tenés viajes confirmados"
+              subtext="Cuando administración confirme un servicio y te lo asigne, va a aparecer acá con el recorrido y la carga."
             />
           </Box>
         ) : (
-          <AgendaGrid days={[date]} trips={dayTrips} today={getTodayISO()} onOpenTrip={(t) => setSelectedId(t.id)} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1.25,
+                p: 1.5,
+                borderRadius: `${radius.md}px`,
+                bgcolor: color.blueSoft,
+                border: `1px solid ${color.border}`,
+              }}
+            >
+              <LocalShipping sx={{ fontSize: 18, color: color.navy, mt: '1px' }} />
+              <Box>
+                <Typography sx={{ fontSize: typeScale.caption, fontWeight: 800, color: color.navy }}>
+                  {confirmed.length === 1 ? '1 viaje confirmado' : `${confirmed.length} viajes confirmados`}
+                </Typography>
+                <Typography sx={{ fontSize: typeScale.caption, color: color.inkStrong }}>
+                  Solo ves los servicios confirmados que tenés asignados. Abrí uno para iniciar el recorrido.
+                </Typography>
+              </Box>
+            </Box>
+
+            {groups.map(([date, dayTrips]) => (
+              <Box component="section" key={date} aria-labelledby={`viajes-${date}`}>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                  <Typography
+                    id={`viajes-${date}`}
+                    component="h2"
+                    sx={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', color: color.navy, textTransform: 'uppercase' }}
+                  >
+                    {dateLabel(date, today)}
+                  </Typography>
+                  <Typography sx={{ fontSize: typeScale.caption, color: color.muted }}>{fmtLong(date)}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                  {dayTrips.map((trip) => (
+                    <TripCard key={trip.id} trip={trip} onOpen={() => setSelectedId(trip.id)} />
+                  ))}
+                </Box>
+              </Box>
+            ))}
+          </Box>
         )}
       </ChoferShell>
 
-      {selected && (
-        <TripDetailModal
-          trip={selected}
-          role="chofer"
-          driverName={driver?.name}
-          vehicleName={selectedVehicleName}
-          onClose={() => setSelectedId(null)}
-          earnings={selected ? earningsFromTrip(selected) : undefined}
-          onMarkLlegada={() => markLlegada(selected)}
-          onMarkFin={() => markFin(selected)}
-          onAddIncident={(inc) => runAction(() => api.addIncident(selected.id, inc), 'Incidente reportado')}
-          onRemito={(file) => saveRemito(selected, file)}
-          onRemoveRemito={() => removeRemito(selected)}
-          onReport={() => setIncidentOpen(true)}
-        />
-      )}
-
-      {selected && (
-        <IncidentDialog
-          open={incidentOpen}
-          onClose={() => setIncidentOpen(false)}
-          onSave={(type, description) => {
-            setIncidentOpen(false)
-            runAction(() => api.addIncident(selected.id, { type, description, time: nowLocal() }), 'Incidente reportado')
-          }}
-        />
-      )}
-
       <Toast toast={toast} onClose={() => setToast(null)} />
     </>
-  )
-}
-
-function IncidentDialog({
-  open,
-  onClose,
-  onSave,
-}: {
-  open: boolean
-  onClose: () => void
-  onSave: (type: string, description: string) => void
-}) {
-  const [type, setType] = useState('Demora')
-  const [description, setDescription] = useState('')
-  const canSave = description.trim() !== ''
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ px: 3, pt: 3 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: '#FFF3EF', color: '#9C493A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <WarningAmber sx={{ fontSize: 17 }} />
-          </Box>
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography sx={{ fontSize: 17, fontFamily: "'Manrope', sans-serif", fontWeight: 800 }}>Reportar incidente</Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>Queda registrado en el viaje para la administración.</Typography>
-          </Box>
-          <IconButton onClick={onClose} size="small" aria-label="Cerrar">
-            <Close fontSize="small" />
-          </IconButton>
-        </Stack>
-      </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 2 }}>
-        <Stack spacing={2}>
-          <CampoSelect label="Tipo" size="small" value={type} onChange={(e) => setType(e.target.value)}>
-              <MenuItem value="Demora">Demora</MenuItem>
-              <MenuItem value="Tránsito">Problema de tránsito</MenuItem>
-              <MenuItem value="Acceso">Dificultad de acceso</MenuItem>
-              <MenuItem value="Daño">Daño o susto en la carga</MenuItem>
-              <MenuItem value="Otro">Otro</MenuItem>
-          </CampoSelect>
-          <CampoTexto
-            label="Descripción"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            fullWidth
-            multiline
-            minRows={3}
-            size="small"
-            placeholder="Contá qué pasó durante el viaje."
-            InputProps={{
-              startAdornment: <InputAdornment position="start" />,
-            }}
-          />
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
-        <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>
-          Cancelar
-        </Button>
-        <Button variant="contained" startIcon={<Check />} disabled={!canSave} onClick={() => onSave(type, description)}>
-          Registrar
-        </Button>
-      </DialogActions>
-    </Dialog>
   )
 }

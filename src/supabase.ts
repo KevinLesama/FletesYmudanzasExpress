@@ -16,6 +16,7 @@ export const supabase: SupabaseClient | null = url && anonKey
 export type Role = 'administrador' | 'chofer'
 
 export interface SessionUser {
+  id: number
   email: string
   nombre: string
   role: Role

@@ -248,7 +248,7 @@ export function NuevaSolicitudPage() {
         const clientPhone = newPhone.trim()
         const created = await api.createClient({
           name: newName.trim(),
-          phone: clientPhone.startsWith('+') ? clientPhone : `+54${clientPhone}`,
+          phone: clientPhone,
         })
         clientId = created.id
         clientName = created.name

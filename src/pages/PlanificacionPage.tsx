@@ -49,15 +49,16 @@ import { EtiquetaCampo, CampoSelect, CampoTexto } from '../components/FormFields
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
 import { StatusChip } from '../components/StatusChip'
+import { PlaceMarker } from '../components/PlaceMarker'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { R, useQuery } from '../routes'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
-import { ars, fmtDate, fmtDateEs, dayName, waLink } from '../format'
+import { ars, fmtDate, fmtDateEs, dayName, formatShortAddress, joinParts, waLink } from '../format'
 import { getTodayISO } from '../agendaDates'
 import type { Driver, Quote, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
-import { color, shadow, type as typeScale } from '../design/tokens'
+import { color, type as typeScale } from '../design/tokens'
 import { motivosConfirmacionViaje } from './planificacionConfirmacion'
 import type { SelectChangeEvent } from '@mui/material/Select'
 
@@ -92,76 +93,26 @@ function SectionCard({ title, icon, right, children }: SectionCardProps) {
   )
 }
 
-/** Quita el prefijo administrativo de un tramo de dirección ("Partido de …"). */
-function stripSegment(segment: string): string {
-  return segment.replace(/^(partido|municipio|departamento)\s+de\s+/i, '').trim()
-}
-
 /**
- * Separa la dirección en las dos líneas del recorrido: calle y número, y
- * localidad (barrio + ciudad). Descarta código postal y país, y deja el texto
- * completo para el tooltip.
+ * Dos líneas del recorrido a partir de la dirección corta: la primera parte
+ * (calle y número, o nombre del lugar) y el resto como localidad. El texto
+ * completo queda en `full` para el tooltip.
  */
 function placeLines(place: { address: string; barrio: string }): { street: string; locality: string; full: string } {
-  const segments = place.address.split(',').map(stripSegment).filter(Boolean)
-  const isPostalCode = /^[A-Z]?\d{4}[A-Z]{0,3}$/i
-  const isCountry = /^argentina$/i
-  const street = segments[0] ?? ''
-  const cities = segments.slice(1).filter((segment) => !isPostalCode.test(segment) && !isCountry.test(segment))
-  const locality = [place.barrio, ...cities]
-    .map(stripSegment)
-    .filter(Boolean)
-    .filter((item, index, all) => all.findIndex((other) => other.toLowerCase() === item.toLowerCase()) === index)
-    .join(' · ')
-  const full =
-    place.address && place.barrio && !place.address.toLowerCase().includes(place.barrio.toLowerCase())
-      ? `${place.address} · ${place.barrio}`
-      : place.address || place.barrio
-
-  return { street: street || place.barrio || place.address, locality, full }
+  const short = formatShortAddress(place.address, { locality: place.barrio })
+  const full = place.address || place.barrio
+  if (!short) return { street: '', locality: '', full }
+  const [street, ...rest] = short.split(', ')
+  return { street, locality: rest.join(', '), full }
 }
 
-/** Marcadores del recorrido, coherentes con los del mapa. */
-function RouteMarker({ kind }: { kind: 'origin' | 'destination' }) {
-  if (kind === 'origin') {
-    return (
-      <Box
-        aria-hidden="true"
-        sx={{
-          width: 18,
-          height: 18,
-          boxSizing: 'border-box',
-          borderRadius: '50%',
-          bgcolor: color.paper,
-          border: `4px solid ${color.navy}`,
-          boxShadow: shadow.card,
-        }}
-      />
-    )
-  }
-
-  return (
-    <Box
-      aria-hidden="true"
-      sx={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <Box
-        sx={{
-          width: 14,
-          height: 14,
-          borderRadius: '50% 50% 50% 0',
-          bgcolor: color.orange,
-          boxShadow: shadow.card,
-          transform: 'rotate(-45deg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: color.paper }} />
-      </Box>
-    </Box>
-  )
+/** Etiqueta visible de un vehículo: tipo, patente y capacidad, sin ids internos. */
+function vehicleLabel(vehicle: Vehicle): string {
+  return joinParts([
+    vehicle.type,
+    vehicle.id,
+    vehicle.capacityKg ? `${vehicle.capacityKg} kg` : '',
+  ])
 }
 
 interface CampoAsignacionProps {
@@ -613,7 +564,7 @@ export function PlanificacionPage() {
           </MenuItem>
           {driverOptions.map((d) => driverOption(d))}
         </CampoAsignacion>
-        <Tooltip title={selectedVehicle ? `${selectedVehicle.id} · ${selectedVehicle.type} · ${selectedVehicle.capacityKg} kg` : ''} arrow>
+        <Tooltip title={selectedVehicle ? vehicleLabel(selectedVehicle) : ''} arrow>
           <Box sx={{ minWidth: 0 }}>
             <CampoAsignacion
               label="Vehículo"
@@ -627,7 +578,7 @@ export function PlanificacionPage() {
               renderValue={(value) => {
                 if (!value) return <Box component="span" sx={{ color: 'text.secondary' }}>Elegí un vehículo</Box>
                 const vehicle = vehicleOptions.find((option) => option.vehicleId === value)
-                return vehicle ? `${vehicle.id} · ${vehicle.type} · ${vehicle.capacityKg} kg` : String(value)
+                return vehicle ? vehicleLabel(vehicle) : String(value)
               }}
             >
               <MenuItem value="" disabled>
@@ -635,7 +586,7 @@ export function PlanificacionPage() {
               </MenuItem>
               {vehicleOptions.map((vehicle) => (
                 <MenuItem value={vehicle.vehicleId} key={vehicle.vehicleId}>
-                  {vehicle.id} · {vehicle.type} · {vehicle.capacityKg} kg
+                  {vehicleLabel(vehicle)}
                 </MenuItem>
               ))}
             </CampoAsignacion>
@@ -764,7 +715,7 @@ export function PlanificacionPage() {
         active="solicitudes"
         breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']}
         kicker="Solicitud"
-        title={`${requestId} · Detalle y planificación`}
+        title={joinParts([requestId, 'Detalle y planificación'])}
         description={
           request
             ? `${dayName(requestDate)}, ${fmtDate(requestDate)} · Llegada ${requestArrival.join('-')}`
@@ -824,12 +775,12 @@ export function PlanificacionPage() {
               {requestOrigin && requestDestination && (
                 <Box sx={{ display: 'grid', gridTemplateColumns: '18px minmax(0, 1fr)', columnGap: 1.25 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <RouteMarker kind="origin" />
+                    <PlaceMarker kind="origin" size={18} />
                     <Box sx={{ width: 2, flex: 1, minHeight: 16, bgcolor: color.border }} />
                   </Box>
                   <RouteStopContent place={requestOrigin} title="ORIGEN" />
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-                    <RouteMarker kind="destination" />
+                    <PlaceMarker kind="destination" size={18} />
                   </Box>
                   <RouteStopContent place={requestDestination} title="DESTINO" />
                 </Box>
