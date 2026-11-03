@@ -568,11 +568,13 @@ export const api = {
     ),
 
   // Solicitudes
-  listRequests: async (params?: { status?: string; date?: string; driver_id?: string; vehicle_id?: string; search?: string }): Promise<ShiftRequest[]> => {
+  listRequests: async (params?: { date?: string; driver_id?: string; vehicle_id?: string; search?: string }): Promise<ShiftRequest[]> => {
+    // La API filtra por `fecha`; el frontend expone `date`.
     const qs = new URLSearchParams()
-    Object.entries(params ?? {}).forEach(([k, v]) => {
-      if (v) qs.set(k, String(v))
-    })
+    if (params?.date) qs.set('fecha', params.date)
+    if (params?.driver_id) qs.set('chofer_id', params.driver_id)
+    if (params?.vehicle_id) qs.set('vehiculo_id', params.vehicle_id)
+    if (params?.search) qs.set('search', params.search)
     const suffix = qs.toString() ? `?${qs}` : ''
     return (await http<Json[]>(`/requests${suffix}`)).map(mapRequest)
   },
