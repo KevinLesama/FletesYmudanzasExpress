@@ -52,6 +52,7 @@ Editar `backend/.env`:
 
 Editar `.env` (raíz, para Vite):
 - `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`: mismos valores que el backend. Vite los inyecta en build-time.
+- `VITE_MAP_TILES_KEY` y `VITE_MAP_STYLE_ID`: credenciales/estilo de MapTiler usados para dibujar el mapa. También se inyectan en build-time; la key de mapas es visible en el navegador y conviene restringirla por dominio.
 
 > El host directo `db.<ref>.supabase.co` resuelve a IPv6 y suele fallar en redes sin IPv6. Usar siempre Session pooler (puerto 5432).
 

@@ -96,6 +96,12 @@ export default defineConfig(({ mode }) => {
         input: Object.fromEntries(
           PAGE_HTML.map((file) => [file.replace('.html', ''), resolve(__dirname, file)]),
         ),
+        output: {
+          assetFileNames: (asset) =>
+            asset.name?.startsWith('maplibre-gl-worker')
+              ? 'assets/[name]-[hash].js'
+              : 'assets/[name]-[hash].[ext]',
+        },
       },
     },
   }

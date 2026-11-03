@@ -30,6 +30,8 @@ services:
         # Vite los inyecta en build-time (tomados del .env de la raiz o del shell).
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_MAP_TILES_KEY: ${VITE_MAP_TILES_KEY:-}
+        VITE_MAP_STYLE_ID: ${VITE_MAP_STYLE_ID:-}
     image: fletes-ppp-frontend
     depends_on:
       - backend
