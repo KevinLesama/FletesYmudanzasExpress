@@ -172,19 +172,27 @@ def derive_estado(solicitud: Solicitud) -> str:
     return "pendiente"
 
 
-def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
-    """Confirma el viaje cuando la planificación y la seña están completas.
+def pending_confirmation(solicitud: Solicitud) -> bool:
+    """El viaje tiene todo para confirmarse salvo que algo lo bloquee."""
+    return (
+        solicitud.estado == "pendiente"
+        and bool(solicitud.chofer_id)
+        and bool(solicitud.vehiculo_id)
+        and sena_completa(solicitud)
+    )
 
-    Devuelve None cuando confirma o cuando todavía no corresponde, y el motivo
-    cuando la confirmación automática no puede aplicarse. Nunca lanza por un
-    conflicto: la operación que la dispara (registrar el pago, guardar el plan)
-    ya está hecha y tiene que sobrevivir al bloqueo.
+
+def _franja(solicitud: Solicitud) -> str:
+    return f"{solicitud.hora_desde:%H:%M} a {solicitud.hora_hasta:%H:%M}"
+
+
+def blocking_reason(db: Session, solicitud: Solicitud) -> str | None:
+    """Motivo por el que un viaje listo no puede confirmarse, o None si puede.
+
+    Solo tiene sentido para viajes que cumplen `pending_confirmation`; el resto
+    devuelve None porque todavía les falta algo, no porque estén bloqueados.
     """
-    if solicitud.estado != "pendiente":
-        return None
-    if not solicitud.chofer_id or not solicitud.vehiculo_id:
-        return None
-    if not sena_completa(solicitud):
+    if not pending_confirmation(solicitud):
         return None
 
     choque_chofer = driver_conflicts(
@@ -196,16 +204,17 @@ def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
         exclude_id=solicitud.id,
     )
     if choque_chofer:
+        otro = choque_chofer[0]
         return (
-            "Seña completa, pero el chofer ya tiene el viaje "
-            f"{choque_chofer[0].codigo} en ese horario."
+            "No se pudo confirmar automáticamente: el chofer ya tiene el viaje "
+            f"{otro.codigo} ({_franja(otro)})."
         )
 
     vehiculo = db.get(Vehiculo, solicitud.vehiculo_id)
     if vehiculo is None:
-        return "Seña completa, pero el vehículo asignado ya no existe."
+        return "No se pudo confirmar automáticamente: el vehículo asignado ya no existe."
     if not vehicle_is_assignable(db, vehiculo):
-        return "Seña completa, pero el vehículo asignado no está operativo."
+        return "No se pudo confirmar automáticamente: el vehículo asignado no está operativo."
 
     choque_vehiculo = vehicle_conflicts(
         db,
@@ -216,10 +225,28 @@ def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
         exclude_id=solicitud.id,
     )
     if choque_vehiculo:
+        otro = choque_vehiculo[0]
         return (
-            "Seña completa, pero el vehículo ya tiene el viaje "
-            f"{choque_vehiculo[0].codigo} en ese horario."
+            "No se pudo confirmar automáticamente: el vehículo ya tiene el viaje "
+            f"{otro.codigo} ({_franja(otro)})."
         )
+
+    return None
+
+
+def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
+    """Confirma el viaje cuando la planificación y la seña están completas.
+
+    Devuelve None cuando confirma o cuando todavía no corresponde, y el motivo
+    cuando la confirmación automática no puede aplicarse. Nunca lanza por un
+    conflicto: la operación que la dispara (registrar el pago, guardar el plan)
+    ya está hecha y tiene que sobrevivir al bloqueo.
+    """
+    motivo = blocking_reason(db, solicitud)
+    if motivo is not None:
+        return motivo
+    if not pending_confirmation(solicitud):
+        return None
 
     solicitud.estado = "confirmada"
     return None

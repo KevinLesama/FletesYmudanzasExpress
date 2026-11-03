@@ -9,8 +9,9 @@ from app.schemas import (
     UsuarioOut,
     VehiculoOut,
 )
-from app.services import pricing
-from app.services.business import derive_estado
+from sqlalchemy.orm import object_session
+
+from app.services import business, pricing
 
 
 def serialize_usuario(usuario: Usuario) -> UsuarioOut:
@@ -19,6 +20,20 @@ def serialize_usuario(usuario: Usuario) -> UsuarioOut:
 
 def serialize_vehiculo(vehiculo: Vehiculo) -> VehiculoOut:
     return VehiculoOut.model_validate(vehiculo)
+
+
+def _bloqueo_confirmacion(solicitud: Solicitud) -> str | None:
+    """Motivo vivo por el que un viaje listo no se confirmó, si lo hay.
+
+    Se calcula al leer y no se guarda: si el viaje que ocupaba el horario se
+    cancela, el motivo desaparece solo.
+    """
+    if not business.pending_confirmation(solicitud):
+        return None
+    session = object_session(solicitud)
+    if session is None:
+        return None
+    return business.blocking_reason(session, solicitud)
 
 
 def serialize_solicitud(solicitud: Solicitud) -> dict:
@@ -92,7 +107,8 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "cliente_id": solicitud.cliente_id,
         "cliente_rol": solicitud.cliente_rol,
         "estado": solicitud.estado,
-        "estado_visible": derive_estado(solicitud),
+        "estado_visible": business.derive_estado(solicitud),
+        "bloqueo_confirmacion": _bloqueo_confirmacion(solicitud),
         "fecha": solicitud.fecha.isoformat() if hasattr(solicitud.fecha, "isoformat") else solicitud.fecha,
         "hora_desde": solicitud.hora_desde.isoformat() if hasattr(solicitud.hora_desde, "isoformat") else solicitud.hora_desde,
         "hora_hasta": solicitud.hora_hasta.isoformat() if hasattr(solicitud.hora_hasta, "isoformat") else solicitud.hora_hasta,

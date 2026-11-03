@@ -769,8 +769,8 @@ def _auto_confirm(db: Session, request: Solicitud) -> str | None:
     except IntegrityError:
         db.rollback()
         return (
-            "Seña completa, pero el horario ya fue tomado por otro viaje. "
-            "El viaje quedó pendiente."
+            "No se pudo confirmar automáticamente: el horario ya fue tomado "
+            "por otro viaje."
         )
 
 

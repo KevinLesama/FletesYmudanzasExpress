@@ -243,3 +243,26 @@ def test_confirm_if_ready_no_actua_sin_asignacion_o_sin_sena() -> None:
     assert business.confirm_if_ready(None, ya_confirmado) is None
     assert sin_chofer.estado == "pendiente"
     assert sin_sena.estado == "pendiente"
+
+
+def test_pending_confirmation_exige_estado_asignacion_y_sena() -> None:
+    assert business.pending_confirmation(_viaje(pagos=[("sena", Decimal("50000"))]))
+    assert not business.pending_confirmation(
+        _viaje(chofer=None, pagos=[("sena", Decimal("50000"))])
+    )
+    assert not business.pending_confirmation(
+        _viaje(vehiculo=None, pagos=[("sena", Decimal("50000"))])
+    )
+    assert not business.pending_confirmation(_viaje(pagos=[("sena", Decimal("49999"))]))
+    assert not business.pending_confirmation(
+        _viaje(estado="confirmada", pagos=[("sena", Decimal("50000"))])
+    )
+
+
+def test_blocking_reason_ignora_viajes_incompletos() -> None:
+    """Sin asignación o sin seña no hay bloqueo que reportar (no toca la base)."""
+    assert (
+        business.blocking_reason(None, _viaje(chofer=None, pagos=[("sena", Decimal("50000"))]))
+        is None
+    )
+    assert business.blocking_reason(None, _viaje(pagos=[])) is None
