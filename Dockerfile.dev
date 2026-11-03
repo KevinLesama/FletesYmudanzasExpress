@@ -1,0 +1,19 @@
+# Etapa de desarrollo del frontend.
+#
+# A diferencia del Dockerfile de produccion (build + nginx), aca solo se
+# instalan las dependencias: el codigo llega por volumen desde el host y lo
+# sirve el dev server de Vite con HMR. No se compila nada dentro de la imagen,
+# asi un error de TypeScript no impide levantar el entorno.
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+EXPOSE 5173
+
+# --host 0.0.0.0 es obligatorio: dentro del contenedor el dev server escucha en
+# localhost, que no es alcanzable desde el host.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

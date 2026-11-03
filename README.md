@@ -106,7 +106,28 @@ El login usa **Supabase Auth** (email + contraseña). El backend valida el JWT y
 
 **Deuda conocida (fase 1)**: se protege el acceso pero **no se scopean filas**. Un `chofer` autenticado puede listar todas las `solicitudes` vía API. Cerrarlo requiere filtrar por el usuario vinculado a `auth_user_id` en los endpoints de lectura.
 
-## Docker (desarrollo/producción local)
+## Docker
+
+Hay dos configuraciones: `docker-compose.dev.yaml` (desarrollo con hot-reload) y `docker-compose.yaml` (build de producción servido por nginx). Comparten el nombre de proyecto, así que levantar una reemplaza los contenedores de la otra.
+
+### Desarrollo (hot-reload)
+
+Vite en **5173** y FastAPI en **8000**, con el código del host montado por volumen:
+
+```bash
+docker compose -f docker-compose.dev.yaml up --build   # primera vez o tras cambiar dependencias
+docker compose -f docker-compose.dev.yaml up           # uso diario
+```
+
+- Frontend: [http://localhost:5173](http://localhost:5173) (HMR, sin reconstruir la imagen)
+- Backend: [http://localhost:8000](http://localhost:8000) (uvicorn `--reload`)
+- Vite proxya `/api` hacia `backend:8000`; el backend lo apunta `VITE_PROXY_TARGET` en el compose (dentro del contenedor `localhost` no es el backend).
+- `.:/app` monta el frontend y `backend:/app` el backend. `node_modules` del host queda tapado por un volumen anónimo con las dependencias de Linux instaladas en la imagen.
+- Logs: `docker compose -f docker-compose.dev.yaml logs -f`
+- Bajar: `docker compose -f docker-compose.dev.yaml down`
+
+### Producción local (build + nginx)
+
 1. Copiar `backend/.env.example` → `backend/.env` y completar `DATABASE_URL` + `CORS_ORIGINS`.
 2. Levantar:
 ```bash
@@ -115,7 +136,20 @@ docker compose up --build
 - Frontend: [http://localhost:8080](http://localhost:8080)
 - Backend: [http://localhost:8000](http://localhost:8000)
 - Nginx hace proxy de `/api/` hacia el backend. El frontend usa `VITE_API_URL=/api` por defecto.
-- `docker compose` toma `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` del `.env` de la raíz (o del entorno) y las pasa como build args: Vite las necesita en build-time. `backend/.env` llega al backend vía `env_file`.
+- `docker compose` toma `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MAP_TILES_KEY` y `VITE_MAP_STYLE_ID` del `.env` de la raíz (o del entorno) y las pasa como build args: Vite las necesita en build-time. `backend/.env` llega al backend vía `env_file`.
+
+### Reconstruir solo lo necesario
+
+```bash
+docker compose -f docker-compose.dev.yaml build frontend   # cambió package.json / package-lock.json
+docker compose -f docker-compose.dev.yaml up -d frontend
+docker compose -f docker-compose.dev.yaml build backend    # cambió backend/requirements.txt
+docker compose -f docker-compose.dev.yaml up -d backend
+```
+
+Cambios en `.env` de la raíz los toma Vite al reiniciar el dev server: `docker compose -f docker-compose.dev.yaml restart frontend`. Cambios en `backend/.env` requieren recrear el contenedor: `docker compose -f docker-compose.dev.yaml up -d --force-recreate backend`.
+
+En la configuración de producción local, los cambios en las variables `VITE_*` requieren reconstruir la imagen compilada: `docker compose up --build frontend`.
 
 ## Pruebas
 **Backend (SQLite en memoria, sin tocar la DB real):**

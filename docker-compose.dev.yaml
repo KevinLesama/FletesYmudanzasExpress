@@ -1,0 +1,55 @@
+# Docker Compose para desarrollo con hot-reload.
+#
+# Uso: docker compose -f docker-compose.dev.yaml up
+#
+# No reemplaza a docker-compose.yaml (ese sigue siendo el de despliegue:
+# frontend compilado + Nginx). Este archivo comparte el nombre de proyecto con
+# el de produccion, asi que levantar uno reemplaza los contenedores del otro.
+#
+# Puertos del host:
+#   - 5173: dev server de Vite (frontend, con HMR)
+#   - 8000: FastAPI con --reload
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: fletes-ppp-backend-dev
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      APP_ENV: local
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+    # --reload reinicia el worker cuando cambia un archivo del volumen.
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    volumes:
+      # backend/ completo: app/ para el reload, .env para que settings lo lea y
+      # tests/ para poder correr pytest dentro del contenedor.
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: fletes-ppp-frontend-dev
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    environment:
+      # El proxy de /api corre dentro del contenedor: "localhost" seria el propio
+      # contenedor, no el backend. Tiene prioridad sobre el valor del .env.
+      VITE_PROXY_TARGET: http://backend:8000
+    volumes:
+      # Codigo del host -> HMR de Vite sin reconstruir la imagen.
+      - .:/app
+      # node_modules instalado en Linux durante el build. El volumen anonimo
+      # tapa el node_modules del host (binarios de Windows, inutilizables aca).
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
