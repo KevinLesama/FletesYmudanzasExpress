@@ -77,6 +77,12 @@ def _limpiar(engine: Engine) -> None:
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE TABLE {TABLAS} RESTART IDENTITY CASCADE"))
         conn.execute(text(f"ALTER SEQUENCE {SECUENCIA_CODIGOS} RESTART WITH {CODIGO_INICIAL}"))
+        conn.execute(
+            text(
+                "UPDATE configuracion_sistema "
+                "SET margen_operativo_min = 30, margen_ganancia_pct = 50 WHERE id = 1"
+            )
+        )
 
 
 @pytest.fixture(scope="session")
