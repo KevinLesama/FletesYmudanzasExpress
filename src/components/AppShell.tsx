@@ -20,6 +20,7 @@ import {
   LockOutlined,
   NotificationsNone,
   PersonOutline,
+  Settings,
 } from '@mui/icons-material'
 import { R } from '../routes'
 import { currentUser, roleLabel, signOut } from '../supabase'
@@ -315,8 +316,8 @@ export function AppShell({
               ))}
             </Stack>
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <IconButton size="small" sx={{ color: '#7A8794' }} aria-label="Notificaciones">
-                <NotificationsNone fontSize="small" />
+              <IconButton component="a" href={R.ajustesSeccion('operacion')} size="small" sx={{ color: '#7A8794' }} aria-label="Ajustes operativos">
+                <Settings fontSize="small" />
               </IconButton>
               <AccountMenu user={account} items={ACCOUNT_ITEMS} onSignOut={() => void signOut()} />
             </Stack>
@@ -328,8 +329,8 @@ export function AppShell({
             <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
               <Brand surface="dark" />
               <Box sx={{ flexGrow: 1 }} />
-              <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
-                <NotificationsNone fontSize="small" />
+              <IconButton component="a" href={R.ajustesSeccion('operacion')} sx={{ color: '#fff' }} size="small" aria-label="Ajustes operativos">
+                <Settings fontSize="small" />
               </IconButton>
               <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
             </Toolbar>

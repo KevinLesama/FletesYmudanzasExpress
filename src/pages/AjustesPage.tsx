@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import {
   Avatar,
   Box,
@@ -19,6 +19,7 @@ import {
   NotificationsNone,
   PersonOutline,
   PhoneIphone,
+  Settings,
   TabletMac,
 } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
@@ -27,6 +28,7 @@ import { Toast, type ToastState } from '../components/Toast'
 import { useQuery } from '../routes'
 import { color, radius, type } from '../design/tokens'
 import { ars } from '../format'
+import { api, type SystemSettings } from '../api'
 import {
   loadSettings,
   saveSettings,
@@ -35,10 +37,11 @@ import {
   type SettingsState,
 } from '../settingsStore'
 
-type SectionKey = 'perfil' | 'notificaciones' | 'seguridad' | 'facturacion'
+type SectionKey = 'perfil' | 'operacion' | 'notificaciones' | 'seguridad' | 'facturacion'
 
 const SECTIONS: { key: SectionKey; label: string; icon: ComponentType<SvgIconProps> }[] = [
   { key: 'perfil', label: 'Perfil', icon: PersonOutline },
+  { key: 'operacion', label: 'Operación y precios', icon: Settings },
   { key: 'notificaciones', label: 'Notificaciones', icon: NotificationsNone },
   { key: 'seguridad', label: 'Seguridad', icon: LockOutlined },
   { key: 'facturacion', label: 'Facturación', icon: CreditCard },
@@ -153,7 +156,25 @@ export function AjustesPage() {
   const [emailDraft, setEmailDraft] = useState(settings.profile.email)
   const [emailError, setEmailError] = useState('')
   const [sessions, setSessions] = useState(SESSIONS)
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
+  const [systemSettingsLoading, setSystemSettingsLoading] = useState(true)
+  const [systemSettingsSaving, setSystemSettingsSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let active = true
+    api.getSystemSettings()
+      .then((value) => {
+        if (active) setSystemSettings(value)
+      })
+      .catch((error: unknown) => {
+        if (active) fail(error instanceof Error ? error.message : 'No pudimos cargar los ajustes operativos.')
+      })
+      .finally(() => {
+        if (active) setSystemSettingsLoading(false)
+      })
+    return () => { active = false }
+  }, [])
 
   const persist = (patch: Partial<SettingsState>) => setSettings(saveSettings(patch))
   const ok = (message: string) => setToast({ message, tone: 'success' })
@@ -223,6 +244,20 @@ export function AjustesPage() {
   const signOutSession = (session: Session) => {
     setSessions((list) => list.filter((item) => item.id !== session.id))
     ok(`Cerramos la sesión de ${session.name}.`)
+  }
+
+  const saveSystemSettings = async () => {
+    if (!systemSettings) return
+    setSystemSettingsSaving(true)
+    try {
+      const saved = await api.updateSystemSettings(systemSettings)
+      setSystemSettings(saved)
+      ok('Ajustes operativos actualizados.')
+    } catch (error) {
+      fail(error instanceof Error ? error.message : 'No pudimos guardar los ajustes operativos.')
+    } finally {
+      setSystemSettingsSaving(false)
+    }
   }
 
   const panel = {
@@ -338,6 +373,66 @@ export function AjustesPage() {
           {notificationRow('deviceReminders', 'Recordatorios de viajes', 'Servicios y llegadas, 15 minutos antes.')}
           {notificationRow('quietOvernight', 'Silenciar de noche', 'Guardamos las notificaciones y te las damos juntas a la mañana.')}
         </Box>
+      </>
+    ),
+    operacion: (
+      <>
+        <PanelHead
+          title="Operación y precios"
+          description="Estos valores se aplican globalmente a las disponibilidades y cotizaciones nuevas."
+        />
+        {systemSettingsLoading ? (
+          <Typography role="status" sx={{ fontSize: type.caption, color: color.muted }}>
+            Cargando ajustes operativos...
+          </Typography>
+        ) : systemSettings ? (
+          <>
+            <GroupLabel>Agenda</GroupLabel>
+            <Box sx={{ maxWidth: 420 }}>
+              <CampoTexto
+                label="Margen entre viajes (minutos)"
+                type="number"
+                size="small"
+                fullWidth
+                value={systemSettings.operationalBufferMinutes}
+                onChange={(event) => setSystemSettings({
+                  ...systemSettings,
+                  operationalBufferMinutes: Number(event.target.value),
+                })}
+                inputProps={{ min: 30, max: 1440, step: 5 }}
+                helperText="Mínimo 30 minutos por la protección de agenda de la base de datos."
+              />
+            </Box>
+            <GroupLabel>Precios</GroupLabel>
+            <Box sx={{ maxWidth: 420 }}>
+              <CampoTexto
+                label="Margen de ganancia (%)"
+                type="number"
+                size="small"
+                fullWidth
+                value={systemSettings.profitMarginPercent}
+                onChange={(event) => setSystemSettings({
+                  ...systemSettings,
+                  profitMarginPercent: Number(event.target.value),
+                })}
+                inputProps={{ min: 0, max: 500, step: 1 }}
+                helperText="Se suma al costo del chofer para calcular el precio sugerido. Valor actual por defecto: 50%."
+              />
+            </Box>
+            <Button
+              variant="contained"
+              onClick={() => void saveSystemSettings()}
+              disabled={systemSettingsSaving}
+              sx={{ mt: 2, bgcolor: color.navy, '&:hover': { bgcolor: color.inkStrong } }}
+            >
+              {systemSettingsSaving ? 'Guardando...' : 'Guardar ajustes'}
+            </Button>
+          </>
+        ) : (
+          <Typography role="alert" sx={{ fontSize: type.caption, color: color.red }}>
+            No fue posible cargar la configuración del servidor. Reintentá más tarde.
+          </Typography>
+        )}
       </>
     ),
     seguridad: (
