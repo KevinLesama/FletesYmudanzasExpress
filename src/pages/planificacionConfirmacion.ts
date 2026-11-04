@@ -3,7 +3,7 @@ import { ars } from '../format'
 export type CampoConfirmacion = 'chofer' | 'vehiculo'
 
 export type MotivoConfirmacion = {
-  id: 'cancelado' | 'chofer' | 'vehiculo' | 'precio' | 'sena'
+  id: 'cancelado' | 'chofer' | 'vehiculo' | 'carga' | 'descarga' | 'horario' | 'precio' | 'sena'
   texto: string
   campo?: CampoConfirmacion
 }
@@ -12,17 +12,18 @@ export type CondicionesConfirmacionViaje = {
   cancelled: boolean
   driverId: string
   vehicleId: string
-  driverIsAvailable: boolean
-  vehicleIsAvailable: boolean
+  loadMinutes: number | null
+  downloadMinutes: number | null
+  arrivalTime: string
+  driverIsAvailable: boolean | null
+  vehicleIsAvailable: boolean | null
   price: number
   depositReceived: number
   depositRequired: number
 }
 
 /**
- * Replica las condiciones que ya deshabilitan "Confirmar viaje" en la página.
- * No agrega reglas nuevas: el botón exige seña completa (50 % de un precio > 0),
- * chofer activo, vehículo disponible y que el viaje no esté cancelado.
+ * La confirmación exige planificación completa, recursos disponibles y seña.
  */
 export function motivosConfirmacionViaje(input: CondicionesConfirmacionViaje): MotivoConfirmacion[] {
   const motivos: MotivoConfirmacion[] = []
@@ -33,14 +34,24 @@ export function motivosConfirmacionViaje(input: CondicionesConfirmacionViaje): M
 
   if (!input.driverId) {
     motivos.push({ id: 'chofer', campo: 'chofer', texto: 'Asigná un chofer.' })
-  } else if (!input.driverIsAvailable) {
+  } else if (input.driverIsAvailable === false) {
     motivos.push({ id: 'chofer', campo: 'chofer', texto: 'El chofer no está disponible.' })
   }
 
   if (!input.vehicleId) {
     motivos.push({ id: 'vehiculo', campo: 'vehiculo', texto: 'Asigná un vehículo.' })
-  } else if (!input.vehicleIsAvailable) {
+  } else if (input.vehicleIsAvailable === false) {
     motivos.push({ id: 'vehiculo', campo: 'vehiculo', texto: 'El vehículo no está disponible.' })
+  }
+
+  if (input.loadMinutes == null) {
+    motivos.push({ id: 'carga', texto: 'Definí el tiempo estimado de carga.' })
+  }
+  if (input.downloadMinutes == null) {
+    motivos.push({ id: 'descarga', texto: 'Definí el tiempo estimado de descarga.' })
+  }
+  if (!/^\d{2}:\d{2}$/.test(input.arrivalTime)) {
+    motivos.push({ id: 'horario', texto: 'Definí una hora estimada de llegada.' })
   }
 
   if (!(input.price > 0) || !(input.depositRequired > 0)) {

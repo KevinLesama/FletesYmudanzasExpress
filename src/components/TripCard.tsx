@@ -73,13 +73,13 @@ export function TripCard({ trip, driver, vehicle, selected, onSelect, conflictNo
         sx={{ my: 1.5, py: 1.4, borderTop: '1px solid #EDF0F2', borderBottom: '1px solid #EDF0F2' }}
       >
         {row(
-          'Llegada',
-          `${trip.arrivalRange[0]}-${trip.arrivalRange[1]}`,
+          'Inicio en origen',
+          trip.serviceRange[0],
           <AccessTime sx={{ fontSize: 15 }} />,
         )}
         {row(
-          trip.serviceRange[0] === trip.arrivalRange[0] ? 'Servicio' : 'Servicio est.',
-          `${trip.serviceRange[0]}-${trip.serviceRange[1]}`,
+          'Llegada estimada',
+          trip.serviceRange[1],
           <CalendarMonth sx={{ fontSize: 15 }} />,
         )}
       </Stack>

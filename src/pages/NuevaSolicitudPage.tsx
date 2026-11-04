@@ -64,8 +64,6 @@ const PREGUNTA_NIVEL_CALLE = '¿Está a nivel de calle?'
 
 const requierePisoYAscensor = (aNivelDeCalle: boolean | null) => aNivelDeCalle === false
 
-const isValidTimeRange = (from: string, to: string) => Boolean(from && to && to > from)
-
 const derivarPisoYAscensor = (
   aNivelDeCalle: boolean | null,
   piso: string,
@@ -94,7 +92,6 @@ export function NuevaSolicitudPage() {
   // service
   const [date, setDate] = useState(getTodayISO)
   const [arriveFrom, setArriveFrom] = useState('09:00')
-  const [arriveTo, setArriveTo] = useState('11:00')
   const [originAddress, setOriginAddress] = useState('')
   const [originBarrio, setOriginBarrio] = useState('')
   const [originFloor, setOriginFloor] = useState('')
@@ -163,12 +160,7 @@ export function NuevaSolicitudPage() {
     'new-client-name': newName.trim() === '' ? 'Ingresá el nombre y apellido.' : null,
     'new-client-phone': validarTelefono(newPhone),
     'service-date': date === '' ? 'Ingresá la fecha solicitada.' : null,
-    'arrival-from': arriveFrom === '' ? 'Ingresá la hora de llegada desde.' : null,
-    'arrival-until': arriveTo === ''
-      ? 'Ingresá la hora de llegada hasta.'
-      : arriveFrom && !isValidTimeRange(arriveFrom, arriveTo)
-        ? 'La hora límite debe ser posterior a la hora de inicio.'
-        : null,
+    'arrival-from': arriveFrom === '' ? 'Ingresá el horario de inicio en el domicilio de origen.' : null,
     'origin-address': originAddress.trim() === ''
       ? 'Ingresá la dirección.'
       : originGeoOk && !originPlace
@@ -197,7 +189,7 @@ export function NuevaSolicitudPage() {
     const idsByStep = [
       clientMode === 'existente' ? ['existing-client'] : ['new-client-name', 'new-client-phone'],
       [
-        'service-date', 'arrival-from', 'arrival-until',
+        'service-date', 'arrival-from',
         'origin-address', 'origin-street-level', 'origin-floor', 'origin-elevator',
         'destination-address', 'destination-street-level', 'destination-floor', 'destination-elevator',
       ],
@@ -260,10 +252,7 @@ export function NuevaSolicitudPage() {
         client_name: clientName,
         phone,
         date,
-        arrival_from: arriveFrom,
-        arrival_to: arriveTo,
-        service_from: arriveFrom,
-        service_to: arriveTo,
+        hora_desde: arriveFrom,
         origin: {
           address: originAddress,
           barrio: originBarrio,
@@ -460,11 +449,11 @@ export function NuevaSolicitudPage() {
 
             {step === 1 && (
               <>
-                <StepHeading n="02" title="Servicio" subtitle="Fecha solicitada, horario aproximado y recorrido." compact />
+                <StepHeading n="02" title="Servicio" subtitle="Fecha, inicio en origen y recorrido." compact />
                 <Stack spacing={ESPACIO.seccion}>
                   <Stack spacing={0}>
                     <TituloSeccion text="Fecha y horario" />
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, columnGap: ESPACIO.grupo, rowGap: ESPACIO.campo }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, columnGap: ESPACIO.grupo, rowGap: ESPACIO.campo }}>
                       <Box>
                         <EtiquetaCampo text="Fecha solicitada" htmlFor="service-date" />
                         <TextField
@@ -485,7 +474,7 @@ export function NuevaSolicitudPage() {
                         <MensajeCampo id="service-date-error" mensaje={visibleFieldErrors['service-date']} sinAnimacion={sinAnimacion} />
                       </Box>
                       <Box>
-                        <EtiquetaCampo text="Llegada desde" htmlFor="arrival-from" />
+                        <EtiquetaCampo text="Inicio en origen" htmlFor="arrival-from" />
                         <TextField
                           id="arrival-from"
                           type="time"
@@ -502,26 +491,6 @@ export function NuevaSolicitudPage() {
                           autoComplete="off"
                         />
                         <MensajeCampo id="arrival-from-error" mensaje={visibleFieldErrors['arrival-from']} sinAnimacion={sinAnimacion} />
-                      </Box>
-                      <Box>
-                        <EtiquetaCampo text="Llegada hasta" htmlFor="arrival-until" />
-                        <TextField
-                          id="arrival-until"
-                          type="time"
-                          value={arriveTo}
-                          onChange={(e) => {
-                            setArriveTo(e.target.value)
-                            clearFieldError('arrival-until')
-                          }}
-                          onBlur={() => validateFieldOnBlur('arrival-until')}
-                          error={Boolean(visibleFieldErrors['arrival-until'])}
-                          aria-describedby={visibleFieldErrors['arrival-until'] ? 'arrival-until-error' : undefined}
-                          size="small"
-                          fullWidth
-                          inputProps={{ min: arriveFrom || undefined }}
-                          autoComplete="off"
-                        />
-                        <MensajeCampo id="arrival-until-error" mensaje={visibleFieldErrors['arrival-until']} sinAnimacion={sinAnimacion} />
                       </Box>
                     </Box>
                   </Stack>

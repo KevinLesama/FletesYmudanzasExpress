@@ -87,6 +87,7 @@ export interface RouteEstimate {
   kmTotal: number
   etaMinutes: number
   returnMinutes: number
+  provider?: string
   geometry?: [number, number][]
 }
 
@@ -97,7 +98,7 @@ export interface Quote {
   kmTotal: number
   etaMinutes: number
   returnMinutes: number
-  waitMinutes: number
+  loadMinutes: number
   totalHours: number
   tariffBase: number
   tariffPerKm: number
@@ -138,6 +139,7 @@ export interface ShiftRequest {
   date: string // yyyy-mm-dd
   arrivalRange: [string, string]
   serviceRange: [string, string]
+  arrivalTimeConfirmed?: boolean
   origin: Place
   destination: Place
   cargo: RequestCargo
@@ -154,6 +156,11 @@ export interface ShiftRequest {
   totalKm?: number
   etaMinutes?: number
   waitMinutes?: number
+  loadMinutes?: number
+  loadMinutesConfirmed?: boolean
+  downloadMinutes?: number
+  downloadMinutesConfirmed?: boolean
+  availabilityWarnings?: string[]
   driverCost?: number
   suggestedPrice?: number
   priceOverridden?: boolean
@@ -216,4 +223,19 @@ export interface Availability {
   driverAvailable: boolean
   vehicleAvailable: boolean
   conflicts: string[]
+  warnings: string[]
+  travelVerified: boolean
+}
+
+export interface AvailabilityOption {
+  resourceId: number
+  blocked: boolean
+  verified: boolean
+  warnings: string[]
+}
+
+export interface AvailabilityOptions {
+  scheduleVerified: boolean
+  drivers: AvailabilityOption[]
+  vehicles: AvailabilityOption[]
 }

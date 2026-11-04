@@ -501,8 +501,10 @@ export function TrackingAside({
                 <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>~{trip.etaMinutes ?? 0} min</Typography>
               </Box>
               <Box>
-                <Typography sx={{ fontSize: type.micro, fontWeight: 800, color: color.muted, letterSpacing: '0.06em' }}>ESPERA</Typography>
-                <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>{trip.waitMinutes ?? 0} min</Typography>
+                <Typography sx={{ fontSize: type.micro, fontWeight: 800, color: color.muted, letterSpacing: '0.06em' }}>CARGA</Typography>
+                <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: color.navy }}>
+                  {trip.loadMinutes != null ? `${trip.loadMinutes} min` : 'Sin definir'}
+                </Typography>
               </Box>
             </Stack>
           )}
