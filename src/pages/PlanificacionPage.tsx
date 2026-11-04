@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
+  Alert,
+  AlertTitle,
   Box,
   Button,
   CircularProgress,
@@ -25,6 +27,7 @@ import {
   Check,
   Edit,
   ErrorOutline,
+  HelpOutline,
   InfoOutlined,
   Lock,
   MyLocation,
@@ -56,10 +59,16 @@ import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { ars, fmtDate, fmtDateEs, dayName, formatShortAddress, joinParts, waLink } from '../format'
 import { getTodayISO } from '../agendaDates'
-import type { Driver, Quote, ReceivedBy, ShiftRequest, Vehicle } from '../types'
+import type { Availability, AvailabilityOptions, Driver, Quote, ReceivedBy, ShiftRequest, Vehicle } from '../types'
 import { brand } from '../theme'
 import { color, type as typeScale } from '../design/tokens'
 import { motivosConfirmacionViaje } from './planificacionConfirmacion'
+import { estimatedArrival } from './planificacionHorarios'
+import {
+  etiquetaDisponibilidadParcial,
+  estiloOpcionPlanificacion,
+  mensajeAgendaIncompleta,
+} from './planificacionOpciones'
 import type { SelectChangeEvent } from '@mui/material/Select'
 
 const avisoCampoSx = {
@@ -115,11 +124,19 @@ function vehicleLabel(vehicle: Vehicle): string {
   ])
 }
 
+function parseDownloadMinutes(value: string): number | null {
+  if (!/^\d+$/.test(value)) return null
+  const minutes = Number(value)
+  return Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440 ? minutes : null
+}
+
 interface CampoAsignacionProps {
   label: string
   value: string
   onChange: (event: SelectChangeEvent<string>) => void
   available: boolean
+  availabilityLabel?: string
+  warningLines?: string[]
   selected: boolean
   disabled: boolean
   error?: boolean
@@ -133,6 +150,8 @@ function CampoAsignacion({
   value,
   onChange,
   available,
+  availabilityLabel,
+  warningLines = [],
   selected,
   disabled,
   error,
@@ -141,15 +160,41 @@ function CampoAsignacion({
   renderValue,
 }: CampoAsignacionProps) {
   const fieldId = useId()
-  const statusText = selected ? (available ? 'Disponible' : 'No disponible') : 'Sin asignar'
-  const statusColor = selected && available ? color.green : color.amberInk
+  const statusText = selected
+    ? (availabilityLabel ?? (available ? 'Disponible' : 'No disponible'))
+    : 'Sin asignar'
+  const statusColor =
+    availabilityLabel === 'No disponible'
+      ? color.red
+      : availabilityLabel === 'Sin verificar' ||
+          availabilityLabel === 'Verificando agenda…' ||
+          availabilityLabel === 'Agenda sin verificar' ||
+          availabilityLabel === 'Revisar agenda' ||
+          availabilityLabel === 'Agenda verificada con advertencias'
+        ? color.amberInk
+        : selected && available
+          ? color.green
+          : color.amberInk
 
   return (
     <FormControl fullWidth error={error}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
         <EtiquetaCampo text={label} htmlFor={fieldId} />
         <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0, color: statusColor }}>
-          <Box sx={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', bgcolor: selected && available ? color.green : color.amber }} />
+          {warningLines.length > 0 ? (
+            <Tooltip
+              title={
+                <Stack spacing={0.5}>
+                  {warningLines.map((warning) => <span key={warning}>{warning}</span>)}
+                </Stack>
+              }
+              arrow
+            >
+              <HelpOutline sx={{ fontSize: 16, flexShrink: 0, cursor: 'help' }} />
+            </Tooltip>
+          ) : (
+            <Box sx={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', bgcolor: selected && available ? color.green : color.amber }} />
+          )}
           <Typography noWrap sx={{ fontSize: typeScale.caption, fontWeight: 700 }}>
             {statusText}
           </Typography>
@@ -243,20 +288,40 @@ export function PlanificacionPage() {
   const [driverId, setDriverId] = useState('')
   const [vehicleId, setVehicleId] = useState('')
   const [start, setStart] = useState('11:00')
-  const [end, setEnd] = useState('13:00')
+  const [end, setEnd] = useState('')
+  const [loadMinutes, setLoadMinutes] = useState('')
+  const [downloadMinutes, setDownloadMinutes] = useState('')
   const [price, setPrice] = useState('')
   const [priceTouched, setPriceTouched] = useState(false)
-  const [waitMinutes, setWaitMinutes] = useState('120')
   const [quote, setQuote] = useState<Quote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
+  const [routeEstimateLoading, setRouteEstimateLoading] = useState(false)
+  const [routeEstimateError, setRouteEstimateError] = useState('')
   const [editing, setEditing] = useState(false)
   const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
+  const [availabilityWarnings, setAvailabilityWarnings] = useState<string[]>([])
+  const [availabilityResult, setAvailabilityResult] = useState<{ key: string; value: Availability } | null>(null)
+  const [availabilityFailure, setAvailabilityFailure] = useState<{ key: string; message: string } | null>(null)
+  const [availabilityLoading, setAvailabilityLoading] = useState(false)
+  const [optionsResult, setOptionsResult] = useState<{ key: string; value: AvailabilityOptions } | null>(null)
+  const [optionsFailure, setOptionsFailure] = useState<{ key: string; message: string } | null>(null)
+  const [optionsLoading, setOptionsLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const initializedRequestId = useRef<string | null>(null)
+
+  const selectedDownloadMinutes = parseDownloadMinutes(downloadMinutes)
+  const selectedLoadMinutes = parseDownloadMinutes(loadMinutes)
+  const scheduleVerificationMessage = mensajeAgendaIncompleta({
+    loadMinutes: selectedLoadMinutes,
+    downloadMinutes: selectedDownloadMinutes,
+    startTime: start,
+    arrivalTime: end,
+  })
+  const scheduleInputsComplete = scheduleVerificationMessage == null
 
   // Inicializa los campos editables sólo para el viaje actual. Las recargas
   // posteriores actualizan `request`, pero no deben pisar cambios locales.
@@ -266,10 +331,11 @@ export function PlanificacionPage() {
     setDriverId(request.driverId ?? '')
     setVehicleId(request.vehicleId ?? '')
     setStart(request.serviceRange[0] || '11:00')
-    setEnd(request.serviceRange[1] || '13:00')
+    setEnd(request.arrivalTimeConfirmed ? (request.serviceRange[1] || '') : '')
+    setLoadMinutes(request.loadMinutesConfirmed && request.loadMinutes != null ? String(request.loadMinutes) : '')
+    setDownloadMinutes(request.downloadMinutesConfirmed && request.downloadMinutes != null ? String(request.downloadMinutes) : '')
     setPrice(String(request.price ?? 0))
     setPriceTouched(Boolean(request.priceOverridden))
-    setWaitMinutes(String(request.waitMinutes ?? 120))
   }, [id, request])
 
   // Al cambiar de viaje se sale del modo edición.
@@ -277,19 +343,80 @@ export function PlanificacionPage() {
     setEditing(false)
   }, [id])
 
-  // Cotizacion del backend con las tarifas del chofer elegido. Se recalcula al
-  // cambiar chofer o espera; es solo una vista previa hasta guardar.
   useEffect(() => {
-    if (!request || !driverId || request.estimatedKm == null) {
+    if (
+      !request ||
+      request.etaMinutes != null ||
+      request.origin.lat == null ||
+      request.origin.lng == null ||
+      request.destination.lat == null ||
+      request.destination.lng == null
+    ) {
+      setRouteEstimateLoading(false)
+      setRouteEstimateError('')
+      return
+    }
+
+    let cancelledRequest = false
+    setRouteEstimateLoading(true)
+    setRouteEstimateError('')
+    api
+      .estimateRequestRoute(request.id)
+      .then(() => (cancelledRequest ? undefined : requestState.reload()))
+      .catch((error: unknown) => {
+        if (!cancelledRequest) {
+          setRouteEstimateError(
+            error instanceof Error ? error.message : 'No se pudo calcular el tiempo del recorrido.',
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelledRequest) setRouteEstimateLoading(false)
+      })
+
+    return () => {
+      cancelledRequest = true
+    }
+  }, [
+    request?.id,
+    request?.etaMinutes,
+    request?.origin.lat,
+    request?.origin.lng,
+    request?.destination.lat,
+    request?.destination.lng,
+  ])
+
+  useEffect(() => {
+    if (!request || request.arrivalTimeConfirmed || end) return
+    const estimated = estimatedArrival(
+      start,
+      parseDownloadMinutes(loadMinutes),
+      request.etaMinutes,
+    )
+    if (estimated) setEnd(estimated)
+  }, [request?.id, request?.arrivalTimeConfirmed, request?.etaMinutes, start, loadMinutes, end])
+
+  // Cotizacion del backend con las tarifas del chofer elegido. Se recalcula al
+  // cambiar chofer, tiempos o datos de recorrido; es solo una vista previa
+  // hasta guardar. Sin todos los datos no hay cotizacion ni spinner infinito.
+  useEffect(() => {
+    if (
+      !request ||
+      !driverId ||
+      request.estimatedKm == null ||
+      selectedLoadMinutes == null ||
+      selectedDownloadMinutes == null
+    ) {
       setQuote(null)
       setQuoteError('')
+      setQuoteLoading(false)
       return
     }
     let cancelledRequest = false
     setQuoteLoading(true)
     const timer = window.setTimeout(() => {
       api
-        .quote(request.id, { driverId, waitMinutes: Number(waitMinutes || 0) })
+        .quote(request.id, { driverId, loadMinutes: Number(loadMinutes) })
         .then((q) => {
           if (cancelledRequest) return
           setQuote(q)
@@ -308,7 +435,152 @@ export function PlanificacionPage() {
       cancelledRequest = true
       window.clearTimeout(timer)
     }
-  }, [request?.id, request?.estimatedKm, driverId, waitMinutes])
+  }, [request?.id, request?.estimatedKm, request?.etaMinutes, driverId, loadMinutes, downloadMinutes])
+
+  const availabilityKey = JSON.stringify([
+    request?.id,
+    request?.date,
+    driverId,
+    vehicleId,
+    start,
+    loadMinutes,
+    end,
+    downloadMinutes,
+  ])
+  const validServiceRange = /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end) && start < end
+  const availabilityEligible = Boolean(
+    request &&
+      driverId &&
+      vehicleId &&
+      scheduleInputsComplete &&
+      validServiceRange &&
+      request.status !== 'Cancelada' &&
+      request.status !== 'Finalizada',
+  )
+  const optionsKey = JSON.stringify([
+    request?.id,
+    request?.date,
+    start,
+    end,
+    loadMinutes,
+    downloadMinutes,
+  ])
+
+  useEffect(() => {
+    if (
+      !request ||
+      !scheduleInputsComplete ||
+      !/^\d{2}:\d{2}$/.test(start) ||
+      request.status === 'Cancelada' ||
+      request.status === 'Finalizada'
+    ) {
+      setOptionsLoading(false)
+      setOptionsResult(null)
+      setOptionsFailure(null)
+      return
+    }
+
+    let cancelledRequest = false
+    setOptionsLoading(true)
+    setOptionsResult(null)
+    setOptionsFailure(null)
+    const timer = window.setTimeout(() => {
+      api
+        .availabilityOptions({
+          date: request.date,
+          start,
+          end: end || undefined,
+          loadMinutes: selectedLoadMinutes ?? undefined,
+          downloadMinutes: selectedDownloadMinutes ?? undefined,
+          exclude: request.id,
+        })
+        .then((value) => {
+          if (!cancelledRequest) setOptionsResult({ key: optionsKey, value })
+        })
+        .catch((err) => {
+          if (!cancelledRequest) {
+            setOptionsFailure({
+              key: optionsKey,
+              message: err instanceof Error ? err.message : 'No pudimos verificar la agenda de las opciones.',
+            })
+          }
+        })
+        .finally(() => {
+          if (!cancelledRequest) setOptionsLoading(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelledRequest = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    request?.id,
+    request?.date,
+    request?.status,
+    optionsKey,
+    start,
+    end,
+    selectedLoadMinutes,
+    selectedDownloadMinutes,
+    scheduleInputsComplete,
+  ])
+
+  useEffect(() => {
+    if (!request || !availabilityEligible || selectedDownloadMinutes == null) {
+      setAvailabilityLoading(false)
+      setAvailabilityResult(null)
+      setAvailabilityFailure(null)
+      return
+    }
+
+    let cancelledRequest = false
+    setAvailabilityLoading(true)
+    setAvailabilityResult(null)
+    setAvailabilityFailure(null)
+    const timer = window.setTimeout(() => {
+      api
+        .availability({
+          date: request.date,
+          start,
+          end,
+          downloadMinutes: selectedDownloadMinutes,
+          driver_id: driverId,
+          vehicle_id: vehicleId,
+          exclude: request.id,
+        })
+        .then((value) => {
+          if (!cancelledRequest) setAvailabilityResult({ key: availabilityKey, value })
+        })
+        .catch((err) => {
+          if (!cancelledRequest) {
+            setAvailabilityFailure({
+              key: availabilityKey,
+              message: err instanceof Error ? err.message : 'No pudimos verificar la disponibilidad operativa.',
+            })
+          }
+        })
+        .finally(() => {
+          if (!cancelledRequest) setAvailabilityLoading(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelledRequest = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    request?.id,
+    request?.date,
+    request?.status,
+    availabilityKey,
+    availabilityEligible,
+    selectedDownloadMinutes,
+    driverId,
+    vehicleId,
+    start,
+    end,
+  ])
 
   // En modo lectura el precio guardado no debe pisarse con el sugerido.
   useEffect(() => {
@@ -349,18 +621,28 @@ export function PlanificacionPage() {
     driver_id: driverId || null,
     vehicle_id: vehicleId || null,
     service_from: start,
-    service_to: end,
+    ...(end ? { service_to: end } : request?.arrivalTimeConfirmed ? { service_to: null } : {}),
+    ...(loadMinutes !== ''
+      ? { carga_min: Number(loadMinutes) }
+      : request?.loadMinutesConfirmed
+        ? { carga_min: null }
+        : {}),
     price: Number(price || 0),
-    espera_min: Number(waitMinutes || 0),
+    ...(downloadMinutes !== ''
+      ? { descarga_min: Number(downloadMinutes) }
+      : request?.downloadMinutesConfirmed
+        ? { descarga_min: null }
+        : {}),
   }
   const hasUnsavedChanges =
     !!request &&
     (driverId !== (request.driverId ?? '') ||
       vehicleId !== (request.vehicleId ?? '') ||
       start !== (request.serviceRange[0] || '11:00') ||
-      end !== (request.serviceRange[1] || '13:00') ||
+      end !== (request.arrivalTimeConfirmed ? request.serviceRange[1] : '') ||
+      selectedLoadMinutes !== (request.loadMinutes ?? null) ||
       Number(price || 0) !== Number(request.price ?? 0) ||
-      Number(waitMinutes || 0) !== Number(request.waitMinutes ?? 120))
+      selectedDownloadMinutes !== (request.downloadMinutes ?? null))
 
   const selectedDriver = drivers.find((d) => d.id === driverId)
   const selectedVehicle = vehicles.find((v) => v.vehicleId === vehicleId)
@@ -380,41 +662,164 @@ export function PlanificacionPage() {
       ? [current, ...availableVehicles]
       : availableVehicles
   }, [availableVehicles, vehicles, vehicleId])
-  const driverIsAvailable = availableDrivers.some((driver) => driver.id === driverId)
-  const vehicleIsAvailable = availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId)
+  const currentOptions = optionsResult?.key === optionsKey ? optionsResult.value : null
+  const currentOptionsError = optionsFailure?.key === optionsKey ? optionsFailure.message : ''
+  const currentAvailability = availabilityResult?.key === availabilityKey ? availabilityResult.value : null
+  const currentAvailabilityError =
+    availabilityFailure?.key === availabilityKey ? availabilityFailure.message : ''
+  const availabilityOptionsPending =
+    availabilityEligible && (optionsLoading || (!currentOptions && !currentOptionsError))
+  const selectedDriverAvailability = currentAvailability
+  const selectedVehicleAvailability = currentAvailability
+  const selectedDriverOption =
+    currentOptions?.drivers.find((option) => option.resourceId === Number(driverId))
+  const selectedVehicleOption =
+    currentOptions?.vehicles.find((option) => option.resourceId === Number(vehicleId))
+  const driverWarningLines =
+    currentOptions?.scheduleVerified ? selectedDriverOption?.warnings ?? [] : []
+  const vehicleWarningLines =
+    currentOptions?.scheduleVerified ? selectedVehicleOption?.warnings ?? [] : []
+  const driverIsAvailable =
+    !scheduleInputsComplete
+      ? null
+      : availableDrivers.some((driver) => driver.id === driverId) &&
+        (selectedDriverOption != null
+          ? !selectedDriverOption.blocked
+          : selectedDriverAvailability?.driverAvailable === true)
+  const vehicleIsAvailable =
+    !scheduleInputsComplete
+      ? null
+      : availableVehicles.some((vehicle) => vehicle.vehicleId === vehicleId) &&
+        (selectedVehicleOption != null
+          ? !selectedVehicleOption.blocked
+          : selectedVehicleAvailability?.vehicleAvailable === true)
+  const driverAvailabilityLabel =
+    driverId && !scheduleInputsComplete
+      ? 'Sin verificar'
+      : currentOptions?.scheduleVerified && selectedDriverOption
+        ? etiquetaDisponibilidadParcial({
+            bloqueada: selectedDriverOption.blocked,
+            verificada: true,
+            tieneAdvertencias: selectedDriverOption.warnings.length > 0,
+          })
+        : driverId
+          ? etiquetaDisponibilidadParcial({
+              bloqueada: false,
+              verificada: false,
+              tieneAdvertencias: false,
+              verificando: availabilityOptionsPending,
+            })
+          : undefined
+  const vehicleAvailabilityLabel =
+    vehicleId && !scheduleInputsComplete
+      ? 'Sin verificar'
+      : currentOptions?.scheduleVerified && selectedVehicleOption
+        ? etiquetaDisponibilidadParcial({
+            bloqueada: selectedVehicleOption.blocked,
+            verificada: true,
+            tieneAdvertencias: selectedVehicleOption.warnings.length > 0,
+          })
+        : vehicleId
+          ? etiquetaDisponibilidadParcial({
+              bloqueada: false,
+              verificada: false,
+              tieneAdvertencias: false,
+              verificando: availabilityOptionsPending,
+            })
+          : undefined
+  const availabilityConflicts = currentAvailability?.conflicts ?? []
+  const availabilityCheckPending =
+    availabilityEligible &&
+    (availabilityLoading || (!currentAvailability && !currentAvailabilityError))
+  const availabilityInputInvalid = Boolean(
+    request && driverId && vehicleId && scheduleInputsComplete && !availabilityEligible,
+  )
   const motivosConfirmacion = useMemo(
     () =>
       motivosConfirmacionViaje({
         cancelled: request?.status === 'Cancelada',
         driverId,
         vehicleId,
+        loadMinutes: selectedLoadMinutes,
+        downloadMinutes: selectedDownloadMinutes,
+        arrivalTime: end,
         driverIsAvailable,
         vehicleIsAvailable,
         price: Number(price || 0),
         depositReceived,
         depositRequired,
       }),
-    [request?.status, driverId, vehicleId, driverIsAvailable, vehicleIsAvailable, price, depositReceived, depositRequired],
+    [
+      request?.status,
+      driverId,
+      vehicleId,
+      selectedLoadMinutes,
+      selectedDownloadMinutes,
+      end,
+      driverIsAvailable,
+      vehicleIsAvailable,
+      price,
+      depositReceived,
+      depositRequired,
+    ],
   )
   const faltaChofer = motivosConfirmacion.some((motivo) => motivo.campo === 'chofer')
   const faltaVehiculo = motivosConfirmacion.some((motivo) => motivo.campo === 'vehiculo')
-  const primerMotivoConfirmacion = motivosConfirmacion[0]?.texto
-  const confirmacionLista = motivosConfirmacion.length === 0
+  const primerMotivoConfirmacion =
+    motivosConfirmacion[0]?.texto ||
+    availabilityConflicts[0] ||
+    (availabilityInputInvalid && 'Revisá la fecha, el horario y los tiempos de carga y descarga.') ||
+    (availabilityCheckPending && 'Verificando disponibilidad operativa.') ||
+    currentAvailabilityError
+  const confirmacionLista =
+    motivosConfirmacion.length === 0 &&
+    availabilityConflicts.length === 0 &&
+    !availabilityCheckPending &&
+    !availabilityInputInvalid
 
-  const driverOption = (d: Driver) => (
-    <MenuItem value={d.id} key={d.id}>
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <Person sx={{ fontSize: 16, color: color.muted }} />
-        <span>{d.name}</span>
-      </Stack>
-    </MenuItem>
-  )
+  const driverOption = (d: Driver) => {
+    const option = currentOptions?.drivers.find((item) => item.resourceId === Number(d.id))
+    const blocked = currentOptions?.scheduleVerified === true && option?.blocked === true
+    const provisional = currentOptions?.scheduleVerified === true && (option?.warnings.length ?? 0) > 0
+    const style = estiloOpcionPlanificacion({
+      operativa: d.status === 'Activo',
+      bloqueada: blocked,
+      tieneAdvertencias: provisional,
+    })
+    return (
+      <MenuItem value={d.id} key={d.id} disabled={style.disabled}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Person sx={{ fontSize: 16, color: color.muted }} />
+          <Box component="span" sx={{ fontWeight: 700, color: style.color }}>
+            {d.name}
+          </Box>
+        </Stack>
+      </MenuItem>
+    )
+  }
+
+  const vehicleOption = (vehicle: Vehicle) => {
+    const option = currentOptions?.vehicles.find((item) => item.resourceId === Number(vehicle.vehicleId))
+    const blocked = currentOptions?.scheduleVerified === true && option?.blocked === true
+    const provisional = currentOptions?.scheduleVerified === true && (option?.warnings.length ?? 0) > 0
+    const style = estiloOpcionPlanificacion({
+      operativa: vehicle.status === 'Disponible',
+      bloqueada: blocked,
+      tieneAdvertencias: provisional,
+    })
+    return (
+      <MenuItem value={vehicle.vehicleId} key={vehicle.vehicleId} disabled={style.disabled}>
+        <Box component="span" sx={{ fontWeight: 700, color: style.color }}>
+          {vehicleLabel(vehicle)}
+        </Box>
+      </MenuItem>
+    )
+  }
 
   const requestId = request?.id ?? id
   const requestClient = request?.client ?? ''
   const requestPhone = request?.phone ?? ''
   const requestDate = request?.date ?? ''
-  const requestArrival = request?.arrivalRange ?? (['--:--', '--:--'] as [string, string])
   const requestOrigin = request?.origin
   const requestDestination = request?.destination
 
@@ -429,6 +834,7 @@ export function PlanificacionPage() {
       const result = await fn()
       await requestState.reload()
       const updated = (result ?? {}) as Partial<ShiftRequest>
+      setAvailabilityWarnings(updated.availabilityWarnings ?? [])
       if (updated.autoConfirmError) {
         setToast({ message: updated.autoConfirmError, tone: 'error' })
       } else if (updated.status === 'Confirmada' && request?.status !== 'Confirmada') {
@@ -477,10 +883,11 @@ export function PlanificacionPage() {
     setDriverId(request.driverId ?? '')
     setVehicleId(request.vehicleId ?? '')
     setStart(request.serviceRange[0] || '11:00')
-    setEnd(request.serviceRange[1] || '13:00')
+    setEnd(request.arrivalTimeConfirmed ? request.serviceRange[1] : '')
+    setLoadMinutes(request.loadMinutesConfirmed && request.loadMinutes != null ? String(request.loadMinutes) : '')
+    setDownloadMinutes(request.downloadMinutesConfirmed && request.downloadMinutes != null ? String(request.downloadMinutes) : '')
     setPrice(String(request.price ?? 0))
     setPriceTouched(Boolean(request.priceOverridden))
-    setWaitMinutes(String(request.waitMinutes ?? 120))
     setConfirmationAttempted(false)
   }
 
@@ -502,7 +909,7 @@ export function PlanificacionPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' },
           columnGap: 1.5,
           rowGap: 1.5,
           alignItems: 'start',
@@ -513,7 +920,15 @@ export function PlanificacionPage() {
           type="time"
           label="Inicio"
           value={start}
-          onChange={(e) => setStart(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value
+            setStart(value)
+            setEnd(estimatedArrival(
+              value,
+              parseDownloadMinutes(loadMinutes),
+              request.etaMinutes,
+            ))
+          }}
           disabled={!canEdit}
           autoComplete="off"
           fullWidth
@@ -521,8 +936,36 @@ export function PlanificacionPage() {
         />
         <CampoTexto
           size="small"
+          type="number"
+          label="Carga (min)"
+          value={loadMinutes}
+          onChange={(e) => {
+            const value = e.target.value.replace(/[^\d]/g, '')
+            setLoadMinutes(value)
+            setEnd(estimatedArrival(
+              start,
+              parseDownloadMinutes(value),
+              request.etaMinutes,
+            ))
+          }}
+          onBlur={() => {
+            if (loadMinutes !== '') {
+              const n = Math.min(Math.max(Number(loadMinutes), 0), 1440)
+              setLoadMinutes(String(n))
+            }
+          }}
+          disabled={!canEdit}
+          inputProps={{ min: 0, max: 1440, step: 15 }}
+          fullWidth
+          sx={{
+            '& .MuiInputLabel-root': { whiteSpace: 'nowrap' },
+            '& .MuiOutlinedInput-root': { height: 48 },
+          }}
+        />
+        <CampoTexto
+          size="small"
           type="time"
-          label="Fin"
+          label="Llegada estimada"
           value={end}
           onChange={(e) => setEnd(e.target.value)}
           disabled={!canEdit}
@@ -533,15 +976,17 @@ export function PlanificacionPage() {
         <CampoTexto
           size="small"
           type="number"
-          label="Espera (min)"
-          value={waitMinutes}
-          onChange={(e) => setWaitMinutes(e.target.value.replace(/[^\d]/g, ''))}
+          label="Descarga estimada"
+          value={downloadMinutes}
+          onChange={(e) => setDownloadMinutes(e.target.value.replace(/[^\d]/g, ''))}
           onBlur={() => {
-            const n = Math.min(Math.max(Number(waitMinutes || 0), 0), 1440)
-            setWaitMinutes(String(n))
+            if (downloadMinutes !== '') {
+              const n = Math.min(Math.max(Number(downloadMinutes), 0), 1440)
+              setDownloadMinutes(String(n))
+            }
           }}
+          inputProps={{ min: 0, max: 1440, step: 1 }}
           disabled={!canEdit}
-          inputProps={{ min: 0, max: 1440, step: 15 }}
           fullWidth
           sx={{
             '& .MuiInputLabel-root': { whiteSpace: 'nowrap' },
@@ -556,7 +1001,9 @@ export function PlanificacionPage() {
           value={driverId}
           onChange={(event) => setDriverId(event.target.value)}
           selected={Boolean(selectedDriver)}
-          available={driverIsAvailable}
+          available={driverIsAvailable === true}
+          availabilityLabel={driverAvailabilityLabel}
+          warningLines={driverWarningLines}
           disabled={!canEdit}
           error={confirmationAttempted && !driverId}
           helperText={confirmationAttempted && !driverId ? 'Elegí un chofer.' : undefined}
@@ -578,7 +1025,9 @@ export function PlanificacionPage() {
               value={vehicleId}
               onChange={(event) => setVehicleId(event.target.value)}
               selected={Boolean(selectedVehicle)}
-              available={vehicleIsAvailable}
+              available={vehicleIsAvailable === true}
+              availabilityLabel={vehicleAvailabilityLabel}
+              warningLines={vehicleWarningLines}
               disabled={!canEdit}
               error={confirmationAttempted && !vehicleId}
               helperText={confirmationAttempted && !vehicleId ? 'Elegí un vehículo.' : undefined}
@@ -591,11 +1040,7 @@ export function PlanificacionPage() {
               <MenuItem value="" disabled>
                 Elegí un vehículo
               </MenuItem>
-              {vehicleOptions.map((vehicle) => (
-                <MenuItem value={vehicle.vehicleId} key={vehicle.vehicleId}>
-                  {vehicleLabel(vehicle)}
-                </MenuItem>
-              ))}
+              {vehicleOptions.map((vehicle) => vehicleOption(vehicle))}
             </CampoAsignacion>
           </Box>
         </Tooltip>
@@ -617,6 +1062,11 @@ export function PlanificacionPage() {
         {driverId && !hasDistance && (
           <Typography sx={{ fontSize: 12.5, color: color.amberInk }}>
             Esta solicitud no tiene distancia calculada (se cargó sin geolocalización), así que el costo no se puede calcular.
+          </Typography>
+        )}
+        {driverId && hasDistance && (selectedLoadMinutes == null || selectedDownloadMinutes == null) && (
+          <Typography sx={{ fontSize: 12.5, color: color.muted }}>
+            Completá los tiempos de carga y descarga para calcular los costos.
           </Typography>
         )}
         {quoteError && <Typography sx={{ fontSize: 12.5, color: color.red }}>{quoteError}</Typography>}
@@ -725,7 +1175,7 @@ export function PlanificacionPage() {
         title={joinParts([requestId, 'Detalle y planificación'])}
         description={
           request
-            ? `${dayName(requestDate)}, ${fmtDate(requestDate)} · Llegada ${requestArrival.join('-')}`
+            ? `${dayName(requestDate)}, ${fmtDate(requestDate)} · Inicio ${request.serviceRange[0]} · Llegada estimada ${end || 'pendiente'}`
             : undefined
         }
         action={
@@ -797,8 +1247,17 @@ export function PlanificacionPage() {
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{fmtDate(request.date)}</Typography>
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: color.muted }}>LLEGADA ACORDADA</Typography>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>{request.arrivalRange.join(' – ')}</Typography>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: color.muted }}>INICIO · LLEGADA ESTIMADA</Typography>
+                    <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.3 }}>
+                      {request.serviceRange[0]} → {request.loadMinutesConfirmed
+                        ? estimatedArrival(
+                            request.serviceRange[0],
+                            request.loadMinutes ?? null,
+                            request.etaMinutes,
+                            request.arrivalTimeConfirmed ? request.serviceRange[1] : '',
+                          ) || 'Pendiente de ruta'
+                        : 'Pendiente de planificación'}
+                    </Typography>
                   </Box>
                 </Stack>
               </SectionCard>
@@ -830,13 +1289,32 @@ export function PlanificacionPage() {
                 >
                   <RouteMetric icon={<RouteOutlined />} label="DISTANCIA IDA" value={`${request?.estimatedKm} km`} />
                   <RouteMetric icon={<RouteOutlined />} label="TOTAL (IDA Y VUELTA)" value={`${request?.totalKm ?? 0} km`} />
-                  <RouteMetric icon={<Schedule />} label="VIAJE (IDA)" value={`~${request?.etaMinutes ?? 0} min`} />
-                  <RouteMetric icon={<Schedule />} label="ESPERA" value={`${request?.waitMinutes ?? 0} min`} />
+                  <RouteMetric
+                    icon={<Schedule />}
+                    label="VIAJE (IDA)"
+                    value={
+                      request?.etaMinutes != null
+                        ? `~${request.etaMinutes} min`
+                        : routeEstimateLoading
+                          ? 'Calculando…'
+                          : 'Pendiente'
+                    }
+                  />
+                  <RouteMetric
+                    icon={<Schedule />}
+                    label="CARGA"
+                    value={request?.loadMinutesConfirmed ? `${request.loadMinutes} min` : 'Pendiente'}
+                  />
                 </Box>
               ) : (
                 <Typography sx={{ fontSize: 12.5, color: color.amberInk }}>
                   Sin distancia calculada. La solicitud se cargó sin geolocalización, así que el recorrido no se puede cotizar automáticamente.
                 </Typography>
+              )}
+              {routeEstimateError && (
+                <Alert severity="warning" sx={{ mt: 1.5 }}>
+                  {routeEstimateError}
+                </Alert>
               )}
             </SectionCard>
 
@@ -912,6 +1390,77 @@ export function PlanificacionPage() {
 
             {summary}
 
+            {availabilityEligible && availabilityLoading && (
+              <Alert severity="info">
+                Verificando la agenda del chofer y del vehículo…
+              </Alert>
+            )}
+
+            {currentAvailability && availabilityConflicts.length > 0 && (
+              <Alert severity="error">
+                <Stack spacing={0.5}>
+                  {availabilityConflicts.map((conflict) => (
+                    <Typography key={conflict} sx={{ fontSize: typeScale.caption }}>
+                      {conflict}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Alert>
+            )}
+
+            {currentAvailability?.warnings.length ? (
+              <Alert severity="warning">
+                <Stack spacing={0.5}>
+                  {currentAvailability.warnings.map((warning) => (
+                    <Typography key={warning} sx={{ fontSize: typeScale.caption }}>
+                      {warning}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Alert>
+            ) : null}
+
+            {currentAvailability && availabilityConflicts.length === 0 && currentAvailability.warnings.length === 0 && (
+              <Alert severity="success">Chofer y vehículo disponibles para este horario.</Alert>
+            )}
+
+            {currentAvailabilityError && (
+              <Alert severity="warning">
+                {currentAvailabilityError} La confirmación volverá a validar la agenda en el servidor.
+              </Alert>
+            )}
+
+            {optionsLoading && scheduleInputsComplete && !currentOptions && (
+              <Alert severity="info">
+                Verificando disponibilidad de choferes y vehículos para este horario…
+              </Alert>
+            )}
+
+            {currentOptionsError && (
+              <Alert severity="warning">
+                {currentOptionsError} La confirmación volverá a validar la agenda en el servidor.
+              </Alert>
+            )}
+
+            {plannedStatus && scheduleVerificationMessage && (
+              <Alert severity="warning">
+                <AlertTitle>Agenda sin verificar</AlertTitle>
+                {scheduleVerificationMessage}
+              </Alert>
+            )}
+
+            {scheduleInputsComplete && availabilityWarnings.length > 0 && (
+              <Alert severity="warning">
+                <Stack spacing={0.5}>
+                  {availabilityWarnings.map((warning) => (
+                    <Typography key={warning} sx={{ fontSize: typeScale.caption }}>
+                      {warning}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Alert>
+            )}
+
             {isCancelled ? (
               <Box sx={{ p: 2, borderRadius: 2, bgcolor: color.sandDeep, border: '1px solid', borderColor: color.borderSoft, color: color.ink }}>
                 <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -922,7 +1471,7 @@ export function PlanificacionPage() {
                 </Stack>
               </Box>
             ) : plannedStatus ? (
-              confirmacionLista ? (
+              confirmacionLista && !currentAvailabilityError ? (
               <Box
                 sx={{
                   p: 2,
@@ -962,6 +1511,29 @@ export function PlanificacionPage() {
                       </Typography>
                     </Stack>
                   ))}
+                  {availabilityConflicts.map((conflict) => (
+                    <Stack key={conflict} direction="row" spacing={1} alignItems="flex-start">
+                      <ErrorOutline sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0, mt: 0.15 }} />
+                      <Typography sx={{ fontSize: typeScale.caption, fontWeight: 600, color: 'warning.dark' }}>
+                        {conflict}
+                      </Typography>
+                    </Stack>
+                  ))}
+                  {availabilityCheckPending && (
+                    <Typography sx={{ fontSize: typeScale.caption, fontWeight: 600, color: 'warning.dark' }}>
+                      Verificando disponibilidad operativa.
+                    </Typography>
+                  )}
+                  {availabilityInputInvalid && (
+                    <Typography sx={{ fontSize: typeScale.caption, fontWeight: 600, color: 'warning.dark' }}>
+                      Revisá la fecha, el horario y el tiempo de descarga.
+                    </Typography>
+                  )}
+                  {currentAvailabilityError && (
+                    <Typography sx={{ fontSize: typeScale.caption, fontWeight: 600, color: 'warning.dark' }}>
+                      No se pudo verificar la agenda. Podés intentar confirmar y el servidor la validará nuevamente.
+                    </Typography>
+                  )}
                 </Stack>
               </Box>
               )
@@ -1031,17 +1603,11 @@ export function PlanificacionPage() {
                             if (!isMobile) setConfirmationAttempted(true)
                             if (!driverId || !vehicleId) return
                             void runAction(
-                              () =>
-                                api.updateRequest(request.id, {
-                                  driver_id: driverId,
-                                  vehicle_id: vehicleId,
-                                  service_from: start,
-                                  service_to: end,
-                                  price: Number(price || 0),
-                                  espera_min: Number(waitMinutes || 0),
-                                  status: 'Confirmada',
-                                  confirmed: true,
-                                }),
+                              () => api.updateRequest(request.id, {
+                                ...planningPayload,
+                                status: 'Confirmada',
+                                confirmed: true,
+                              }),
                               'Viaje confirmado · ' + requestId,
                             )
                           }}
