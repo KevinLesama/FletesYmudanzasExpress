@@ -33,6 +33,64 @@ export function etiquetaDisponibilidadParcial({
   return 'Agenda verificada'
 }
 
+export type EstadoAgenda =
+  | 'incompleta'
+  | 'verificando'
+  | 'verificada'
+  | 'error'
+  | 'no-aplica'
+
+export type TonoEstadoAsignacion = 'ok' | 'advertencia' | 'neutral' | 'error'
+
+export interface EstadoCampoAsignacion {
+  texto: string
+  tono: TonoEstadoAsignacion
+}
+
+/**
+ * Estado visible arriba del selector de chofer/vehículo.
+ *
+ * `no-aplica` cubre los casos donde la agenda no se evalúa: viajes cancelados
+ * o finalizados, y un recurso asignado que no aparece en las opciones (chofer
+ * inactivo, vehículo fuera de servicio).
+ */
+export function estadoCampoAsignacion({
+  asignado,
+  estadoAgenda,
+  bloqueada,
+  tieneAdvertencias,
+}: {
+  asignado: boolean
+  estadoAgenda: EstadoAgenda
+  bloqueada: boolean
+  tieneAdvertencias: boolean
+}): EstadoCampoAsignacion {
+  if (estadoAgenda === 'incompleta') {
+    return { texto: 'Completá los datos para verificar la disponibilidad', tono: 'neutral' }
+  }
+  if (estadoAgenda === 'verificando') {
+    return { texto: 'Verificando agenda…', tono: 'advertencia' }
+  }
+  if (estadoAgenda === 'error') {
+    return { texto: 'No se pudo verificar', tono: 'error' }
+  }
+  if (estadoAgenda === 'no-aplica') {
+    return { texto: asignado ? 'Sin verificar' : 'Sin asignar', tono: 'neutral' }
+  }
+  if (!asignado) {
+    return { texto: 'Sin asignar', tono: 'neutral' }
+  }
+  return {
+    texto:
+      etiquetaDisponibilidadParcial({
+        bloqueada,
+        verificada: true,
+        tieneAdvertencias,
+      }) ?? 'Agenda verificada',
+    tono: bloqueada ? 'error' : tieneAdvertencias ? 'advertencia' : 'ok',
+  }
+}
+
 export function mensajeAgendaIncompleta({
   loadMinutes,
   downloadMinutes,

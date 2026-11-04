@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { color } from '../design/tokens'
 import {
+  estadoCampoAsignacion,
   etiquetaDisponibilidadParcial,
   estiloOpcionPlanificacion,
   mensajeAgendaIncompleta,
@@ -119,5 +120,75 @@ describe('apariencia de recursos en planificación', () => {
       bloqueada: true,
       tieneAdvertencias: true,
     })).toEqual({ disabled: true, color: color.muted })
+  })
+
+  describe('estado visible del selector de asignación', () => {
+    const base = { bloqueada: false, tieneAdvertencias: false }
+
+    it('pide completar los datos con o sin asignación cuando la agenda no se puede verificar', () => {
+      expect(estadoCampoAsignacion({ ...base, asignado: false, estadoAgenda: 'incompleta' })).toEqual({
+        texto: 'Completá los datos para verificar la disponibilidad',
+        tono: 'neutral',
+      })
+      expect(estadoCampoAsignacion({ ...base, asignado: true, estadoAgenda: 'incompleta' })).toEqual({
+        texto: 'Completá los datos para verificar la disponibilidad',
+        tono: 'neutral',
+      })
+    })
+
+    it('muestra verificando mientras la agenda está en vuelo, asignado o no', () => {
+      expect(estadoCampoAsignacion({ ...base, asignado: false, estadoAgenda: 'verificando' })).toEqual({
+        texto: 'Verificando agenda…',
+        tono: 'advertencia',
+      })
+      expect(estadoCampoAsignacion({ ...base, asignado: true, estadoAgenda: 'verificando' })).toEqual({
+        texto: 'Verificando agenda…',
+        tono: 'advertencia',
+      })
+    })
+
+    it('reporta el fallo de verificación sin culpar a los datos faltantes', () => {
+      expect(estadoCampoAsignacion({ ...base, asignado: false, estadoAgenda: 'error' })).toEqual({
+        texto: 'No se pudo verificar',
+        tono: 'error',
+      })
+    })
+
+    it('vuelve a sin asignar cuando la agenda quedó verificada', () => {
+      expect(estadoCampoAsignacion({ ...base, asignado: false, estadoAgenda: 'verificada' })).toEqual({
+        texto: 'Sin asignar',
+        tono: 'neutral',
+      })
+    })
+
+    it('refleja disponibilidad, conflicto y advertencias con agenda verificada', () => {
+      expect(estadoCampoAsignacion({ ...base, asignado: true, estadoAgenda: 'verificada' })).toEqual({
+        texto: 'Agenda verificada',
+        tono: 'ok',
+      })
+      expect(estadoCampoAsignacion({
+        ...base,
+        asignado: true,
+        estadoAgenda: 'verificada',
+        tieneAdvertencias: true,
+      })).toEqual({ texto: 'Agenda verificada con advertencias', tono: 'advertencia' })
+      expect(estadoCampoAsignacion({
+        ...base,
+        asignado: true,
+        estadoAgenda: 'verificada',
+        bloqueada: true,
+      })).toEqual({ texto: 'No disponible', tono: 'error' })
+    })
+
+    it('no inventa verificación cuando el recurso asignado no está en las opciones', () => {
+      expect(estadoCampoAsignacion({ ...base, asignado: true, estadoAgenda: 'no-aplica' })).toEqual({
+        texto: 'Sin verificar',
+        tono: 'neutral',
+      })
+      expect(estadoCampoAsignacion({ ...base, asignado: false, estadoAgenda: 'no-aplica' })).toEqual({
+        texto: 'Sin asignar',
+        tono: 'neutral',
+      })
+    })
   })
 })

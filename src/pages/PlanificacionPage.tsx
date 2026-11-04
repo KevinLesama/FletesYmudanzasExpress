@@ -65,9 +65,11 @@ import { color, type as typeScale } from '../design/tokens'
 import { motivosConfirmacionViaje } from './planificacionConfirmacion'
 import { estimatedArrival } from './planificacionHorarios'
 import {
-  etiquetaDisponibilidadParcial,
+  estadoCampoAsignacion,
   estiloOpcionPlanificacion,
   mensajeAgendaIncompleta,
+  type EstadoAgenda,
+  type EstadoCampoAsignacion,
 } from './planificacionOpciones'
 import type { SelectChangeEvent } from '@mui/material/Select'
 
@@ -134,10 +136,8 @@ interface CampoAsignacionProps {
   label: string
   value: string
   onChange: (event: SelectChangeEvent<string>) => void
-  available: boolean
-  availabilityLabel?: string
+  estado: EstadoCampoAsignacion
   warningLines?: string[]
-  selected: boolean
   disabled: boolean
   error?: boolean
   helperText?: string
@@ -149,10 +149,8 @@ function CampoAsignacion({
   label,
   value,
   onChange,
-  available,
-  availabilityLabel,
+  estado,
   warningLines = [],
-  selected,
   disabled,
   error,
   helperText,
@@ -160,21 +158,16 @@ function CampoAsignacion({
   renderValue,
 }: CampoAsignacionProps) {
   const fieldId = useId()
-  const statusText = selected
-    ? (availabilityLabel ?? (available ? 'Disponible' : 'No disponible'))
-    : 'Sin asignar'
+  const tono = estado.tono
+  const statusText = estado.texto
   const statusColor =
-    availabilityLabel === 'No disponible'
+    tono === 'error'
       ? color.red
-      : availabilityLabel === 'Sin verificar' ||
-          availabilityLabel === 'Verificando agenda…' ||
-          availabilityLabel === 'Agenda sin verificar' ||
-          availabilityLabel === 'Revisar agenda' ||
-          availabilityLabel === 'Agenda verificada con advertencias'
+      : tono === 'advertencia'
         ? color.amberInk
-        : selected && available
+        : tono === 'ok'
           ? color.green
-          : color.amberInk
+          : color.muted
 
   return (
     <FormControl fullWidth error={error}>
@@ -193,7 +186,7 @@ function CampoAsignacion({
               <HelpOutline sx={{ fontSize: 16, flexShrink: 0, cursor: 'help' }} />
             </Tooltip>
           ) : (
-            <Box sx={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', bgcolor: selected && available ? color.green : color.amber }} />
+            <Box sx={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', bgcolor: tono === 'ok' ? color.green : tono === 'error' ? color.red : color.amber }} />
           )}
           <Typography noWrap sx={{ fontSize: typeScale.caption, fontWeight: 700 }}>
             {statusText}
@@ -644,7 +637,6 @@ export function PlanificacionPage() {
       Number(price || 0) !== Number(request.price ?? 0) ||
       selectedDownloadMinutes !== (request.downloadMinutes ?? null))
 
-  const selectedDriver = drivers.find((d) => d.id === driverId)
   const selectedVehicle = vehicles.find((v) => v.vehicleId === vehicleId)
   // Las opciones incluyen la asignación guardada aunque hoy no esté libre
   // (vehículo asignado a este viaje, chofer inactivo) para que el select la
@@ -667,8 +659,23 @@ export function PlanificacionPage() {
   const currentAvailability = availabilityResult?.key === availabilityKey ? availabilityResult.value : null
   const currentAvailabilityError =
     availabilityFailure?.key === availabilityKey ? availabilityFailure.message : ''
-  const availabilityOptionsPending =
-    availabilityEligible && (optionsLoading || (!currentOptions && !currentOptionsError))
+  const agendaTerminal =
+    request != null && (request.status === 'Cancelada' || request.status === 'Finalizada')
+  const agendaVerificationPending =
+    !agendaTerminal &&
+    scheduleInputsComplete &&
+    (optionsLoading || (!currentOptions && !currentOptionsError))
+  const estadoAgenda: EstadoAgenda =
+    agendaTerminal
+      ? 'no-aplica'
+      : !scheduleInputsComplete
+        ? 'incompleta'
+        : agendaVerificationPending
+          ? 'verificando'
+          : currentOptions?.scheduleVerified
+            ? 'verificada'
+            : 'error'
+  const agendaVerificada = estadoAgenda === 'verificada'
   const selectedDriverAvailability = currentAvailability
   const selectedVehicleAvailability = currentAvailability
   const selectedDriverOption =
@@ -693,40 +700,20 @@ export function PlanificacionPage() {
         (selectedVehicleOption != null
           ? !selectedVehicleOption.blocked
           : selectedVehicleAvailability?.vehicleAvailable === true)
-  const driverAvailabilityLabel =
-    driverId && !scheduleInputsComplete
-      ? 'Sin verificar'
-      : currentOptions?.scheduleVerified && selectedDriverOption
-        ? etiquetaDisponibilidadParcial({
-            bloqueada: selectedDriverOption.blocked,
-            verificada: true,
-            tieneAdvertencias: selectedDriverOption.warnings.length > 0,
-          })
-        : driverId
-          ? etiquetaDisponibilidadParcial({
-              bloqueada: false,
-              verificada: false,
-              tieneAdvertencias: false,
-              verificando: availabilityOptionsPending,
-            })
-          : undefined
-  const vehicleAvailabilityLabel =
-    vehicleId && !scheduleInputsComplete
-      ? 'Sin verificar'
-      : currentOptions?.scheduleVerified && selectedVehicleOption
-        ? etiquetaDisponibilidadParcial({
-            bloqueada: selectedVehicleOption.blocked,
-            verificada: true,
-            tieneAdvertencias: selectedVehicleOption.warnings.length > 0,
-          })
-        : vehicleId
-          ? etiquetaDisponibilidadParcial({
-              bloqueada: false,
-              verificada: false,
-              tieneAdvertencias: false,
-              verificando: availabilityOptionsPending,
-            })
-          : undefined
+  const estadoDeRecurso = (opcionConocida: boolean): EstadoAgenda =>
+    estadoAgenda === 'verificada' && !opcionConocida ? 'no-aplica' : estadoAgenda
+  const driverEstado = estadoCampoAsignacion({
+    asignado: Boolean(driverId),
+    estadoAgenda: estadoDeRecurso(selectedDriverOption != null),
+    bloqueada: selectedDriverOption?.blocked ?? false,
+    tieneAdvertencias: driverWarningLines.length > 0,
+  })
+  const vehicleEstado = estadoCampoAsignacion({
+    asignado: Boolean(vehicleId),
+    estadoAgenda: estadoDeRecurso(selectedVehicleOption != null),
+    bloqueada: selectedVehicleOption?.blocked ?? false,
+    tieneAdvertencias: vehicleWarningLines.length > 0,
+  })
   const availabilityConflicts = currentAvailability?.conflicts ?? []
   const availabilityCheckPending =
     availabilityEligible &&
@@ -1000,11 +987,9 @@ export function PlanificacionPage() {
           label="Chofer"
           value={driverId}
           onChange={(event) => setDriverId(event.target.value)}
-          selected={Boolean(selectedDriver)}
-          available={driverIsAvailable === true}
-          availabilityLabel={driverAvailabilityLabel}
+          estado={driverEstado}
           warningLines={driverWarningLines}
-          disabled={!canEdit}
+          disabled={!canEdit || !agendaVerificada}
           error={confirmationAttempted && !driverId}
           helperText={confirmationAttempted && !driverId ? 'Elegí un chofer.' : undefined}
           renderValue={(value) =>
@@ -1024,11 +1009,9 @@ export function PlanificacionPage() {
               label="Vehículo"
               value={vehicleId}
               onChange={(event) => setVehicleId(event.target.value)}
-              selected={Boolean(selectedVehicle)}
-              available={vehicleIsAvailable === true}
-              availabilityLabel={vehicleAvailabilityLabel}
+              estado={vehicleEstado}
               warningLines={vehicleWarningLines}
-              disabled={!canEdit}
+              disabled={!canEdit || !agendaVerificada}
               error={confirmationAttempted && !vehicleId}
               helperText={confirmationAttempted && !vehicleId ? 'Elegí un vehículo.' : undefined}
               renderValue={(value) => {
@@ -1220,6 +1203,13 @@ export function PlanificacionPage() {
               </Typography>
             </Box>
           </Box>
+        )}
+
+        {plannedStatus && scheduleVerificationMessage && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <AlertTitle>Agenda sin verificar</AlertTitle>
+            {scheduleVerificationMessage}. Hasta que la agenda esté verificada no se puede asignar chofer ni vehículo.
+          </Alert>
         )}
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '0.95fr 1.05fr' }, gap: 2.5, alignItems: 'start' }}>
@@ -1439,13 +1429,6 @@ export function PlanificacionPage() {
             {currentOptionsError && (
               <Alert severity="warning">
                 {currentOptionsError} La confirmación volverá a validar la agenda en el servidor.
-              </Alert>
-            )}
-
-            {plannedStatus && scheduleVerificationMessage && (
-              <Alert severity="warning">
-                <AlertTitle>Agenda sin verificar</AlertTitle>
-                {scheduleVerificationMessage}
               </Alert>
             )}
 
