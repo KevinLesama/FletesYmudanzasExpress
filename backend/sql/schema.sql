@@ -23,18 +23,20 @@
 --       CREATE SCHEMA public;
 --   y volver a correr este archivo.
 --
--- MODELO (5 tablas)
+-- MODELO (6 tablas)
 --   usuarios     -> administradores, choferes y clientes (discriminados por rol)
 --   vehiculos    -> flota, independiente de los choferes
 --   solicitudes  -> viajes: estados pendiente | confirmada | finalizada |
 --                   cancelada; incluye el remito digitalizado
 --   items_carga  -> detalle de la carga de un viaje
 --   pagos        -> cobros de un viaje (seña / saldo)
+--   configuracion_sistema -> márgenes globales de agenda y cotización
 --
 -- REGLAS DE NEGOCIO QUE ESTA BASE HACE CUMPLIR SOLA
---   1. El conflicto de agenda SOLO aplica a viajes en estado 'confirmada'.
---      Dos viajes pendientes pueden solaparse; al confirmar uno que choque
---      con otro confirmado, PostgreSQL rechaza la operación (código 23P01).
+--   1. Solo los viajes 'confirmada' reservan recursos; los 'pendiente'
+--      generan advertencias. La reserva llega hasta hora_hasta (llegada al
+--      destino) + descarga_min + 30 minutos de margen operativo.
+--      PostgreSQL impide solapamientos incluso ante confirmaciones concurrentes.
 --   2. Un viaje no se puede confirmar ni finalizar sin chofer y vehículo.
 --   3. Un cliente no puede figurar como chofer (ni al revés): las claves
 --      foráneas están atadas al rol.
@@ -65,6 +67,20 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- Correlativo de los códigos visibles (FEX-1001, FEX-1002, ...).
 CREATE SEQUENCE IF NOT EXISTS solicitudes_codigo_seq START WITH 1001;
+
+CREATE TABLE IF NOT EXISTS configuracion_sistema (
+    id                      integer PRIMARY KEY DEFAULT 1,
+    margen_operativo_min    integer NOT NULL DEFAULT 30,
+    margen_ganancia_pct     integer NOT NULL DEFAULT 50,
+    CONSTRAINT ck_configuracion_sistema_singleton CHECK (id = 1),
+    CONSTRAINT ck_configuracion_sistema_margen_operativo
+        CHECK (margen_operativo_min BETWEEN 30 AND 1440),
+    CONSTRAINT ck_configuracion_sistema_margen_ganancia
+        CHECK (margen_ganancia_pct BETWEEN 0 AND 500)
+);
+
+INSERT INTO configuracion_sistema (id) VALUES (1)
+ON CONFLICT (id) DO NOTHING;
 
 
 -- ===========================================================================
@@ -249,7 +265,8 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     estado                 text          NOT NULL DEFAULT 'pendiente',
     fecha                  date          NOT NULL,
     hora_desde             time          NOT NULL,
-    hora_hasta             time          NOT NULL,
+    hora_hasta             time,
+    hora_hasta_confirmado  boolean       NOT NULL DEFAULT false,
 
     -- Origen
     origen_direccion       text          NOT NULL,
@@ -289,6 +306,10 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     duracion_ida_min       integer,
     duracion_vuelta_min    integer,
     espera_min             integer       NOT NULL DEFAULT 120,
+    carga_min              integer,
+    descarga_min           integer,
+    carga_min_confirmado   boolean       NOT NULL DEFAULT false,
+    descarga_min_confirmado boolean      NOT NULL DEFAULT false,
     horas_estimadas        numeric(6,2),
     -- Tarifas del chofer al momento de cotizar: el viaje conserva el número
     -- con el que se pagó aunque mañana cambie su configuración.
@@ -324,13 +345,22 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     CONSTRAINT ck_solicitudes_codigo CHECK (codigo ~ '^FEX-[0-9]+$'),
     CONSTRAINT ck_solicitudes_estado CHECK (
         estado IN ('pendiente', 'confirmada', 'finalizada', 'cancelada')),
-    CONSTRAINT ck_solicitudes_ventana CHECK (hora_hasta > hora_desde),
+    CONSTRAINT ck_solicitudes_ventana CHECK (
+        hora_hasta IS NULL OR hora_hasta > hora_desde),
     CONSTRAINT ck_solicitudes_direcciones CHECK (
         length(btrim(origen_direccion)) > 0 AND length(btrim(destino_direccion)) > 0),
     CONSTRAINT ck_solicitudes_km CHECK (km_estimados IS NULL OR km_estimados >= 0),
     CONSTRAINT ck_solicitudes_km_vuelta CHECK (km_vuelta IS NULL OR km_vuelta >= 0),
     CONSTRAINT ck_solicitudes_km_total CHECK (km_total IS NULL OR km_total >= 0),
     CONSTRAINT ck_solicitudes_espera CHECK (espera_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_carga CHECK (
+        carga_min IS NULL OR carga_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_descarga CHECK (
+        descarga_min IS NULL OR descarga_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_carga_confirmada CHECK (
+        NOT carga_min_confirmado OR carga_min IS NOT NULL),
+    CONSTRAINT ck_solicitudes_descarga_confirmada CHECK (
+        NOT descarga_min_confirmado OR descarga_min IS NOT NULL),
     CONSTRAINT ck_solicitudes_duraciones CHECK (
         (duracion_ida_min IS NULL OR duracion_ida_min >= 0)
         AND (duracion_vuelta_min IS NULL OR duracion_vuelta_min >= 0)),
@@ -356,6 +386,14 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     CONSTRAINT ck_solicitudes_con_chofer_y_vehiculo CHECK (
         estado NOT IN ('confirmada', 'finalizada')
         OR (chofer_id IS NOT NULL AND vehiculo_id IS NOT NULL)),
+    CONSTRAINT ck_solicitudes_planificacion_completa CHECK (
+        estado NOT IN ('confirmada', 'finalizada')
+        OR (
+            hora_hasta IS NOT NULL
+            AND hora_hasta_confirmado
+            AND carga_min_confirmado
+            AND descarga_min_confirmado
+        )),
 
     -- Una finalizada tiene fecha de cierre; ninguna otra la tiene. Así el
     -- historial del panel no depende del estado solo.
@@ -385,16 +423,25 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     CONSTRAINT fk_solicitudes_remito_subido_por FOREIGN KEY (remito_subido_por_id)
         REFERENCES usuarios (id) ON UPDATE CASCADE ON DELETE RESTRICT,
 
-    -- Agenda: solo los viajes confirmados reservan chofer.
+    -- El horario termina al llegar al destino. La descarga y el margen
+    -- operativo reservan el recurso; ambos son independientes de la espera facturada.
     CONSTRAINT ex_solicitudes_chofer_sin_solape EXCLUDE USING gist (
         chofer_id WITH =,
-        tsrange(fecha + hora_desde, fecha + hora_hasta, '[)') WITH &&
+        tsrange(
+            fecha + hora_desde,
+            fecha + hora_hasta + make_interval(mins => descarga_min + 30),
+            '[)'
+        ) WITH &&
     ) WHERE (estado = 'confirmada'),
 
-    -- Agenda: solo los viajes confirmados reservan vehículo.
+    -- El vehículo queda reservado durante la descarga y el margen operativo.
     CONSTRAINT ex_solicitudes_vehiculo_sin_solape EXCLUDE USING gist (
         vehiculo_id WITH =,
-        tsrange(fecha + hora_desde, fecha + hora_hasta, '[)') WITH &&
+        tsrange(
+            fecha + hora_desde,
+            fecha + hora_hasta + make_interval(mins => descarga_min + 30),
+            '[)'
+        ) WITH &&
     ) WHERE (estado = 'confirmada')
 );
 
@@ -426,7 +473,11 @@ COMMENT ON COLUMN solicitudes.km_estimados IS
 COMMENT ON COLUMN solicitudes.km_total IS
     'Ida + vuelta. Es la base del costo del chofer, no el recorrido visible.';
 COMMENT ON COLUMN solicitudes.espera_min IS
-    'Minutos de espera (carga y descarga) que se suman al tiempo facturado.';
+    'Dato legado de espera, conservado para solicitudes históricas. Las nuevas cotizaciones usan carga_min.';
+COMMENT ON COLUMN solicitudes.carga_min IS
+    'Minutos de carga definidos por administración; NULL mientras no se confirmen. Se suman al inicio y a la ETA de Maps para calcular hora_hasta.';
+COMMENT ON COLUMN solicitudes.descarga_min IS
+    'Minutos de descarga definidos por administración; NULL mientras no se confirmen. Extiende la ocupación tras la llegada.';
 COMMENT ON COLUMN solicitudes.costo_chofer IS
     'Tarifa base + km totales * tarifa por km + horas totales * tarifa por hora.';
 COMMENT ON COLUMN solicitudes.tarifa_base_aplicada IS
@@ -691,7 +742,8 @@ DECLARE
 BEGIN
     -- actualizado_en en las 5 tablas
     FOREACH t IN ARRAY ARRAY[
-        'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos'
+        'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos',
+        'configuracion_sistema'
     ]
     LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS tr_%s_actualizado_en ON %I', t, t);
