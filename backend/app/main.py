@@ -26,6 +26,7 @@ from app.routers.api import (
     pricing_router,
     public_requests_router,
     requests_router,
+    system_settings_router,
     vehicles_router,
 )
 settings = get_settings()
@@ -64,6 +65,7 @@ for router in (
     vehicles_router,
     public_requests_router,
     requests_router,
+    system_settings_router,
     payments_router,
     availability_router,
     geo_router,

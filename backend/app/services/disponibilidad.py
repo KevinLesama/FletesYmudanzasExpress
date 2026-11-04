@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 from typing import Literal
 
 #: Margen operativo entre el fin de un viaje y el inicio del siguiente.
@@ -79,10 +79,44 @@ class Reserva:
     id: int | None = None
     chofer_id: int | None = None
     vehiculo_id: int | None = None
+    descarga_min: int = 0
+    origen: tuple[float, float] | None = None
+    destino: tuple[float, float] | None = None
 
     @property
     def tipo(self) -> TipoReserva | None:
         return ESTADOS_RESERVA.get(self.estado)
+
+    @property
+    def inicio(self) -> datetime:
+        return datetime.combine(self.franja.fecha, self.franja.desde)
+
+    @property
+    def fin_efectivo(self) -> datetime:
+        return datetime.combine(self.franja.fecha, self.franja.hasta) + timedelta(
+            minutes=self.descarga_min
+        )
+
+    def solapa(self, otra: Reserva, margen_min: int = MARGEN_MIN) -> bool:
+        return (
+            self.inicio < otra.fin_efectivo + timedelta(minutes=margen_min)
+            and otra.inicio < self.fin_efectivo + timedelta(minutes=margen_min)
+        )
+
+
+@dataclass(frozen=True)
+class AsignacionProvisional:
+    referencia: str
+    estado_visible: str
+    fecha: date
+    desde: time
+    hasta: time | None
+    descarga_min: int | None
+    hora_hasta_confirmada: bool
+    carga_confirmada: bool
+    descarga_confirmada: bool
+    chofer_id: int | None = None
+    vehiculo_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +162,94 @@ class Evaluacion:
         return not self.traslado_verificado
 
 
+def advertencias_asignaciones_provisionales(
+    *,
+    fecha: date,
+    desde: time,
+    hasta: time | None,
+    descarga_min: int | None,
+    carga_confirmada: bool,
+    descarga_confirmada: bool,
+    asignaciones: Sequence[AsignacionProvisional],
+    margen_min: int = MARGEN_MIN,
+) -> dict[tuple[Recurso, int], tuple[str, ...]]:
+    """Describe posibles cruces con asignaciones no confirmadas, sin bloquear.
+
+    Cuando cualquiera de los dos horarios está incompleto, solo se emite una
+    advertencia si todavía podría existir un cruce; nunca se inventa una
+    duración para decidirlo.
+    """
+    candidato_completo = (
+        hasta is not None
+        and desde < hasta
+        and descarga_min is not None
+        and carga_confirmada
+        and descarga_confirmada
+    )
+    candidato = (
+        Reserva(
+            referencia="CANDIDATA",
+            estado="pendiente",
+            franja=Franja(fecha, desde, hasta),
+            descarga_min=descarga_min,
+        )
+        if candidato_completo and hasta is not None and descarga_min is not None
+        else None
+    )
+    resultado: dict[tuple[Recurso, int], list[str]] = {}
+
+    for asignacion in asignaciones:
+        if asignacion.fecha != fecha:
+            continue
+        recursos = tuple(
+            (recurso, recurso_id)
+            for recurso, recurso_id in (
+                ("chofer", asignacion.chofer_id),
+                ("vehiculo", asignacion.vehiculo_id),
+            )
+            if recurso_id is not None
+        )
+        if not recursos:
+            continue
+
+        horario_completo = (
+            asignacion.hasta is not None
+            and asignacion.desde < asignacion.hasta
+            and asignacion.descarga_min is not None
+            and asignacion.hora_hasta_confirmada
+            and asignacion.carga_confirmada
+            and asignacion.descarga_confirmada
+        )
+        if candidato is not None and horario_completo:
+            otra = Reserva(
+                referencia=asignacion.referencia,
+                estado="pendiente",
+                franja=Franja(fecha, asignacion.desde, asignacion.hasta),
+                descarga_min=asignacion.descarga_min or 0,
+            )
+            if not candidato.solapa(otra, margen_min):
+                continue
+        elif candidato is not None:
+            fin_candidato = candidato.fin_efectivo + timedelta(minutes=margen_min)
+            if datetime.combine(fecha, asignacion.desde) >= fin_candidato:
+                continue
+
+        for recurso, recurso_id in recursos:
+            nombre_recurso = "chofer" if recurso == "chofer" else "vehículo"
+            texto = (
+                f"Este {nombre_recurso} está asignado a la solicitud {asignacion.referencia}, "
+                f"que se encuentra {asignacion.estado_visible}."
+            )
+            if not horario_completo:
+                texto += (
+                    " El horario de esa solicitud está incompleto; no se puede determinar "
+                    "con precisión el solapamiento."
+                )
+            resultado.setdefault((recurso, recurso_id), []).append(texto)
+
+    return {recurso: tuple(mensajes) for recurso, mensajes in resultado.items()}
+
+
 #: ``travel_minutes(origen, destino)`` -> minutos, o None si no se puede calcular.
 MedidorTraslado = Callable[[Reserva, Reserva], int | None]
 
@@ -170,6 +292,8 @@ def evaluar_disponibilidad(
         )
     if margen_min < 0:
         raise ValueError("El margen no puede ser negativo.")
+    if viaje.descarga_min < 0:
+        raise ValueError("La descarga no puede ser negativa.")
 
     conflictos: list[Conflicto] = []
     firmes: dict[Recurso, list[Reserva]] = {"chofer": [], "vehiculo": []}
@@ -180,11 +304,13 @@ def evaluar_disponibilidad(
         tipo = otra.tipo
         if tipo is None:
             continue
+        if otra.descarga_min < 0:
+            raise ValueError("La descarga no puede ser negativa.")
         recursos = _recursos_compartidos(viaje, otra)
         if not recursos:
             continue
 
-        if viaje.franja.solapa(otra.franja):
+        if viaje.solapa(otra, margen_min):
             severidad: Severidad = "bloquea" if tipo == "firme" else "advierte"
             conflictos.extend(
                 Conflicto("reserva", recurso, severidad, otra.referencia)
@@ -196,13 +322,20 @@ def evaluar_disponibilidad(
             for recurso in recursos:
                 firmes[recurso].append(otra)
 
-    verificado = _evaluar_traslado(
-        viaje,
-        firmes["chofer"],
-        travel_minutes=travel_minutes,
-        margen_min=margen_min,
-        conflictos=conflictos,
-    )
+    travel_cache: dict[tuple[Reserva, Reserva], int | None] = {}
+    verificaciones = [
+        _evaluar_traslado(
+            viaje,
+            firmes[recurso],
+            recurso=recurso,
+            travel_minutes=travel_minutes,
+            travel_cache=travel_cache,
+            margen_min=margen_min,
+            conflictos=conflictos,
+        )
+        for recurso in ("chofer", "vehiculo")
+    ]
+    verificado = all(verificaciones)
 
     conflictos.sort(key=lambda c: (c.recurso, c.tipo, c.referencia or ""))
     return Evaluacion(
@@ -210,6 +343,34 @@ def evaluar_disponibilidad(
         traslado_verificado=verificado,
         margen_min=margen_min,
     )
+
+
+def pares_traslado_requeridos(
+    viaje: Reserva,
+    reservas: Sequence[Reserva],
+    *,
+    margen_min: int = MARGEN_MIN,
+) -> tuple[tuple[Reserva, Reserva], ...]:
+    """Devuelve los pares de rutas necesarios para evaluar los vecinos firmes."""
+    firmes: dict[Recurso, list[Reserva]] = {"chofer": [], "vehiculo": []}
+    for otra in reservas:
+        if (otra.id is not None and otra.id == viaje.id) or otra.tipo != "firme":
+            continue
+        if viaje.solapa(otra, margen_min):
+            continue
+        for recurso in _recursos_compartidos(viaje, otra):
+            firmes[recurso].append(otra)
+
+    pares: list[tuple[Reserva, Reserva]] = []
+    vistos: set[tuple[Reserva, Reserva]] = set()
+    for vecinos in firmes.values():
+        anterior = _mas_cercana_anterior(viaje, vecinos)
+        siguiente = _mas_cercana_siguiente(viaje, vecinos)
+        for par in ((anterior, viaje), (viaje, siguiente)):
+            if par[0] is not None and par[1] is not None and par not in vistos:
+                vistos.add(par)
+                pares.append(par)
+    return tuple(pares)
 
 
 def _recursos_compartidos(a: Reserva, b: Reserva) -> tuple[Recurso, ...]:
@@ -225,7 +386,9 @@ def _evaluar_traslado(
     viaje: Reserva,
     firmes: Sequence[Reserva],
     *,
+    recurso: Recurso,
     travel_minutes: MedidorTraslado | None,
+    travel_cache: dict[tuple[Reserva, Reserva], int | None],
     margen_min: int,
     conflictos: list[Conflicto],
 ) -> bool:
@@ -233,8 +396,8 @@ def _evaluar_traslado(
 
     Solo se evalúa contra reservas firmes: el horario de un pendiente todavía
     puede moverse, así que bloquear por traslado contra él sería inventar
-    precisión. Solo se evalúa por chofer: el rodado se mueve porque lo maneja
-    el chofer, así que una sola restricción cubre ambos recursos.
+    precisión. Se evalúa cada recurso porque un vehículo puede cambiar de chofer
+    entre servicios.
 
     Sin viajes vecinos no hay traslado que medir: la evaluación es verificada
     aunque no haya medidor.
@@ -253,7 +416,10 @@ def _evaluar_traslado(
     ):
         if vecina is None:
             continue
-        minutos = travel_minutes(origen, destino)
+        key = (origen, destino)
+        if key not in travel_cache:
+            travel_cache[key] = travel_minutes(origen, destino)
+        minutos = travel_cache[key]
         if minutos is None:
             # Sin datos: ni conflicto ni cero minutos. Se marca no verificado.
             verificado = False
@@ -262,15 +428,15 @@ def _evaluar_traslado(
             raise ValueError("El tiempo de traslado no puede ser negativo.")
 
         if es_anterior:
-            disponible = _minutos_entre(vecina.franja.hasta, viaje.franja.desde)
+            disponible = _minutos_entre(vecina.fin_efectivo, viaje.inicio)
         else:
-            disponible = _minutos_entre(viaje.franja.hasta, vecina.franja.desde)
+            disponible = _minutos_entre(viaje.fin_efectivo, vecina.inicio)
         necesario = minutos + margen_min
         if disponible < necesario:
             conflictos.append(
                 Conflicto(
                     tipo="traslado",
-                    recurso="chofer",
+                    recurso=recurso,
                     severidad="bloquea",
                     referencia=vecina.referencia,
                     minutos_faltantes=necesario - disponible,
@@ -284,9 +450,9 @@ def _mas_cercana_anterior(viaje: Reserva, firmes: Sequence[Reserva]) -> Reserva 
         otra
         for otra in firmes
         if otra.franja.fecha == viaje.franja.fecha
-        and otra.franja.hasta <= viaje.franja.desde
+        and otra.fin_efectivo <= viaje.inicio
     ]
-    return max(candidatas, key=lambda r: r.franja.hasta) if candidatas else None
+    return max(candidatas, key=lambda r: r.fin_efectivo) if candidatas else None
 
 
 def _mas_cercana_siguiente(viaje: Reserva, firmes: Sequence[Reserva]) -> Reserva | None:
@@ -294,12 +460,11 @@ def _mas_cercana_siguiente(viaje: Reserva, firmes: Sequence[Reserva]) -> Reserva
         otra
         for otra in firmes
         if otra.franja.fecha == viaje.franja.fecha
-        and otra.franja.desde >= viaje.franja.hasta
+        and otra.inicio >= viaje.fin_efectivo
     ]
-    return min(candidatas, key=lambda r: r.franja.desde) if candidatas else None
+    return min(candidatas, key=lambda r: r.inicio) if candidatas else None
 
 
-def _minutos_entre(a: time, b: time) -> int:
-    """Minutos enteros entre dos horas del mismo día, con ``b >= a``."""
-    segundos = (b.hour - a.hour) * 3600 + (b.minute - a.minute) * 60 + (b.second - a.second)
-    return segundos // 60
+def _minutos_entre(a: datetime, b: datetime) -> int:
+    """Minutos enteros entre dos instantes, con ``b >= a``."""
+    return int((b - a).total_seconds() // 60)

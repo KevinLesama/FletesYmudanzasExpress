@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Solicitud, Usuario, Vehiculo
-from app.services import pricing
+from app.models import ConfiguracionSistema, Solicitud, Usuario, Vehiculo
+from app.services import disponibilidad, pricing
+from app.services.scraping import get_geo_service
+from app.services.scraping.schemas import GeoStatus
+
+
+def hora_llegada_estimada(inicio: time, carga_min: int, viaje_min: int) -> time:
+    """Calcula la llegada al destino: inicio en origen + carga + ETA de ruta."""
+    minutos = inicio.hour * 60 + inicio.minute + carga_min + viaje_min
+    if carga_min < 0 or viaje_min < 0 or minutos >= 24 * 60:
+        raise ValueError("La llegada estimada debe quedar dentro del mismo día.")
+    return time(minutos // 60, minutos % 60)
 
 
 def _overlaps(a_from: time, a_to: time, b_from: time, b_to: time) -> bool:
@@ -147,10 +158,31 @@ def sena_recibida(solicitud: Solicitud) -> Decimal:
     )
 
 
-def sena_completa(solicitud: Solicitud) -> bool:
+def sena_completa(
+    solicitud: Solicitud, *, precio_final: Decimal | float | None = None
+) -> bool:
     """La seña está completa cuando lo cobrado cubre el 50 % del precio final."""
-    requerida = pricing.sena(Decimal(str(solicitud.precio_final or 0)))
+    precio = solicitud.precio_final if precio_final is None else precio_final
+    requerida = pricing.sena(Decimal(str(precio or 0)))
     return requerida > 0 and sena_recibida(solicitud) >= requerida
+
+
+def planificacion_completa(solicitud: Solicitud) -> bool:
+    """Indica si los datos requeridos fueron definidos explícitamente."""
+    desde = getattr(solicitud, "hora_desde", None)
+    hasta = getattr(solicitud, "hora_hasta", None)
+    return (
+        bool(getattr(solicitud, "chofer_id", None))
+        and bool(getattr(solicitud, "vehiculo_id", None))
+        and getattr(solicitud, "carga_min", None) is not None
+        and bool(getattr(solicitud, "carga_min_confirmado", False))
+        and getattr(solicitud, "descarga_min", None) is not None
+        and bool(getattr(solicitud, "descarga_min_confirmado", False))
+        and desde is not None
+        and hasta is not None
+        and bool(getattr(solicitud, "hora_hasta_confirmado", False))
+        and desde < hasta
+    )
 
 
 def derive_estado(solicitud: Solicitud) -> str:
@@ -163,7 +195,7 @@ def derive_estado(solicitud: Solicitud) -> str:
     """
     if solicitud.estado != "pendiente":
         return solicitud.estado
-    if not solicitud.chofer_id or not solicitud.vehiculo_id:
+    if not planificacion_completa(solicitud):
         return "pendiente"
     if not sena_completa(solicitud):
         return "pendiente_sena"
@@ -176,17 +208,184 @@ def pending_confirmation(solicitud: Solicitud) -> bool:
     """El viaje tiene todo para confirmarse salvo que algo lo bloquee."""
     return (
         solicitud.estado == "pendiente"
-        and bool(solicitud.chofer_id)
-        and bool(solicitud.vehiculo_id)
+        and planificacion_completa(solicitud)
         and sena_completa(solicitud)
     )
 
 
-def _franja(solicitud: Solicitud) -> str:
-    return f"{solicitud.hora_desde:%H:%M} a {solicitud.hora_hasta:%H:%M}"
+def _coordenadas(solicitud: Solicitud, prefijo: str) -> tuple[float, float] | None:
+    lat = getattr(solicitud, f"{prefijo}_lat", None)
+    lng = getattr(solicitud, f"{prefijo}_lng", None)
+    return (float(lat), float(lng)) if lat is not None and lng is not None else None
 
 
-def blocking_reason(db: Session, solicitud: Solicitud) -> str | None:
+def _reserva(
+    solicitud: Solicitud,
+    *,
+    chofer_id: int | None,
+    vehiculo_id: int | None,
+    fecha: date,
+    desde: time,
+    hasta: time,
+    descarga_min: int,
+) -> disponibilidad.Reserva:
+    return disponibilidad.Reserva(
+        id=solicitud.id,
+        referencia=solicitud.codigo,
+        estado=solicitud.estado,
+        franja=disponibilidad.Franja(
+            fecha,
+            desde,
+            hasta,
+        ),
+        chofer_id=chofer_id,
+        vehiculo_id=vehiculo_id,
+        descarga_min=descarga_min,
+        origen=_coordenadas(solicitud, "origen"),
+        destino=_coordenadas(solicitud, "destino"),
+    )
+
+
+def evaluar_agenda(
+    db: Session,
+    solicitud: Solicitud,
+    *,
+    chofer_id: int | None,
+    vehiculo_id: int | None,
+    fecha: date,
+    desde: time,
+    hasta: time,
+    descarga_min: int,
+) -> disponibilidad.Evaluacion:
+    """Evalúa solapamientos, descarga y traslado contra reservas firmes/blandas."""
+    candidate = _reserva(
+        solicitud,
+        chofer_id=chofer_id,
+        vehiculo_id=vehiculo_id,
+        fecha=fecha,
+        desde=desde,
+        hasta=hasta,
+        descarga_min=descarga_min,
+    )
+    condiciones = []
+    if candidate.chofer_id is not None:
+        condiciones.append(Solicitud.chofer_id == candidate.chofer_id)
+    if candidate.vehiculo_id is not None:
+        condiciones.append(Solicitud.vehiculo_id == candidate.vehiculo_id)
+
+    reservas: list[disponibilidad.Reserva] = []
+    if condiciones:
+        rows = db.scalars(
+            select(Solicitud).where(
+                Solicitud.id != solicitud.id,
+                Solicitud.estado.in_(disponibilidad.ESTADOS_RESERVA),
+                Solicitud.fecha.between(
+                    candidate.franja.fecha - timedelta(days=1),
+                    candidate.franja.fecha + timedelta(days=1),
+                ),
+                or_(*condiciones),
+            )
+        ).all()
+        reservas = [
+            _reserva(
+                row,
+                chofer_id=row.chofer_id,
+                vehiculo_id=row.vehiculo_id,
+                fecha=row.fecha,
+                desde=row.hora_desde,
+                hasta=row.hora_hasta,
+                descarga_min=row.descarga_min,
+            )
+            for row in rows
+            if row.hora_hasta is not None
+            and row.descarga_min is not None
+            and (
+                row.estado == "confirmada"
+                or planificacion_completa(row)
+            )
+        ]
+
+    config = db.get(ConfiguracionSistema, 1)
+    margen_min = config.margen_operativo_min if config is not None else 30
+    pares = disponibilidad.pares_traslado_requeridos(
+        candidate,
+        reservas,
+        margen_min=margen_min,
+    )
+    pares_con_coordenadas = [
+        par for par in pares if par[0].destino is not None and par[1].origen is not None
+    ]
+    rutas: dict[tuple[disponibilidad.Reserva, disponibilidad.Reserva], int | None] = {}
+    if pares_con_coordenadas:
+        servicio_geo = get_geo_service()
+        with ThreadPoolExecutor(max_workers=min(4, len(pares_con_coordenadas))) as executor:
+            resultados = executor.map(
+                lambda par: servicio_geo.route(par[0].destino, par[1].origen),
+                pares_con_coordenadas,
+            )
+            for par, route in zip(pares_con_coordenadas, resultados):
+                rutas[par] = (
+                    route.value.duration_min
+                    if route.status == GeoStatus.OK and route.value is not None
+                    else None
+                )
+
+    def medir_traslado(
+        origen: disponibilidad.Reserva, destino: disponibilidad.Reserva
+    ) -> int | None:
+        return rutas.get((origen, destino))
+
+    return disponibilidad.evaluar_disponibilidad(
+        candidate,
+        reservas,
+        travel_minutes=medir_traslado,
+        margen_min=margen_min,
+    )
+
+
+def availability_warnings(evaluation: disponibilidad.Evaluacion) -> list[str]:
+    warnings = [
+        f"El horario coincide con la solicitud {conflict.referencia} aún pendiente."
+        for conflict in evaluation.advertencias
+        if conflict.tipo == "reserva"
+    ]
+    if evaluation.requiere_advertencia_traslado:
+        warnings.append(
+            "No se pudo verificar el tiempo de traslado; la confirmación no lo considera como cero."
+        )
+    return list(dict.fromkeys(warnings))
+
+
+def lock_agenda_resources(
+    db: Session,
+    chofer_id: int | None,
+    vehiculo_id: int | None,
+    *,
+    previous_chofer_id: int | None = None,
+    previous_vehiculo_id: int | None = None,
+) -> None:
+    """Serializa confirmaciones que comparten chofer o vehículo."""
+    choferes = sorted({id_ for id_ in (chofer_id, previous_chofer_id) if id_ is not None})
+    vehiculos = sorted({id_ for id_ in (vehiculo_id, previous_vehiculo_id) if id_ is not None})
+    if choferes:
+        db.execute(
+            select(Usuario.id)
+            .where(Usuario.id.in_(choferes))
+            .order_by(Usuario.id)
+            .with_for_update()
+        ).all()
+    if vehiculos:
+        db.execute(
+            select(Vehiculo.id)
+            .where(Vehiculo.id.in_(vehiculos))
+            .order_by(Vehiculo.id)
+            .with_for_update()
+        ).all()
+
+
+def blocking_reason(
+    db: Session, solicitud: Solicitud
+) -> str | None:
     """Motivo por el que un viaje listo no puede confirmarse, o None si puede.
 
     Solo tiene sentido para viajes que cumplen `pending_confirmation`; el resto
@@ -195,20 +394,9 @@ def blocking_reason(db: Session, solicitud: Solicitud) -> str | None:
     if not pending_confirmation(solicitud):
         return None
 
-    choque_chofer = driver_conflicts(
-        db,
-        solicitud.chofer_id,
-        solicitud.fecha,
-        solicitud.hora_desde,
-        solicitud.hora_hasta,
-        exclude_id=solicitud.id,
-    )
-    if choque_chofer:
-        otro = choque_chofer[0]
-        return (
-            "No se pudo confirmar automáticamente: el chofer ya tiene el viaje "
-            f"{otro.codigo} ({_franja(otro)})."
-        )
+    error_chofer = driver_confirmation_error(db, solicitud.chofer_id)
+    if error_chofer:
+        return error_chofer
 
     vehiculo = db.get(Vehiculo, solicitud.vehiculo_id)
     if vehiculo is None:
@@ -216,22 +404,46 @@ def blocking_reason(db: Session, solicitud: Solicitud) -> str | None:
     if not vehicle_is_assignable(db, vehiculo):
         return "No se pudo confirmar automáticamente: el vehículo asignado no está operativo."
 
-    choque_vehiculo = vehicle_conflicts(
+    evaluation = evaluar_agenda(
         db,
-        solicitud.vehiculo_id,
-        solicitud.fecha,
-        solicitud.hora_desde,
-        solicitud.hora_hasta,
-        exclude_id=solicitud.id,
+        solicitud,
+        chofer_id=solicitud.chofer_id,
+        vehiculo_id=solicitud.vehiculo_id,
+        fecha=solicitud.fecha,
+        desde=solicitud.hora_desde,
+        hasta=solicitud.hora_hasta,
+        descarga_min=solicitud.descarga_min,
     )
-    if choque_vehiculo:
-        otro = choque_vehiculo[0]
-        return (
-            "No se pudo confirmar automáticamente: el vehículo ya tiene el viaje "
-            f"{otro.codigo} ({_franja(otro)})."
-        )
+    if evaluation.bloquea:
+        return format_blocking_conflict(evaluation.bloqueos[0])
 
     return None
+
+
+def driver_confirmation_error(db: Session, driver_id: int | None) -> str | None:
+    if driver_id is None:
+        return "Asigná un chofer antes de confirmar el viaje."
+    driver = db.execute(
+        select(Usuario.rol, Usuario.activo)
+        .where(Usuario.id == driver_id)
+        .with_for_update()
+    ).one_or_none()
+    if driver is None or driver.rol != "chofer":
+        return "El chofer asignado no existe."
+    if not driver.activo:
+        return "No se puede confirmar: el chofer asignado está inactivo."
+    return None
+
+
+def format_blocking_conflict(conflict: disponibilidad.Conflicto) -> str:
+    resource = "chofer" if conflict.recurso == "chofer" else "vehículo"
+    cause = "el horario se solapa o no deja margen suficiente"
+    if conflict.tipo == "traslado":
+        cause = f"faltan {conflict.minutos_faltantes} minutos para el traslado y margen"
+    return (
+        f"No se puede confirmar el viaje: {resource} {cause} "
+        f"con el viaje {conflict.referencia}."
+    )
 
 
 def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
@@ -242,11 +454,12 @@ def confirm_if_ready(db: Session, solicitud: Solicitud) -> str | None:
     conflicto: la operación que la dispara (registrar el pago, guardar el plan)
     ya está hecha y tiene que sobrevivir al bloqueo.
     """
-    motivo = blocking_reason(db, solicitud)
-    if motivo is not None:
-        return motivo
     if not pending_confirmation(solicitud):
         return None
 
+    lock_agenda_resources(db, solicitud.chofer_id, solicitud.vehiculo_id)
+    motivo = blocking_reason(db, solicitud)
+    if motivo is not None:
+        return motivo
     solicitud.estado = "confirmada"
     return None

@@ -122,6 +122,26 @@ class Vehiculo(Base):
     )
 
 
+class ConfiguracionSistema(Base):
+    __tablename__ = "configuracion_sistema"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    margen_operativo_min: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    margen_ganancia_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_configuracion_sistema_singleton"),
+        CheckConstraint(
+            "margen_operativo_min BETWEEN 30 AND 1440",
+            name="ck_configuracion_sistema_margen_operativo",
+        ),
+        CheckConstraint(
+            "margen_ganancia_pct BETWEEN 0 AND 500",
+            name="ck_configuracion_sistema_margen_ganancia",
+        ),
+    )
+
+
 class Solicitud(Base):
     __tablename__ = "solicitudes"
 
@@ -134,7 +154,10 @@ class Solicitud(Base):
     estado: Mapped[str] = mapped_column(Text, nullable=False, default="pendiente")
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     hora_desde: Mapped[time] = mapped_column(Time, nullable=False)
-    hora_hasta: Mapped[time] = mapped_column(Time, nullable=False)
+    hora_hasta: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    hora_hasta_confirmado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     origen_direccion: Mapped[str] = mapped_column(Text, nullable=False)
     origen_barrio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -170,6 +193,14 @@ class Solicitud(Base):
     duracion_ida_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     duracion_vuelta_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     espera_min: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
+    carga_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    descarga_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    carga_min_confirmado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    descarga_min_confirmado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     horas_estimadas: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     # Tarifas del chofer al momento de cotizar: si manana cambia su tarifa, el
     # viaje conserva el numero con el que se le pago.
@@ -226,7 +257,10 @@ class Solicitud(Base):
 
     __table_args__ = (
         CheckConstraint(_in_list("estado", SOLICITUD_ESTADOS), name="ck_solicitudes_estado"),
-        CheckConstraint("hora_hasta > hora_desde", name="ck_solicitudes_ventana"),
+        CheckConstraint(
+            "hora_hasta IS NULL OR hora_hasta > hora_desde",
+            name="ck_solicitudes_ventana",
+        ),
         CheckConstraint(
             "length(btrim(origen_direccion)) > 0 AND length(btrim(destino_direccion)) > 0",
             name="ck_solicitudes_direcciones",
@@ -235,6 +269,22 @@ class Solicitud(Base):
         CheckConstraint("km_vuelta IS NULL OR km_vuelta >= 0", name="ck_solicitudes_km_vuelta"),
         CheckConstraint("km_total IS NULL OR km_total >= 0", name="ck_solicitudes_km_total"),
         CheckConstraint("espera_min >= 0 AND espera_min <= 1440", name="ck_solicitudes_espera"),
+        CheckConstraint(
+            "carga_min IS NULL OR carga_min BETWEEN 0 AND 1440",
+            name="ck_solicitudes_carga",
+        ),
+        CheckConstraint(
+            "descarga_min IS NULL OR descarga_min BETWEEN 0 AND 1440",
+            name="ck_solicitudes_descarga",
+        ),
+        CheckConstraint(
+            "NOT carga_min_confirmado OR carga_min IS NOT NULL",
+            name="ck_solicitudes_carga_confirmada",
+        ),
+        CheckConstraint(
+            "NOT descarga_min_confirmado OR descarga_min IS NOT NULL",
+            name="ck_solicitudes_descarga_confirmada",
+        ),
         CheckConstraint(
             "(duracion_ida_min IS NULL OR duracion_ida_min >= 0)"
             " AND (duracion_vuelta_min IS NULL OR duracion_vuelta_min >= 0)",
@@ -268,6 +318,12 @@ class Solicitud(Base):
         CheckConstraint(
             "estado NOT IN ('confirmada', 'finalizada') OR (chofer_id IS NOT NULL AND vehiculo_id IS NOT NULL)",
             name="ck_solicitudes_con_chofer_y_vehiculo",
+        ),
+        CheckConstraint(
+            "estado NOT IN ('confirmada', 'finalizada') OR "
+            "(hora_hasta IS NOT NULL AND hora_hasta_confirmado "
+            "AND carga_min_confirmado AND descarga_min_confirmado)",
+            name="ck_solicitudes_planificacion_completa",
         ),
         CheckConstraint(
             "(estado = 'finalizada') = (finalizada_en IS NOT NULL)",

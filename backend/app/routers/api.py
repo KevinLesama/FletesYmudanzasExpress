@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -13,8 +14,10 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import get_settings
 from app.core.security import CurrentUser, get_current_user, require_role
 from app.db.session import get_db
-from app.models import ItemCarga, Pago, Solicitud, Usuario, Vehiculo
+from app.models import ConfiguracionSistema, ItemCarga, Pago, Solicitud, Usuario, Vehiculo
 from app.schemas import (
+    AvailabilityOptionOut,
+    AvailabilityOptionsOut,
     AvailabilityOut,
     ChoferIn,
     ChoferOut,
@@ -41,11 +44,16 @@ from app.schemas import (
     VehiculoOut,
     VehiculoUpdate,
     ClientLoginIn,
+    ConfiguracionSistemaIn,
+    ConfiguracionSistemaOut,
 )
 from app.services import business, pricing, serializers
 from app.services.supabase_admin import SupabaseAdminError, delete_user, invite_user
 from app.services.scraping import get_geo_service
+from app.services.scraping.service import scheduled_departure
 from app.services.scraping.schemas import GeoStatus
+
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
 # Health
@@ -131,7 +139,13 @@ def route_estimate(payload: RutaIn) -> RutaOut:
     origin = (payload.origen.lat, payload.origen.lng)
     destination = (payload.destino.lat, payload.destino.lng)
     service = get_geo_service()
-    estimate = _geo_result_http(service.route(origin, destination))
+    estimate = _geo_result_http(
+        service.route(
+            origin,
+            destination,
+            scheduled_departure(payload.fecha, payload.hora_desde),
+        )
+    )
     provider = next((item for item in service.providers if item.name == estimate.provider), None)
     geometry = provider.route_geometry(origin, destination) if provider else None
     ida = pricing.ceil_km(estimate.distance_km)
@@ -141,6 +155,7 @@ def route_estimate(payload: RutaIn) -> RutaOut:
         km_total=float(ida * 2),
         duracion_ida_min=estimate.duration_min,
         duracion_vuelta_min=estimate.duration_min,
+        provider=estimate.provider,
         geometry=geometry,
     )
 
@@ -148,6 +163,42 @@ def route_estimate(payload: RutaIn) -> RutaOut:
 # --------------------------------------------------------------------------- #
 # Cotizacion
 # --------------------------------------------------------------------------- #
+def _get_system_settings(db: Session) -> ConfiguracionSistema:
+    return db.get(ConfiguracionSistema, 1) or ConfiguracionSistema(
+        id=1,
+        margen_operativo_min=30,
+        margen_ganancia_pct=50,
+    )
+
+
+system_settings_router = APIRouter(
+    prefix="/settings/system",
+    tags=["settings"],
+    dependencies=[Depends(require_role("administrador"))],
+)
+
+
+@system_settings_router.get("", response_model=ConfiguracionSistemaOut)
+def get_system_settings(db: Session = Depends(get_db)) -> ConfiguracionSistema:
+    return _get_system_settings(db)
+
+
+@system_settings_router.put("", response_model=ConfiguracionSistemaOut)
+def update_system_settings(
+    payload: ConfiguracionSistemaIn, db: Session = Depends(get_db)
+) -> ConfiguracionSistema:
+    config = db.get(ConfiguracionSistema, 1)
+    if config is None:
+        config = ConfiguracionSistema(id=1, **payload.model_dump())
+        db.add(config)
+    else:
+        for field, value in payload.model_dump().items():
+            setattr(config, field, value)
+    db.commit()
+    db.refresh(config)
+    return config
+
+
 def _quote_out(quote: pricing.Quote) -> CotizacionOut:
     return CotizacionOut(
         km_ida=float(quote.km_ida),
@@ -155,7 +206,8 @@ def _quote_out(quote: pricing.Quote) -> CotizacionOut:
         km_total=float(quote.km_total),
         duracion_ida_min=quote.duracion_ida_min,
         duracion_vuelta_min=quote.duracion_vuelta_min,
-        espera_min=quote.espera_min,
+        espera_min=quote.carga_min,
+        carga_min=quote.carga_min,
         horas_totales=float(quote.horas_totales),
         tarifa_base=float(quote.tarifa_base),
         tarifa_por_km=float(quote.tarifa_por_km),
@@ -176,22 +228,25 @@ pricing_router = APIRouter(
 
 
 @pricing_router.post("/preview", response_model=CotizacionOut)
-def pricing_preview(payload: CotizacionPreviewIn) -> CotizacionOut:
+def pricing_preview(
+    payload: CotizacionPreviewIn, db: Session = Depends(get_db)
+) -> CotizacionOut:
     """Vista previa con tarifas sin guardar (pantalla de configuracion)."""
-    settings = get_settings()
-    espera = (
-        payload.espera_min
+    carga_min = (
+        payload.carga_min
+        if payload.carga_min is not None
+        else payload.espera_min
         if payload.espera_min is not None
-        else settings.default_wait_minutes
+        else 60
     )
     quote = pricing.compute_quote(
         km_ida=payload.km_ida,
         duracion_ida_min=payload.duracion_ida_min,
-        espera_min=espera,
+        carga_min=carga_min,
         tarifa_base=payload.tarifa_base,
         tarifa_por_km=payload.tarifa_por_km,
         tarifa_por_hora=payload.tarifa_por_hora,
-        margen=settings.pricing_margin,
+        margen=1 + _get_system_settings(db).margen_ganancia_pct / 100,
     )
     return _quote_out(quote)
 
@@ -543,23 +598,26 @@ def _resolver_lugar(lugar: LugarIn) -> tuple[str, str | None, str | None, float 
 
 
 def _cotizacion_para(
-    request: Solicitud, driver: Usuario, espera_min: int | None = None
+    request: Solicitud,
+    driver: Usuario,
+    db: Session,
+    carga_min: int | None = None,
 ) -> pricing.Quote:
     if request.km_estimados is None:
         raise HTTPException(
             status_code=409,
             detail="La solicitud no tiene distancia calculada. Cargá origen y destino con geolocalización.",
         )
-    settings = get_settings()
+    system_settings = _get_system_settings(db)
     return pricing.compute_quote(
         km_ida=request.km_estimados,
         duracion_ida_min=request.duracion_ida_min,
         duracion_vuelta_min=request.duracion_vuelta_min,
-        espera_min=request.espera_min if espera_min is None else espera_min,
+        carga_min=(request.carga_min if carga_min is None else carga_min) or 0,
         tarifa_base=driver.tarifa_base,
         tarifa_por_km=driver.tarifa_por_km,
         tarifa_por_hora=driver.tarifa_por_hora,
-        margen=settings.pricing_margin,
+        margen=1 + system_settings.margen_ganancia_pct / 100,
     )
 
 
@@ -570,7 +628,6 @@ def _guardar_cotizacion(request: Solicitud, quote: pricing.Quote) -> None:
     request.km_total = float(quote.km_total)
     request.duracion_ida_min = quote.duracion_ida_min
     request.duracion_vuelta_min = quote.duracion_vuelta_min
-    request.espera_min = quote.espera_min
     horas = quote.horas_totales
     request.horas_estimadas = float(horas) if horas > 0 else None
     request.tarifa_base_aplicada = float(quote.tarifa_base)
@@ -655,6 +712,7 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
         if payload.espera_min is not None
         else settings.default_wait_minutes
     )
+    carga_min = payload.carga_min
 
     origen = _resolver_lugar(payload.origen)
     destino = _resolver_lugar(payload.destino)
@@ -670,10 +728,13 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
     duracion_ida_min = None
     duracion_vuelta_min = None
     horas_estimadas = payload.horas_estimadas
+    hora_hasta = payload.hora_hasta
 
     if all(v is not None for v in (origen_lat, origen_lng, destino_lat, destino_lng)):
         result = get_geo_service().route(
-            (origen_lat, origen_lng), (destino_lat, destino_lng)
+            (origen_lat, origen_lng),
+            (destino_lat, destino_lng),
+            scheduled_departure(payload.fecha, payload.hora_desde),
         )
         if result.status != GeoStatus.OK:
             estimacion = None
@@ -688,8 +749,23 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
             km_total = float(ida * 2)
             duracion_ida_min = estimacion.duration_min
             duracion_vuelta_min = estimacion.duration_min
-            horas = pricing.total_hours(duracion_ida_min, duracion_vuelta_min, espera_min)
+            if carga_min is not None:
+                try:
+                    hora_hasta = business.hora_llegada_estimada(
+                        payload.hora_desde, carga_min, duracion_ida_min
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+            horas = pricing.total_hours(
+                duracion_ida_min, duracion_vuelta_min, carga_min or 0
+            )
             horas_estimadas = float(horas) if horas > 0 else None
+
+    if hora_hasta is not None and hora_hasta <= payload.hora_desde:
+        raise HTTPException(
+            status_code=422,
+            detail="La llegada estimada debe ser posterior al horario de inicio.",
+        )
 
     solicitud = Solicitud(
         cliente_id=cliente.id if cliente else None,
@@ -699,7 +775,13 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
         estado="pendiente",
         fecha=payload.fecha,
         hora_desde=payload.hora_desde,
-        hora_hasta=payload.hora_hasta,
+        hora_hasta=hora_hasta,
+        hora_hasta_confirmado=(
+            require_client
+            and hora_hasta is not None
+            and payload.carga_min is not None
+            and payload.descarga_min is not None
+        ),
         origen_direccion=origen_dir,
         origen_barrio=origen_barrio,
         origen_piso=payload.origen.piso,
@@ -722,6 +804,10 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
         duracion_ida_min=duracion_ida_min,
         duracion_vuelta_min=duracion_vuelta_min,
         espera_min=espera_min,
+        carga_min=carga_min,
+        descarga_min=payload.descarga_min,
+        carga_min_confirmado=require_client and payload.carga_min is not None,
+        descarga_min_confirmado=require_client and payload.descarga_min is not None,
         horas_estimadas=horas_estimadas,
         precio_calculado=payload.precio_calculado,
         precio_final=payload.precio_final,
@@ -750,13 +836,21 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
 def quote_request(
     request_ref: str,
     driver_id: int = Query(...),
+    carga_min: int | None = Query(default=None, ge=0, le=1440),
     espera_min: int | None = Query(default=None, ge=0, le=1440),
     db: Session = Depends(get_db),
 ) -> CotizacionOut:
     """Cotizacion del viaje con las tarifas vigentes del chofer."""
     request = _get_request_or_404(db, request_ref)
     driver = _get_driver_or_404(db, driver_id)
-    return _quote_out(_cotizacion_para(request, driver, espera_min))
+    return _quote_out(
+        _cotizacion_para(
+            request,
+            driver,
+            db,
+            carga_min if carga_min is not None else espera_min,
+        )
+    )
 
 
 @requests_router.get("/{request_ref}")
@@ -770,6 +864,56 @@ def get_request(
         request.chofer_id != user["usuario_id"] or request.estado != "confirmada"
     ):
         raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
+    return serializers.serialize_solicitud(request)
+
+
+@requests_router.post(
+    "/{request_ref}/route-estimate",
+    dependencies=[Depends(require_role("administrador"))],
+)
+def estimate_request_route(
+    request_ref: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    request = _get_request_or_404(db, request_ref)
+    if request.duracion_ida_min is not None:
+        return serializers.serialize_solicitud(request)
+    coordinates = (
+        request.origen_lat,
+        request.origen_lng,
+        request.destino_lat,
+        request.destino_lng,
+    )
+    if any(value is None for value in coordinates):
+        raise HTTPException(
+            status_code=409,
+            detail="La solicitud no tiene coordenadas para calcular el recorrido.",
+        )
+
+    route = get_geo_service().route(
+        (request.origen_lat, request.origen_lng),
+        (request.destino_lat, request.destino_lng),
+        scheduled_departure(request.fecha, request.hora_desde),
+    )
+    if route.status != GeoStatus.OK or route.value is None:
+        raise HTTPException(
+            status_code=503,
+            detail=route.message or "No se pudo calcular la ruta con los proveedores disponibles.",
+        )
+
+    request.km_estimados = float(route.value.distance_km)
+    request.km_vuelta = float(route.value.distance_km)
+    request.km_total = float(route.value.distance_km * 2)
+    request.duracion_ida_min = int(route.value.duration_min)
+    request.duracion_vuelta_min = int(route.value.duration_min)
+    horas = pricing.total_hours(
+        request.duracion_ida_min,
+        request.duracion_vuelta_min,
+        request.carga_min or 0,
+    )
+    request.horas_estimadas = float(horas) if horas > 0 else None
+    db.commit()
+    db.refresh(request)
     return serializers.serialize_solicitud(request)
 
 
@@ -827,7 +971,7 @@ def finish_request(
     return serializers.serialize_solicitud(request)
 
 
-def _auto_confirm(db: Session, request: Solicitud) -> str | None:
+def _auto_confirm(db: Session, request: Solicitud) -> tuple[str | None, list[str]]:
     """Intenta confirmar el viaje sin tumbar la operación que lo disparó.
 
     El pago o la planificación ya se guardaron en una transacción anterior. Si
@@ -836,13 +980,30 @@ def _auto_confirm(db: Session, request: Solicitud) -> str | None:
     """
     try:
         motivo = business.confirm_if_ready(db, request)
+        warnings = (
+            business.availability_warnings(
+                business.evaluar_agenda(
+                    db,
+                    request,
+                    chofer_id=request.chofer_id,
+                    vehiculo_id=request.vehiculo_id,
+                    fecha=request.fecha,
+                    desde=request.hora_desde,
+                    hasta=request.hora_hasta,
+                    descarga_min=request.descarga_min,
+                )
+            )
+            if request.estado == "confirmada"
+            else []
+        )
         db.commit()
-        return motivo
+        return motivo, warnings
     except IntegrityError:
         db.rollback()
         return (
             "No se pudo confirmar automáticamente: el horario ya fue tomado "
-            "por otro viaje."
+            "por otro viaje.",
+            [],
         )
 
 
@@ -867,17 +1028,100 @@ def update_request(
     new_fecha = data.get("fecha", request.fecha)
     new_desde = data.get("hora_desde", request.hora_desde)
     new_hasta = data.get("hora_hasta", request.hora_hasta)
+    new_carga = data.get("carga_min", request.carga_min)
+    new_descarga = data.get("descarga_min", request.descarga_min)
+    new_carga_confirmado = (
+        new_carga is not None
+        if "carga_min" in data
+        else request.carga_min_confirmado
+    )
+    new_descarga_confirmado = (
+        new_descarga is not None
+        if "descarga_min" in data
+        else request.descarga_min_confirmado
+    )
+    new_hasta_confirmado = (
+        data["hora_hasta"] is not None
+        if "hora_hasta" in data
+        else request.hora_hasta_confirmado
+    )
     driver_changed = "chofer_id" in data and data["chofer_id"] != request.chofer_id
-    wait_changed = "espera_min" in data and data["espera_min"] != request.espera_min
+    carga_changed = "carga_min" in data and data["carga_min"] != request.carga_min
+    if (
+        request.duracion_ida_min is not None
+        and "hora_hasta" not in data
+        and ("hora_desde" in data or "carga_min" in data)
+    ):
+        if new_carga is None or not new_carga_confirmado:
+            new_hasta = None
+            data["hora_hasta"] = None
+            new_hasta_confirmado = False
+        elif new_desde is not None:
+            try:
+                new_hasta = business.hora_llegada_estimada(
+                    new_desde, new_carga, request.duracion_ida_min
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            data["hora_hasta"] = new_hasta
+            new_hasta_confirmado = True
+    schedule_changed = any(
+        field in data
+        for field in (
+            "chofer_id",
+            "vehiculo_id",
+            "fecha",
+            "hora_desde",
+            "hora_hasta",
+            "carga_min",
+            "descarga_min",
+        )
+    )
+    validate_schedule = new_estado == "confirmada" or (
+        request.estado == "confirmada" and new_estado is None and schedule_changed
+    )
+    schedule_window_valid = bool(
+        new_fecha
+        and new_desde
+        and new_hasta
+        and new_descarga is not None
+        and new_hasta > new_desde
+    )
+    check_schedule = validate_schedule or (schedule_changed and schedule_window_valid)
+    evaluation = None
 
+    if new_estado == "confirmada" and not business.sena_completa(
+        request, precio_final=data.get("precio_final", request.precio_final)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Para confirmar el viaje se requiere registrar la seña completa.",
+        )
     if new_estado == "confirmada":
+        driver_error = business.driver_confirmation_error(db, new_chofer)
+        if driver_error:
+            raise HTTPException(status_code=409, detail=driver_error)
+
+    if validate_schedule:
         if not new_chofer or not new_vehiculo:
             raise HTTPException(
                 status_code=409, detail="Para confirmar el viaje se requiere chofer y vehículo."
             )
-        if business.driver_conflicts(db, new_chofer, new_fecha, new_desde, new_hasta, exclude_id=request.id):
+        if (
+            new_carga is None
+            or new_descarga is None
+            or not new_carga_confirmado
+            or not new_descarga_confirmado
+            or not new_hasta_confirmado
+        ):
             raise HTTPException(
-                status_code=409, detail="El chofer ya tiene un viaje confirmado en ese horario."
+                status_code=409,
+                detail="Para confirmar el viaje se requieren los tiempos de carga y descarga definidos.",
+            )
+        if not new_fecha or not new_desde or not new_hasta or new_hasta <= new_desde:
+            raise HTTPException(
+                status_code=422,
+                detail="La fecha y la franja de llegada deben ser válidas.",
             )
         vehicle = db.get(Vehiculo, new_vehiculo)
         if vehicle is None:
@@ -886,22 +1130,49 @@ def update_request(
             raise HTTPException(
                 status_code=409, detail="El vehículo no está operativo."
             )
-        if business.vehicle_conflicts(db, new_vehiculo, new_fecha, new_desde, new_hasta, exclude_id=request.id):
+
+    if check_schedule:
+        business.lock_agenda_resources(
+            db,
+            new_chofer,
+            new_vehiculo,
+            previous_chofer_id=request.chofer_id,
+            previous_vehiculo_id=request.vehiculo_id,
+        )
+        evaluation = business.evaluar_agenda(
+            db,
+            request,
+            chofer_id=new_chofer,
+            vehiculo_id=new_vehiculo,
+            fecha=new_fecha,
+            desde=new_desde,
+            hasta=new_hasta,
+            descarga_min=new_descarga,
+        )
+        if evaluation.bloquea:
             raise HTTPException(
-                status_code=409, detail="El vehículo ya tiene un viaje confirmado en ese horario."
+                status_code=409,
+                detail=business.format_blocking_conflict(evaluation.bloqueos[0]),
             )
+
+    if "carga_min" in data:
+        data["carga_min_confirmado"] = new_carga_confirmado
+    if "descarga_min" in data:
+        data["descarga_min_confirmado"] = new_descarga_confirmado
+    if "hora_hasta" in data or new_hasta_confirmado != request.hora_hasta_confirmado:
+        data["hora_hasta_confirmado"] = new_hasta_confirmado
 
     for field, value in data.items():
         setattr(request, field, value)
 
-    # La cotizacion se guarda al planificar o al cambiar el chofer/espera. Una
+    # La cotizacion se guarda al planificar o al cambiar el chofer/carga. Una
     # vez confirmado, el viaje conserva el snapshot historico de tarifas.
     driver = db.get(Usuario, request.chofer_id) if request.chofer_id else None
     preserve_snapshot = (
         request.estado in ("confirmada", "finalizada")
         and not recotizar
         and not driver_changed
-        and not wait_changed
+        and not carga_changed
         and request.tarifa_base_aplicada is not None
     )
     if (
@@ -910,7 +1181,7 @@ def update_request(
         and request.km_estimados is not None
         and not preserve_snapshot
     ):
-        quote = _cotizacion_para(request, driver)
+        quote = _cotizacion_para(request, driver, db)
         _guardar_cotizacion(request, quote)
         sugerido = float(quote.precio_sugerido)
         if recotizar or (not precio_enviado and request.precio_modificado_por is None):
@@ -937,11 +1208,16 @@ def update_request(
         raise HTTPException(status_code=409, detail="Conflicto de integridad.") from exc
 
     # Con chofer, rodado y seña completa el viaje se confirma solo.
-    auto_confirm_error = _auto_confirm(db, request)
+    auto_confirm_error, auto_confirm_warnings = _auto_confirm(db, request)
     db.refresh(request)
     return {
         **serializers.serialize_solicitud(request),
         "auto_confirm_error": auto_confirm_error,
+        "availability_warnings": (
+            business.availability_warnings(evaluation)
+            if evaluation is not None
+            else auto_confirm_warnings
+        ),
     }
 
 
@@ -1006,11 +1282,12 @@ def add_payment(
     # La seña queda registrada aunque la confirmación automática se bloquee:
     # rechazar el cobro por un problema de agenda castigaría al cliente.
     request = _get_request_or_404(db, request_ref)
-    auto_confirm_error = _auto_confirm(db, request)
+    auto_confirm_error, availability_warnings = _auto_confirm(db, request)
     request = _get_request_or_404(db, request_ref)
     return {
         **serializers.serialize_solicitud(request),
         "auto_confirm_error": auto_confirm_error,
+        "availability_warnings": availability_warnings,
     }
 
 
@@ -1082,34 +1359,207 @@ def availability(
     vehiculo_id: int | None = Query(default=None),
     hora_desde: time = Query(...),
     hora_hasta: time = Query(...),
+    descarga_min: int = Query(..., ge=0, le=1440),
     exclude: str | None = Query(default=None),
 ) -> AvailabilityOut:
-    conflicts: list[str] = []
-    driver_ok = True
-    vehicle_ok = True
+    if hora_hasta <= hora_desde:
+        raise HTTPException(status_code=422, detail="La hora de llegada debe ser posterior al inicio.")
     exclude_id = _resolve_request_id(db, exclude)
+    excluded = db.get(Solicitud, exclude_id) if exclude_id is not None else None
+    candidate = excluded or Solicitud(
+        id=-1,
+        codigo="DISPONIBILIDAD",
+        estado="pendiente",
+        fecha=fecha,
+        hora_desde=hora_desde,
+        hora_hasta=hora_hasta,
+        chofer_id=chofer_id,
+        vehiculo_id=vehiculo_id,
+        descarga_min=descarga_min,
+    )
+    evaluation = business.evaluar_agenda(
+        db,
+        candidate,
+        chofer_id=chofer_id,
+        vehiculo_id=vehiculo_id,
+        fecha=fecha,
+        desde=hora_desde,
+        hasta=hora_hasta,
+        descarga_min=descarga_min,
+    )
+    driver_ok = not any(c.recurso == "chofer" for c in evaluation.bloqueos)
+    vehicle_ok = not any(c.recurso == "vehiculo" for c in evaluation.bloqueos)
+    conflicts = [
+        business.format_blocking_conflict(conflict)
+        for conflict in evaluation.bloqueos
+    ]
+    warnings = business.availability_warnings(evaluation)
 
-    if chofer_id:
-        drive_conf = business.driver_conflicts(
-            db, chofer_id, fecha, hora_desde, hora_hasta, exclude_id=exclude_id
-        )
-        if drive_conf:
-            driver_ok = False
-            conflicts.extend(f"Chofer ocupado en {r.codigo}" for r in drive_conf)
-
-    if vehiculo_id:
-        vehicle = db.get(Vehiculo, vehiculo_id)
-        if vehicle and not business.vehicle_is_assignable(db, vehicle):
-            vehicle_ok = False
-            conflicts.append(f"{vehiculo_id} no está operativo")
-        else:
-            veh_conf = business.vehicle_conflicts(
-                db, vehiculo_id, fecha, hora_desde, hora_hasta, exclude_id=exclude_id
-            )
-            if veh_conf:
-                vehicle_ok = False
-                conflicts.extend(f"Vehículo ocupado en {r.codigo}" for r in veh_conf)
+    vehicle = db.get(Vehiculo, vehiculo_id) if vehiculo_id is not None else None
+    if vehicle is not None and not business.vehicle_is_assignable(db, vehicle):
+        vehicle_ok = False
+        conflicts.append("El vehículo seleccionado no está operativo.")
 
     return AvailabilityOut(
-        driver_available=driver_ok, vehicle_available=vehicle_ok, conflicts=conflicts
+        driver_available=driver_ok,
+        vehicle_available=vehicle_ok,
+        conflicts=conflicts,
+        warnings=warnings,
+        travel_verified=evaluation.traslado_verificado,
+    )
+
+
+@availability_router.get(
+    "/availability/options", response_model=AvailabilityOptionsOut
+)
+def availability_options(
+    db: Session = Depends(get_db),
+    fecha: date = Query(...),
+    hora_desde: time = Query(...),
+    hora_hasta: time | None = Query(default=None),
+    carga_min: int | None = Query(default=None, ge=0, le=1440),
+    descarga_min: int | None = Query(default=None, ge=0, le=1440),
+    exclude: str | None = Query(default=None),
+) -> AvailabilityOptionsOut:
+    """Evalúa opciones firmes y asignaciones tentativas para ambos selectores."""
+    schedule_verified = (
+        hora_hasta is not None
+        and hora_hasta > hora_desde
+        and carga_min is not None
+        and descarga_min is not None
+    )
+    exclude_id = _resolve_request_id(db, exclude)
+    excluded = db.get(Solicitud, exclude_id) if exclude_id is not None else None
+    driver_ids = db.scalars(
+        select(Usuario.id).where(Usuario.rol == "chofer", Usuario.activo.is_(True))
+    ).all()
+    vehicles = db.scalars(
+        select(Vehiculo).where(
+            Vehiculo.activo.is_(True),
+            Vehiculo.estado.not_in(("en_taller", "fuera_de_servicio")),
+        )
+    ).all()
+    vehicle_ids = [vehicle.id for vehicle in vehicles]
+
+    condiciones = []
+    if driver_ids:
+        condiciones.append(Solicitud.chofer_id.in_(driver_ids))
+    if vehicle_ids:
+        condiciones.append(Solicitud.vehiculo_id.in_(vehicle_ids))
+    assignments = (
+        db.scalars(
+            select(Solicitud)
+            .options(selectinload(Solicitud.pagos))
+            .where(
+                Solicitud.estado == "pendiente",
+                Solicitud.fecha == fecha,
+                Solicitud.id != (exclude_id or -1),
+                or_(*condiciones),
+            )
+        ).all()
+        if condiciones
+        else []
+    )
+    provisional = [
+        business.disponibilidad.AsignacionProvisional(
+            referencia=row.codigo,
+            estado_visible=(
+                "Pendiente de seña"
+                if business.derive_estado(row) == "pendiente_sena"
+                else "Pendiente de revisión"
+            ),
+            fecha=row.fecha,
+            desde=row.hora_desde,
+            hasta=row.hora_hasta,
+            descarga_min=row.descarga_min,
+            hora_hasta_confirmada=row.hora_hasta_confirmado,
+            carga_confirmada=row.carga_min_confirmado,
+            descarga_confirmada=row.descarga_min_confirmado,
+            chofer_id=row.chofer_id,
+            vehiculo_id=row.vehiculo_id,
+        )
+        for row in assignments
+    ]
+    warnings = (
+        business.disponibilidad.advertencias_asignaciones_provisionales(
+            fecha=fecha,
+            desde=hora_desde,
+            hasta=hora_hasta,
+            descarga_min=descarga_min,
+            carga_confirmada=carga_min is not None,
+            descarga_confirmada=descarga_min is not None,
+            asignaciones=provisional,
+        )
+        if schedule_verified
+        else {}
+    )
+
+    driver_options = []
+    vehicle_options = []
+    if schedule_verified:
+        candidate = excluded or Solicitud(
+            id=-1,
+            codigo="DISPONIBILIDAD",
+            estado="pendiente",
+            fecha=fecha,
+            hora_desde=hora_desde,
+            hora_hasta=hora_hasta,
+            descarga_min=descarga_min,
+        )
+        for driver_id in driver_ids:
+            evaluation = business.evaluar_agenda(
+                db,
+                candidate,
+                chofer_id=driver_id,
+                vehiculo_id=None,
+                fecha=fecha,
+                desde=hora_desde,
+                hasta=hora_hasta,
+                descarga_min=descarga_min,
+            )
+            driver_options.append(
+                AvailabilityOptionOut(
+                    resource_id=driver_id,
+                    blocked=any(c.recurso == "chofer" for c in evaluation.bloqueos),
+                    verified=evaluation.traslado_verificado,
+                    warnings=list(warnings.get(("chofer", driver_id), ())),
+                )
+            )
+        for vehicle_id in vehicle_ids:
+            evaluation = business.evaluar_agenda(
+                db,
+                candidate,
+                chofer_id=None,
+                vehiculo_id=vehicle_id,
+                fecha=fecha,
+                desde=hora_desde,
+                hasta=hora_hasta,
+                descarga_min=descarga_min,
+            )
+            vehicle_options.append(
+                AvailabilityOptionOut(
+                    resource_id=vehicle_id,
+                    blocked=any(c.recurso == "vehiculo" for c in evaluation.bloqueos),
+                    verified=evaluation.traslado_verificado,
+                    warnings=list(warnings.get(("vehiculo", vehicle_id), ())),
+                )
+            )
+    else:
+        driver_options = [
+            AvailabilityOptionOut(
+                resource_id=driver_id,
+            )
+            for driver_id in driver_ids
+        ]
+        vehicle_options = [
+            AvailabilityOptionOut(
+                resource_id=vehicle_id,
+            )
+            for vehicle_id in vehicle_ids
+        ]
+
+    return AvailabilityOptionsOut(
+        schedule_verified=schedule_verified,
+        drivers=driver_options,
+        vehicles=vehicle_options,
     )

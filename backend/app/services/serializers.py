@@ -113,7 +113,12 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "bloqueo_confirmacion": _bloqueo_confirmacion(solicitud),
         "fecha": solicitud.fecha.isoformat() if hasattr(solicitud.fecha, "isoformat") else solicitud.fecha,
         "hora_desde": solicitud.hora_desde.isoformat() if hasattr(solicitud.hora_desde, "isoformat") else solicitud.hora_desde,
-        "hora_hasta": solicitud.hora_hasta.isoformat() if hasattr(solicitud.hora_hasta, "isoformat") else solicitud.hora_hasta,
+        "hora_hasta": (
+            solicitud.hora_hasta.isoformat()
+            if solicitud.hora_hasta_confirmado and hasattr(solicitud.hora_hasta, "isoformat")
+            else (solicitud.hora_hasta if solicitud.hora_hasta_confirmado else None)
+        ),
+        "hora_hasta_confirmado": solicitud.hora_hasta_confirmado,
         "origen_direccion": solicitud.origen_direccion,
         "origen_barrio": solicitud.origen_barrio,
         "origen_piso": solicitud.origen_piso,
@@ -139,6 +144,10 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "duracion_ida_min": solicitud.duracion_ida_min,
         "duracion_vuelta_min": solicitud.duracion_vuelta_min,
         "espera_min": solicitud.espera_min,
+        "carga_min": solicitud.carga_min if solicitud.carga_min_confirmado else None,
+        "carga_min_confirmado": solicitud.carga_min_confirmado,
+        "descarga_min": solicitud.descarga_min if solicitud.descarga_min_confirmado else None,
+        "descarga_min_confirmado": solicitud.descarga_min_confirmado,
         "horas_estimadas": float(solicitud.horas_estimadas) if solicitud.horas_estimadas is not None else None,
         "tarifa_base_aplicada": float(solicitud.tarifa_base_aplicada) if solicitud.tarifa_base_aplicada is not None else None,
         "tarifa_km_aplicada": float(solicitud.tarifa_km_aplicada) if solicitud.tarifa_km_aplicada is not None else None,
@@ -201,6 +210,8 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "total_km": float(solicitud.km_total) if solicitud.km_total is not None else None,
         "eta_minutes": solicitud.duracion_ida_min,
         "wait_minutes": solicitud.espera_min,
+        "load_minutes": solicitud.carga_min,
+        "download_minutes": solicitud.descarga_min,
         "driver_cost": float(solicitud.costo_chofer) if solicitud.costo_chofer is not None else None,
         "suggested_price": precio_calculado,
         "price_overridden": bool(solicitud.precio_modificado_por is not None),

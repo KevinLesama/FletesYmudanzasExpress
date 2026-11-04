@@ -201,7 +201,7 @@ class SolicitudIn(BaseModel):
     contacto_telefono: str | None = None
     fecha: DateType
     hora_desde: TimeType
-    hora_hasta: TimeType
+    hora_hasta: TimeType | None = None
     origen: LugarIn
     destino: LugarIn
     items_carga: list[ItemCargaIn] = Field(default_factory=list)
@@ -211,6 +211,8 @@ class SolicitudIn(BaseModel):
     km_estimados: float | None = Field(default=None, ge=0)
     horas_estimadas: float | None = Field(default=None, gt=0)
     espera_min: int | None = Field(default=None, ge=0, le=1440)
+    carga_min: int | None = Field(default=None, ge=0, le=1440)
+    descarga_min: int | None = Field(default=None, ge=0, le=1440)
     precio_calculado: float | None = Field(default=None, ge=0)
     precio_final: float = Field(default=0, ge=0)
     notas: str | None = None
@@ -226,6 +228,8 @@ class SolicitudUpdate(BaseModel):
     km_estimados: float | None = Field(default=None, ge=0)
     horas_estimadas: float | None = Field(default=None, gt=0)
     espera_min: int | None = Field(default=None, ge=0, le=1440)
+    carga_min: int | None = Field(default=None, ge=0, le=1440)
+    descarga_min: int | None = Field(default=None, ge=0, le=1440)
     precio_calculado: float | None = Field(default=None, ge=0)
     precio_final: float | None = Field(default=None, ge=0)
     # Vuelve a aplicar la formula y pisa el precio acordado con el sugerido.
@@ -269,7 +273,10 @@ class SolicitudOut(BaseModel):
     estado: SolicitudEstado
     fecha: DateType
     hora_desde: TimeType
-    hora_hasta: TimeType
+    hora_hasta: TimeType | None = None
+    hora_hasta_confirmado: bool = False
+    descarga_min: int | None = Field(default=None, ge=0, le=1440)
+    descarga_min_confirmado: bool = False
 
     origen_direccion: str
     origen_barrio: str | None = None
@@ -300,6 +307,8 @@ class SolicitudOut(BaseModel):
     duracion_ida_min: int | None = None
     duracion_vuelta_min: int | None = None
     espera_min: int = 120
+    carga_min: int | None = None
+    carga_min_confirmado: bool = False
     horas_estimadas: float | None = None
     tarifa_base_aplicada: float | None = None
     tarifa_km_aplicada: float | None = None
@@ -370,6 +379,8 @@ class CoordenadaIn(BaseModel):
 class RutaIn(BaseModel):
     origen: CoordenadaIn
     destino: CoordenadaIn
+    fecha: DateType | None = None
+    hora_desde: TimeType | None = None
 
 
 class RutaOut(BaseModel):
@@ -378,6 +389,7 @@ class RutaOut(BaseModel):
     km_total: float
     duracion_ida_min: int
     duracion_vuelta_min: int
+    provider: str
     geometry: list[tuple[float, float]] | None = None
 
 
@@ -390,6 +402,7 @@ class CotizacionOut(BaseModel):
     duracion_ida_min: int
     duracion_vuelta_min: int
     espera_min: int
+    carga_min: int = 0
     horas_totales: float
     tarifa_base: float
     tarifa_por_km: float
@@ -409,6 +422,7 @@ class CotizacionPreviewIn(BaseModel):
     km_ida: float = Field(gt=0)
     duracion_ida_min: int | None = Field(default=None, ge=0)
     espera_min: int | None = Field(default=None, ge=0, le=1440)
+    carga_min: int | None = Field(default=None, ge=0, le=1440)
     tarifa_base: float = Field(default=0, ge=0)
     tarifa_por_km: float = Field(default=0, ge=0)
     tarifa_por_hora: float = Field(default=0, ge=0)
@@ -418,6 +432,15 @@ class TarifasIn(BaseModel):
     tarifa_base: float = Field(ge=0)
     tarifa_por_km: float = Field(ge=0)
     tarifa_por_hora: float = Field(ge=0)
+
+
+class ConfiguracionSistemaIn(BaseModel):
+    margen_operativo_min: int = Field(ge=30, le=1440)
+    margen_ganancia_pct: int = Field(ge=0, le=500)
+
+
+class ConfiguracionSistemaOut(ConfiguracionSistemaIn):
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -463,6 +486,21 @@ class AvailabilityOut(BaseModel):
     driver_available: bool
     vehicle_available: bool
     conflicts: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    travel_verified: bool = True
+
+
+class AvailabilityOptionOut(BaseModel):
+    resource_id: int
+    blocked: bool = False
+    verified: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AvailabilityOptionsOut(BaseModel):
+    schedule_verified: bool
+    drivers: list[AvailabilityOptionOut] = Field(default_factory=list)
+    vehicles: list[AvailabilityOptionOut] = Field(default_factory=list)
 
 
 class MeOut(BaseModel):

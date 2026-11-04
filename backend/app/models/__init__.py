@@ -1,6 +1,7 @@
 """Reexporta los modelos para que SQLAlchemy registre todas las tablas."""
 
 from app.models.entities import (  # noqa: F401
+    ConfiguracionSistema,
     ItemCarga,
     Pago,
     Solicitud,
@@ -9,6 +10,7 @@ from app.models.entities import (  # noqa: F401
 )
 
 __all__ = [
+    "ConfiguracionSistema",
     "Usuario",
     "Vehiculo",
     "Solicitud",
