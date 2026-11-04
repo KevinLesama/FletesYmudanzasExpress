@@ -153,17 +153,34 @@ Cambios en `.env` de la raíz los toma Vite al reiniciar el dev server: `docker 
 En la configuración de producción local, los cambios en las variables `VITE_*` requieren reconstruir la imagen compilada: `docker compose up --build frontend`.
 
 ## Pruebas
-**Backend (SQLite en memoria, sin tocar la DB real):**
+
+**Backend — carril unitario (sin base de datos ni red):**
 ```bash
 cd backend
-pytest -v
+pytest -m unit -v
 ```
-Los tests validan reglas de negocio (generación de IDs, conflictos de chofer/vehículo, cálculos derivados).
 
-**Frontend:**
+**Backend — carril PostgreSQL (integración real):**
 ```bash
-npm run build  # typecheck + build de producción
-npm run preview
+cd backend
+# Apuntar a una base DESCARTABLE cuyo nombre contenga "test".
+# El conftest se niega a recrear el esquema en cualquier otra.
+export FEX_TEST_DATABASE_URL="postgresql+psycopg://postgres:test@127.0.0.1:55432/fex_test"
+pytest -m pg -v
+```
+Sin `FEX_TEST_DATABASE_URL` el carril `pg` se omite y `pytest tests` corre solo lo unitario.
+El esquema de prueba se crea desde `sql/schema.sql` y `sql/auth.sql`, y cada test arranca con las tablas vacías.
+
+**Frontend — unitarios (Vitest):**
+```bash
+npm test         # una corrida
+npm run test:watch
+```
+
+**Frontend — typecheck y build de producción:**
+```bash
+npx tsc --noEmit
+npm run build
 ```
 
 ## Enriquecimiento geográfico opcional
@@ -171,6 +188,23 @@ npm run preview
 El backend expone el autocomplete y las rutas a través de `services/scraping/`,
 pero no realiza scraping del DOM de Google Maps. El proveedor principal reutiliza
 la integración oficial de Places API y Routes API de `services/geo.py`.
+
+Para usar Google desde Docker, definir `GOOGLE_MAPS_API_KEY` en `backend/.env`
+(no en el `.env` del frontend ni como `VITE_*`) y recrear el backend. Compose
+carga ese archivo como variables del contenedor; la configuración se cachea al
+iniciar el proceso. Si Google está configurado, se intenta primero y OSM/OSRM
+queda como fallback explícito ante indisponibilidad. El endpoint autenticado
+`POST /api/geo/route` incluye `provider` en su respuesta; también se registra
+`Route provider selected: google` o `osm` en los logs del backend sin incluir
+credenciales. Para comprobarlo:
+
+```powershell
+docker compose logs backend | Select-String "Route provider"
+```
+
+Cuando la salida programada es futura, se envía a Routes API como `departureTime`
+en la zona horaria de Buenos Aires. Para solicitudes pasadas se omite, ya que
+Google no puede estimar tráfico futuro para ellas.
 
 Opcionalmente se puede habilitar un fallback HTTP a Nominatim y OSRM:
 

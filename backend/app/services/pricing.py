@@ -38,13 +38,13 @@ def ceil_km(value: float | Decimal) -> Decimal:
 def total_hours(
     duracion_ida_min: int | None,
     duracion_vuelta_min: int | None,
-    espera_min: int | None,
+    carga_min: int | None,
 ) -> Decimal:
-    """Horas de servicio: ida + vuelta + espera (carga y descarga)."""
+    """Horas facturables estimadas: viaje de ida y vuelta más tiempo de carga."""
     minutos = (
         max(int(duracion_ida_min or 0), 0)
         + max(int(duracion_vuelta_min or 0), 0)
-        + max(int(espera_min or 0), 0)
+        + max(int(carga_min or 0), 0)
     )
     return (Decimal(minutos) / Decimal(60)).quantize(CENT, rounding=ROUND_HALF_UP)
 
@@ -56,7 +56,7 @@ class Quote:
     km_total: Decimal
     duracion_ida_min: int
     duracion_vuelta_min: int
-    espera_min: int
+    carga_min: int
     tarifa_base: Decimal
     tarifa_por_km: Decimal
     tarifa_por_hora: Decimal
@@ -71,7 +71,7 @@ class Quote:
     @property
     def horas_totales(self) -> Decimal:
         return total_hours(
-            self.duracion_ida_min, self.duracion_vuelta_min, self.espera_min
+            self.duracion_ida_min, self.duracion_vuelta_min, self.carga_min
         )
 
 
@@ -80,7 +80,7 @@ def compute_quote(
     km_ida: float | Decimal,
     duracion_ida_min: int | None,
     duracion_vuelta_min: int | None = None,
-    espera_min: int = 0,
+    carga_min: int = 0,
     tarifa_base: float | Decimal = 0,
     tarifa_por_km: float | Decimal = 0,
     tarifa_por_hora: float | Decimal = 0,
@@ -94,10 +94,10 @@ def compute_quote(
     ida_min = max(int(duracion_ida_min or 0), 0)
     # La vuelta recorre el mismo camino que la ida.
     vuelta_min = max(int(duracion_vuelta_min if duracion_vuelta_min is not None else ida_min), 0)
-    espera = max(int(espera_min or 0), 0)
+    carga = max(int(carga_min or 0), 0)
 
     km_total = ida * 2
-    horas = total_hours(ida_min, vuelta_min, espera)
+    horas = total_hours(ida_min, vuelta_min, carga)
 
     base = Decimal(str(tarifa_base or 0))
     por_km = Decimal(str(tarifa_por_km or 0))
@@ -116,7 +116,7 @@ def compute_quote(
         km_total=km_total,
         duracion_ida_min=ida_min,
         duracion_vuelta_min=vuelta_min,
-        espera_min=espera,
+        carga_min=carga,
         tarifa_base=_money(base),
         tarifa_por_km=_money(por_km),
         tarifa_por_hora=_money(por_hora),

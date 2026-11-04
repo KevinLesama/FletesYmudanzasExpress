@@ -115,9 +115,13 @@ export function PagosPage() {
   const registerPayment = async (trip: PaymentSummary, payment: Payment) => {
     setBusy(true)
     try {
-      await api.addPayment(trip.id, payment)
+      const updated = await api.addPayment(trip.id, payment)
       setDialogTrip(null)
-      setToast({ message: `Pago registrado · ${trip.id} · ${ars(payment.amount)}`, tone: 'success' })
+      setToast(
+        updated.autoConfirmError
+          ? { message: updated.autoConfirmError, tone: 'error' }
+          : { message: `Pago registrado · ${trip.id} · ${ars(payment.amount)}`, tone: 'success' },
+      )
       paymentsState.reload()
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'No pudimos registrar el pago.', tone: 'error' })

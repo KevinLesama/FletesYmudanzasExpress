@@ -24,7 +24,7 @@ import ZoomOutIcon from '@mui/icons-material/ZoomOut'
 import OpenInFullIcon from '@mui/icons-material/OpenInFull'
 import CloseIcon from '@mui/icons-material/Close'
 import { alpha } from '@mui/material/styles'
-import { MapContainer, Marker, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet'
 import { color, motion, shadow, type as typeScale } from '../design/tokens'
 import { api } from '../api'
 import { fmtDate, formatShortPlace } from '../format'
@@ -499,7 +499,14 @@ function MapContents({
 
   return (
     <>
-      <MapLibreLayer />
+      {MAP_STYLE_URL ? (
+        <MapLibreLayer />
+      ) : (
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+        />
+      )}
       {trip && origin && (
         <Marker position={origin} icon={markerA} alt={`Origen: ${addressFor(trip.origin)}`} zIndexOffset={1000} />
       )}
@@ -786,6 +793,7 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
   }>({ routeKey: null, state: { status: 'idle' } })
   const routeCache = useRef(new Map<string, Exclude<RouteState, { status: 'idle' } | { status: 'loading' }>>())
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const fullScreenMap = useMediaQuery('(max-width:599px)')
   const selectedMode = reason === 'seleccionado'
   const orderedTrips = useMemo(
     () => (selectedMode ? (trip ? [trip] : []) : (trips !== undefined ? trips : trip ? [trip] : []))
@@ -804,7 +812,7 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
     isCoordinate(currentTrip?.destination.lat, currentTrip?.destination.lng)
 
   const routeKey = currentTrip
-    ? `${currentTrip.id}:${currentTrip.origin.lat},${currentTrip.origin.lng}:${currentTrip.destination.lat},${currentTrip.destination.lng}`
+    ? `${currentTrip.id}:${currentTrip.date}:${currentTrip.serviceRange[0]}:${currentTrip.origin.lat},${currentTrip.origin.lng}:${currentTrip.destination.lat},${currentTrip.destination.lng}`
     : null
   const routeState = routeSnapshot.routeKey === routeKey
     ? routeSnapshot.state
@@ -828,12 +836,12 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
   }, [trip?.id])
 
   useEffect(() => {
-    if (!currentTrip || !hasCoordinates) {
+    if (!currentTrip || !hasCoordinates || !routeKey) {
       setRouteSnapshot({ routeKey, state: { status: 'idle' } })
       return
     }
 
-    const cached = routeCache.current.get(currentTrip.id)
+    const cached = routeCache.current.get(routeKey)
     if (cached) {
       setRouteSnapshot({ routeKey, state: cached })
       return
@@ -844,6 +852,7 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
     void api.route(
       { lat: currentTrip.origin.lat!, lng: currentTrip.origin.lng! },
       { lat: currentTrip.destination.lat!, lng: currentTrip.destination.lng! },
+      { date: currentTrip.date, start: currentTrip.serviceRange[0] },
     ).then((result) => {
       if (controller.signal.aborted) return
       const state: Exclude<RouteState, { status: 'idle' } | { status: 'loading' }> =
@@ -864,7 +873,7 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
         const oldest = routeCache.current.keys().next().value
         if (oldest) routeCache.current.delete(oldest)
       }
-      routeCache.current.set(currentTrip.id, state)
+      routeCache.current.set(routeKey, state)
       setRouteSnapshot({ routeKey, state })
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
@@ -873,7 +882,7 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
         status: 'approximate',
         geometry: null,
       }
-      routeCache.current.set(currentTrip.id, state)
+      routeCache.current.set(routeKey, state)
       setRouteSnapshot({ routeKey, state })
     })
 
@@ -947,8 +956,18 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
         open={expanded}
         onKeyDown={handleKeyDown}
         onClose={() => setExpanded(false)}
-        maxWidth="md"
+        fullScreen={fullScreenMap}
+        maxWidth="xl"
         fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            width: fullScreenMap ? '100%' : 'calc(100vw - 48px)',
+            maxWidth: fullScreenMap ? '100%' : 1600,
+            height: fullScreenMap ? '100%' : 'calc(100dvh - 48px)',
+            maxHeight: fullScreenMap ? '100%' : 'none',
+            m: fullScreenMap ? 0 : 3,
+          },
+        }}
         aria-labelledby="map-preview-title"
       >
         <DialogTitle
@@ -961,14 +980,14 @@ export function MapPreview({ trip, trips, tripsLoading = false, reason, onClear,
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 2, pt: 0 }}>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2 }, pt: 0, display: 'flex', flex: 1, minHeight: 0 }}>
           <Box
             sx={{
               position: 'relative',
               display: 'flex',
               flexDirection: 'column',
-              height: '58vh',
-              minHeight: 280,
+              flex: 1,
+              minHeight: 0,
               borderRadius: 2,
               border: `1px solid ${color.border}`,
               overflow: 'hidden',

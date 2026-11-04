@@ -42,8 +42,6 @@ class Settings(BaseSettings):
     routing_url: str = "https://router.project-osrm.org"
     geo_user_agent: str = "fletes-express/1.0"
     geo_timeout_seconds: float = 6.0
-    # Regla comercial: precio sugerido = costo del chofer * margen.
-    pricing_margin: float = 1.5
     # Espera estandar de una mudanza, en minutos (ida, descarga y vuelta).
     default_wait_minutes: int = 120
     # Telegram: aviso opcional de nuevas solicitudes. Si falta el token o el

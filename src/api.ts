@@ -10,6 +10,7 @@ import { supabase } from './supabase'
 import type { Role, SessionUser } from './supabase'
 import type {
   Availability,
+  AvailabilityOptions,
   Client,
   Driver,
   Payment,
@@ -36,6 +37,11 @@ export class ApiError extends Error {
     super(message)
     this.status = status
   }
+}
+
+export interface SystemSettings {
+  operationalBufferMinutes: number
+  profitMarginPercent: number
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -131,9 +137,10 @@ function mapVehicle(v: Json): Vehicle {
 }
 
 function mapRequest(r: Json): ShiftRequest {
-  const estado = String(r.estado ?? r.status ?? '')
+  const estado = String(r.estado_visible ?? r.estado ?? r.status ?? '')
   const ESTADOS: Record<string, RequestStatus> = {
     pendiente: 'Pendiente de revisión',
+    pendiente_sena: 'Pendiente de seña',
     confirmada: 'Confirmada',
     finalizada: 'Finalizada',
     cancelada: 'Cancelada',
@@ -152,8 +159,15 @@ function mapRequest(r: Json): ShiftRequest {
     phone: String(r.phone ?? r.cliente_telefono ?? ''),
     status,
     date,
-    arrivalRange: [hhmm(r.arrival_from ?? r.hora_desde), hhmm(r.arrival_to ?? r.hora_hasta)],
-    serviceRange: [hhmm(r.service_from ?? r.hora_desde), hhmm(r.service_to ?? r.hora_hasta)],
+    arrivalRange: [
+      hhmm(r.arrival_from ?? r.hora_desde),
+      r.hora_hasta_confirmado ? hhmm(r.arrival_to ?? r.hora_hasta) : '',
+    ],
+    serviceRange: [
+      hhmm(r.service_from ?? r.hora_desde),
+      r.hora_hasta_confirmado ? hhmm(r.service_to ?? r.hora_hasta) : '',
+    ],
+    arrivalTimeConfirmed: Boolean(r.hora_hasta_confirmado),
     origin: {
       label: 'Origen',
       address: String(r.origin_address ?? r.origen_direccion ?? ''),
@@ -198,6 +212,11 @@ function mapRequest(r: Json): ShiftRequest {
     totalKm: r.total_km ?? undefined,
     etaMinutes: r.eta_minutes ?? undefined,
     waitMinutes: r.wait_minutes ?? undefined,
+    loadMinutes: r.carga_min_confirmado ? Number(r.load_minutes ?? r.carga_min) : undefined,
+    loadMinutesConfirmed: Boolean(r.carga_min_confirmado),
+    downloadMinutes: r.descarga_min_confirmado ? Number(r.download_minutes ?? r.descarga_min) : undefined,
+    downloadMinutesConfirmed: Boolean(r.descarga_min_confirmado),
+    availabilityWarnings: r.availability_warnings ?? [],
     driverCost: r.driver_cost ?? undefined,
     suggestedPrice: r.suggested_price ?? undefined,
     priceOverridden: Boolean(r.price_overridden),
@@ -231,6 +250,8 @@ function mapRequest(r: Json): ShiftRequest {
       createdAt: p.created_at ?? p.creado_en ?? undefined,
       notes: p.notes ?? undefined,
     })),
+    autoConfirmError: r.auto_confirm_error ? String(r.auto_confirm_error) : undefined,
+    bloqueoConfirmacion: r.bloqueo_confirmacion ? String(r.bloqueo_confirmacion) : undefined,
   }
 }
 
@@ -241,7 +262,7 @@ function mapQuote(q: Json): Quote {
     kmTotal: Number(q.km_total ?? 0),
     etaMinutes: Number(q.duracion_ida_min ?? 0),
     returnMinutes: Number(q.duracion_vuelta_min ?? 0),
-    waitMinutes: Number(q.espera_min ?? 0),
+    loadMinutes: Number(q.carga_min ?? q.espera_min ?? 0),
     totalHours: Number(q.horas_totales ?? 0),
     tariffBase: Number(q.tarifa_base ?? 0),
     tariffPerKm: Number(q.tarifa_por_km ?? 0),
@@ -284,6 +305,7 @@ const ESTADO_DESDE_LABEL: Record<string, string> = {
 
 function legacySolicitudPayload(payload: Json): Json {
   const out: Json = {}
+  const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(payload, key)
 
   const clienteId = payload.cliente_id ?? payload.client_id
   if (clienteId != null && clienteId !== '') out.cliente_id = Number(clienteId)
@@ -299,7 +321,17 @@ function legacySolicitudPayload(payload: Json): Json {
   const desde = payload.hora_desde ?? payload.service_from ?? payload.arrival_from
   const hasta = payload.hora_hasta ?? payload.service_to ?? payload.arrival_to
   if (desde) out.hora_desde = String(desde).length === 5 ? `${desde}:00` : desde
-  if (hasta) out.hora_hasta = String(hasta).length === 5 ? `${hasta}:00` : hasta
+  if (
+    hasOwn('hora_hasta') ||
+    hasOwn('service_to') ||
+    hasOwn('arrival_to')
+  ) {
+    out.hora_hasta = hasta ? (String(hasta).length === 5 ? `${hasta}:00` : hasta) : null
+  }
+  const carga = payload.carga_min ?? payload.load_minutes
+  if (hasOwn('carga_min') || hasOwn('load_minutes')) {
+    out.carga_min = carga == null || carga === '' ? null : Number(carga)
+  }
 
   const origen = payload.origen ?? payload.origin
   const origenDireccion = origen?.direccion ?? origen?.address
@@ -358,7 +390,6 @@ function legacySolicitudPayload(payload: Json): Json {
   const estado = payload.estado ?? payload.status
   if (estado) out.estado = ESTADO_DESDE_LABEL[String(estado)] ?? estado
 
-  const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(payload, key)
   const chofer = hasOwn('chofer_id') ? payload.chofer_id : payload.driver_id
   if (chofer !== undefined) out.chofer_id = chofer === null || chofer === '' ? null : Number(chofer)
   const vehiculo = hasOwn('vehiculo_id') ? payload.vehiculo_id : payload.vehicle_id
@@ -372,6 +403,10 @@ function legacySolicitudPayload(payload: Json): Json {
   if (horas != null && horas !== '') out.horas_estimadas = Number(horas)
   const espera = payload.espera_min ?? payload.wait_minutes
   if (espera != null && espera !== '') out.espera_min = Number(espera)
+  const descarga = payload.descarga_min ?? payload.download_minutes
+  if (hasOwn('descarga_min') || hasOwn('download_minutes')) {
+    out.descarga_min = descarga == null || descarga === '' ? null : Number(descarga)
+  }
   if (payload.recotizar != null) out.recotizar = Boolean(payload.recotizar)
   if (payload.motivo_cancelacion != null) out.motivo_cancelacion = payload.motivo_cancelacion
 
@@ -389,6 +424,26 @@ export const api = {
   me: async (): Promise<SessionUser> => {
     const raw = await http<{ id: number; email: string | null; nombre: string; rol: Role }>('/me')
     return { id: raw.id, email: raw.email ?? '', nombre: raw.nombre, role: raw.rol }
+  },
+  getSystemSettings: async (): Promise<SystemSettings> => {
+    const raw = await http<Json>('/settings/system')
+    return {
+      operationalBufferMinutes: Number(raw.margen_operativo_min),
+      profitMarginPercent: Number(raw.margen_ganancia_pct),
+    }
+  },
+  updateSystemSettings: async (settings: SystemSettings): Promise<SystemSettings> => {
+    const raw = await http<Json>('/settings/system', {
+      method: 'PUT',
+      body: JSON.stringify({
+        margen_operativo_min: settings.operationalBufferMinutes,
+        margen_ganancia_pct: settings.profitMarginPercent,
+      }),
+    })
+    return {
+      operationalBufferMinutes: Number(raw.margen_operativo_min),
+      profitMarginPercent: Number(raw.margen_ganancia_pct),
+    }
   },
 
   // Geolocalización (Google Maps, resuelto por el backend)
@@ -415,10 +470,18 @@ export const api = {
       province: p.provincia ?? undefined,
     }
   },
-  route: async (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }): Promise<RouteEstimate> => {
+  route: async (
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number },
+    schedule?: { date: string; start: string },
+  ): Promise<RouteEstimate> => {
     const r = await http<Json>('/geo/route', {
       method: 'POST',
-      body: JSON.stringify({ origen: origin, destino: destination }),
+      body: JSON.stringify({
+        origen: origin,
+        destino: destination,
+        ...(schedule ? { fecha: schedule.date, hora_desde: schedule.start } : {}),
+      }),
     })
     return {
       kmIda: Number(r.km_ida),
@@ -426,20 +489,21 @@ export const api = {
       kmTotal: Number(r.km_total),
       etaMinutes: Number(r.duracion_ida_min),
       returnMinutes: Number(r.duracion_vuelta_min),
+      provider: r.provider != null ? String(r.provider) : undefined,
       geometry: Array.isArray(r.geometry)
         ? r.geometry.map((point: number[]) => [Number(point[0]), Number(point[1])] as [number, number])
         : undefined,
     }
   },
-  quote: async (id: string, params: { driverId: string; waitMinutes?: number }): Promise<Quote> => {
+  quote: async (id: string, params: { driverId: string; loadMinutes?: number }): Promise<Quote> => {
     const qs = new URLSearchParams({ driver_id: params.driverId })
-    if (params.waitMinutes != null) qs.set('espera_min', String(params.waitMinutes))
+    if (params.loadMinutes != null) qs.set('carga_min', String(params.loadMinutes))
     return mapQuote(await http<Json>(`/requests/${encodeURIComponent(id)}/quote?${qs}`))
   },
   previewQuote: async (payload: {
     kmIda: number
     etaMinutes?: number
-    waitMinutes?: number
+    loadMinutes?: number
     tariffBase: number
     tariffPerKm: number
     tariffPerHour: number
@@ -450,7 +514,7 @@ export const api = {
         body: JSON.stringify({
           km_ida: payload.kmIda,
           duracion_ida_min: payload.etaMinutes ?? null,
-          espera_min: payload.waitMinutes ?? null,
+          carga_min: payload.loadMinutes ?? null,
           tarifa_base: payload.tariffBase,
           tarifa_por_km: payload.tariffPerKm,
           tarifa_por_hora: payload.tariffPerHour,
@@ -580,15 +644,23 @@ export const api = {
     ),
 
   // Solicitudes
-  listRequests: async (params?: { status?: string; date?: string; driver_id?: string; vehicle_id?: string; search?: string }): Promise<ShiftRequest[]> => {
+  listRequests: async (params?: { date?: string; driver_id?: string; vehicle_id?: string; search?: string }): Promise<ShiftRequest[]> => {
+    // La API filtra por `fecha`; el frontend expone `date`.
     const qs = new URLSearchParams()
-    Object.entries(params ?? {}).forEach(([k, v]) => {
-      if (v) qs.set(k, String(v))
-    })
+    if (params?.date) qs.set('fecha', params.date)
+    if (params?.driver_id) qs.set('chofer_id', params.driver_id)
+    if (params?.vehicle_id) qs.set('vehiculo_id', params.vehicle_id)
+    if (params?.search) qs.set('search', params.search)
     const suffix = qs.toString() ? `?${qs}` : ''
     return (await http<Json[]>(`/requests${suffix}`)).map(mapRequest)
   },
   getRequest: async (id: string): Promise<ShiftRequest> => mapRequest(await http<Json>(`/requests/${encodeURIComponent(id)}`)),
+  estimateRequestRoute: async (id: string): Promise<ShiftRequest> =>
+    mapRequest(
+      await http<Json>(`/requests/${encodeURIComponent(id)}/route-estimate`, {
+        method: 'POST',
+      }),
+    ),
   createRequest: async (payload: Json): Promise<ShiftRequest> =>
     mapRequest(await http<Json>('/requests', { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) })),
   createPublicRequest: async (payload: Json): Promise<ShiftRequest> =>
@@ -657,6 +729,7 @@ export const api = {
     date: string
     start: string
     end: string
+    downloadMinutes: number
     driver_id?: string
     vehicle_id?: string
     exclude?: string
@@ -665,12 +738,49 @@ export const api = {
       fecha: params.date,
       hora_desde: params.start,
       hora_hasta: params.end,
+      descarga_min: String(params.downloadMinutes),
     })
     if (params.driver_id) qs.set('chofer_id', params.driver_id)
     if (params.vehicle_id) qs.set('vehiculo_id', params.vehicle_id)
     if (params.exclude) qs.set('exclude', params.exclude)
     const raw = await http<Json>(`/availability?${qs}`)
-    return { driverAvailable: raw.driver_available, vehicleAvailable: raw.vehicle_available, conflicts: raw.conflicts ?? [] }
+    return {
+      driverAvailable: raw.driver_available,
+      vehicleAvailable: raw.vehicle_available,
+      conflicts: raw.conflicts ?? [],
+      warnings: raw.warnings ?? [],
+      travelVerified: raw.travel_verified ?? true,
+    }
+  },
+  availabilityOptions: async (params: {
+    date: string
+    start: string
+    end?: string
+    loadMinutes?: number
+    downloadMinutes?: number
+    exclude?: string
+  }): Promise<AvailabilityOptions> => {
+    const qs = new URLSearchParams({
+      fecha: params.date,
+      hora_desde: params.start,
+    })
+    if (params.end) qs.set('hora_hasta', params.end)
+    if (params.loadMinutes != null) qs.set('carga_min', String(params.loadMinutes))
+    if (params.downloadMinutes != null) qs.set('descarga_min', String(params.downloadMinutes))
+    if (params.exclude) qs.set('exclude', params.exclude)
+    const raw = await http<Json>(`/availability/options?${qs}`)
+    const mapOptions = (options: Json[] = []) =>
+      options.map((option) => ({
+        resourceId: Number(option.resource_id),
+        blocked: Boolean(option.blocked),
+        verified: Boolean(option.verified),
+        warnings: option.warnings ?? [],
+      }))
+    return {
+      scheduleVerified: Boolean(raw.schedule_verified),
+      drivers: mapOptions(raw.drivers),
+      vehicles: mapOptions(raw.vehicles),
+    }
   },
 }
 

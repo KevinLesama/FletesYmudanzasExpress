@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/telefono.test.ts tests/tripWhatsApp.test.ts tests/agendaModal.test.ts tests/modalSmoke.test.ts tests/formatShortAddress.test.ts tests/joinParts.test.ts tests/formatEventDate.test.ts tests/tripUpdates.test.ts tests/driverTripProgress.test.ts"
+    "test": "vitest run && node --test tests/telefono.test.ts tests/tripWhatsApp.test.ts tests/agendaModal.test.ts tests/modalSmoke.test.ts tests/formatShortAddress.test.ts tests/joinParts.test.ts tests/formatEventDate.test.ts tests/tripUpdates.test.ts tests/driverTripProgress.test.ts",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@emotion/react": "^11.13.5",
@@ -29,6 +30,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.6.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^5.1.0"
   }
 }

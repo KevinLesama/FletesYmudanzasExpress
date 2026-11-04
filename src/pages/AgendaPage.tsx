@@ -35,7 +35,7 @@ import { brand } from '../theme'
 import { color } from '../design/tokens'
 import { addDays, fmtDayMonth, getInitialAnchor, getInitialWeekStart, getTodayISO, workWeekDays } from '../agendaDates'
 import { givenName, joinParts, formatShortPlace } from '../format'
-import { countPendingReview, PENDING_REVIEW_STATUS } from '../requestMetrics'
+import { countPendingReview, PENDING_DEPOSIT_STATUS, PENDING_REVIEW_STATUS } from '../requestMetrics'
 import { loadSettings } from '../settingsStore'
 import { currentUser } from '../supabase'
 import type { ShiftRequest } from '../types'
@@ -250,9 +250,9 @@ export function AgendaPage() {
   )
   const pendingReviewCount = useMemo(() => countPendingReview(allRequests), [allRequests])
   const reviewHref = `${R.solicitudes}?estado=${encodeURIComponent(PENDING_REVIEW_STATUS)}`
-  const depositHref = `${R.solicitudes}?estado=${encodeURIComponent('Pendiente de seña')}`
+  const depositHref = `${R.solicitudes}?estado=${encodeURIComponent(PENDING_DEPOSIT_STATUS)}`
   const pendingDepositCount = useMemo(
-    () => allRequests.filter((request) => request.status === 'Pendiente de seña').length,
+    () => allRequests.filter((request) => request.status === PENDING_DEPOSIT_STATUS).length,
     [allRequests],
   )
 

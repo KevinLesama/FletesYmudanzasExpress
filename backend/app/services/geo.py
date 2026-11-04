@@ -13,7 +13,9 @@ y NUNCA se inventan distancias, tiempos ni precios.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import httpx
 
@@ -210,10 +212,33 @@ def _decode_polyline(encoded: str) -> list[tuple[float, float]]:
     return points
 
 
-def compute_route(origin: tuple[float, float], destination: tuple[float, float]) -> RouteEstimate:
+def compute_route(
+    origin: tuple[float, float],
+    destination: tuple[float, float],
+    departure_time: datetime | None = None,
+) -> RouteEstimate:
     """Distancia, duracion y trazado en auto entre dos coordenadas (lat, lng)."""
     def _point(coords: tuple[float, float]) -> dict:
         return {"location": {"latLng": {"latitude": coords[0], "longitude": coords[1]}}}
+
+    request_payload = {
+        "origin": _point(origin),
+        "destination": _point(destination),
+        "travelMode": "DRIVE",
+        "routingPreference": "TRAFFIC_AWARE",
+        "computeAlternativeRoutes": False,
+        "languageCode": "es-419",
+        "units": "METRIC",
+    }
+    if departure_time is not None:
+        if departure_time.tzinfo is None:
+            raise ValueError("departure_time debe incluir zona horaria.")
+        if departure_time > datetime.now(timezone.utc).astimezone(departure_time.tzinfo):
+            request_payload["departureTime"] = (
+                departure_time.astimezone(timezone.utc)
+                .isoformat(timespec="seconds")
+                .replace("+00:00", "Z")
+            )
 
     data = _request(
         "POST",
@@ -223,15 +248,7 @@ def compute_route(origin: tuple[float, float], destination: tuple[float, float])
             "Content-Type": "application/json",
             "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
         },
-        json={
-            "origin": _point(origin),
-            "destination": _point(destination),
-            "travelMode": "DRIVE",
-            "routingPreference": "TRAFFIC_AWARE",
-            "computeAlternativeRoutes": False,
-            "languageCode": "es-419",
-            "units": "METRIC",
-        },
+        json=request_payload,
     )
 
     routes = data.get("routes") or []
@@ -243,11 +260,13 @@ def compute_route(origin: tuple[float, float], destination: tuple[float, float])
     if distance_m is None:
         raise GeoUnavailableError("La ruta no tiene distancia.")
 
-    duration_raw = str(route.get("duration") or "0s").rstrip("s")
+    duration_raw = str(route.get("duration") or "").removesuffix("s")
     try:
-        duration_s = int(float(duration_raw))
-    except ValueError:
-        duration_s = 0
+        duration_s = float(duration_raw)
+    except ValueError as exc:
+        raise GeoUnavailableError("Google Maps devolvio una duracion invalida.") from exc
+    if not math.isfinite(duration_s) or duration_s < 0:
+        raise GeoUnavailableError("Google Maps devolvio una duracion invalida.")
 
     encoded = (route.get("polyline") or {}).get("encodedPolyline")
     geometry: list[tuple[float, float]] | None = None
@@ -259,6 +278,6 @@ def compute_route(origin: tuple[float, float], destination: tuple[float, float])
 
     return RouteEstimate(
         distance_km=float(distance_m) / 1000.0,
-        duration_min=max(duration_s // 60, 1),
+        duration_min=math.ceil(duration_s / 60),
         geometry=geometry,
     )

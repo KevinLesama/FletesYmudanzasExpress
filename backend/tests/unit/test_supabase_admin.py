@@ -18,7 +18,9 @@ class FakeResponse:
 
 
 def configured_settings() -> Settings:
+    # `_env_file=None`: las pruebas no dependen del .env del desarrollador.
     return Settings(
+        _env_file=None,
         supabase_url="https://project.supabase.co",
         supabase_anon_key="public-key",
         supabase_service_role_key="server-only-key",
@@ -34,11 +36,15 @@ def test_invite_user_uses_service_role_and_returns_auth_id(monkeypatch: pytest.M
 
     monkeypatch.setattr(supabase_admin.httpx, "post", fake_post)
 
-    user_id = supabase_admin.invite_user("chofer@example.com", configured_settings())
+    settings = configured_settings()
+    user_id = supabase_admin.invite_user("chofer@example.com", settings)
 
     assert user_id == "auth-user-id"
     assert captured["url"] == "https://project.supabase.co/auth/v1/invite"
-    assert captured["json"] == {"email": "chofer@example.com"}
+    assert captured["json"] == {
+        "email": "chofer@example.com",
+        "redirect_to": settings.auth_invite_redirect_url,
+    }
     assert captured["headers"] == {
         "apikey": "server-only-key",
         "Authorization": "Bearer server-only-key",
@@ -48,6 +54,7 @@ def test_invite_user_uses_service_role_and_returns_auth_id(monkeypatch: pytest.M
 
 def test_invite_user_requires_backend_service_role_key() -> None:
     settings = Settings(
+        _env_file=None,
         supabase_url="https://project.supabase.co",
         supabase_anon_key="public-key",
     )

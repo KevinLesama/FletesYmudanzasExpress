@@ -9,6 +9,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     image: fletes-ppp-backend
+    # Google Routes es configuración privada del backend/.env; no usar VITE_*.
     env_file:
       - path: ./backend/.env
         required: false

@@ -20,7 +20,7 @@ HEADER = """\
 -- QUÉ ES ESTE ARCHIVO
 --   Un solo archivo con todo lo que hay que correr para dejar la base lista:
 --     1) backend/sql/schema.sql -> esquema de negocio: usuarios (3 roles),
---        vehiculos, solicitudes (4 estados + remito), items_carga y pagos;
+--        vehiculos, solicitudes, items_carga, pagos y configuracion_sistema;
 --        más las restricciones de agenda, la máquina de estados, los
 --        disparadores, las vistas y el cierre de RLS.
 --     2) backend/sql/auth.sql   -> usuarios.auth_user_id + indice unico y FK

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
 
 from . import geocoding, routing
 from .providers import GoogleProvider, OSMProvider
 from .schemas import GeoResult, GeoStatus
+
+logger = logging.getLogger(__name__)
+BUENOS_AIRES = ZoneInfo("America/Argentina/Buenos_Aires")
 
 
 class GeoEnrichmentService:
@@ -46,18 +52,56 @@ class GeoEnrichmentService:
                 return result
         return GeoResult(GeoStatus.UNAVAILABLE, message="Sin proveedores disponibles.")
 
-    def route(self, origin, destination) -> GeoResult:
-        key = ("route", round(origin[0], 6), round(origin[1], 6), round(destination[0], 6), round(destination[1], 6))
-        return self._cached(key, lambda: self._route(origin, destination))
+    def route(self, origin, destination, departure_time: datetime | None = None) -> GeoResult:
+        departure_key = departure_time.isoformat() if departure_time else None
+        key = (
+            "route",
+            round(origin[0], 6),
+            round(origin[1], 6),
+            round(destination[0], 6),
+            round(destination[1], 6),
+            departure_key,
+        )
+        if key in self._cache:
+            return self._cache[key]
+        result = self._route(origin, destination, departure_time)
+        if result.status != GeoStatus.UNAVAILABLE:
+            if len(self._cache) >= 256:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[key] = result
+        return result
 
-    def _route(self, origin, destination) -> GeoResult:
+    def _route(self, origin, destination, departure_time: datetime | None) -> GeoResult:
         last = GeoResult(GeoStatus.UNAVAILABLE, message="Sin proveedores disponibles.")
-        for provider in self.providers:
-            result = routing.route(provider, origin, destination)
-            if result.status != GeoStatus.UNAVAILABLE:
+        for index, provider in enumerate(self.providers):
+            result = routing.route(provider, origin, destination, departure_time)
+            if result.status == GeoStatus.OK:
+                logger.info("Route provider selected: %s", provider.name)
                 return result
+            if result.status == GeoStatus.NOT_FOUND:
+                logger.info("Route not found by provider: %s", provider.name)
+                return result
+            if index + 1 < len(self.providers):
+                logger.info("Route provider unavailable; trying configured fallback: %s", provider.name)
+            else:
+                logger.info("Route provider unavailable: %s", provider.name)
             last = result
         return last
+
+
+def scheduled_departure(
+    travel_date: date | None,
+    start_time: time | None,
+    *,
+    offset_minutes: int = 0,
+) -> datetime | None:
+    if travel_date is None or start_time is None:
+        return None
+    departure = datetime.combine(travel_date, start_time) + timedelta(minutes=offset_minutes)
+    departure = departure.replace(tzinfo=BUENOS_AIRES)
+    if departure <= datetime.now(BUENOS_AIRES):
+        return None
+    return departure
 
 
 @lru_cache
