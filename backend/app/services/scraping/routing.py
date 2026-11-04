@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal, ROUND_CEILING
 
 from .providers import GeoProvider, ProviderNotFound, ProviderUnavailable
@@ -10,9 +11,10 @@ def route(
     provider: GeoProvider,
     origin: tuple[float, float],
     destination: tuple[float, float],
+    departure_time: datetime | None = None,
 ) -> GeoResult:
     try:
-        result = provider.route(origin, destination)
+        result = provider.route(origin, destination, departure_time)
     except ProviderNotFound as exc:
         return GeoResult(GeoStatus.NOT_FOUND, message=str(exc))
     except ProviderUnavailable as exc:

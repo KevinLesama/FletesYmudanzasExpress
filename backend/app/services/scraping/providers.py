@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import ceil
+from datetime import datetime
 from typing import Protocol
 
 import httpx
@@ -27,7 +29,12 @@ class GeoProvider(Protocol):
     def resolve(self, place_id: str) -> Location:
         ...
 
-    def route(self, origin: tuple[float, float], destination: tuple[float, float]) -> Route:
+    def route(
+        self,
+        origin: tuple[float, float],
+        destination: tuple[float, float],
+        departure_time: datetime | None = None,
+    ) -> Route:
         ...
 
     def route_geometry(
@@ -80,14 +87,22 @@ class GoogleProvider:
             self.name,
         )
 
-    def route(self, origin: tuple[float, float], destination: tuple[float, float]) -> Route:
-        return self.route_with_geometry(origin, destination)[0]
+    def route(
+        self,
+        origin: tuple[float, float],
+        destination: tuple[float, float],
+        departure_time: datetime | None = None,
+    ) -> Route:
+        return self.route_with_geometry(origin, destination, departure_time)[0]
 
     def route_with_geometry(
-        self, origin: tuple[float, float], destination: tuple[float, float]
+        self,
+        origin: tuple[float, float],
+        destination: tuple[float, float],
+        departure_time: datetime | None = None,
     ) -> tuple[Route, list[tuple[float, float]] | None]:
         try:
-            route = geo.compute_route(origin, destination)
+            route = geo.compute_route(origin, destination, departure_time)
         except (geo.GeoNotConfiguredError, geo.GeoUnavailableError) as exc:
             raise ProviderUnavailable(str(exc)) from exc
         key = self._route_key(origin, destination)
@@ -214,11 +229,19 @@ class OSMProvider:
         address = str(row.get("display_name") or row.get("localname") or f"{lat}, {lng}").strip()
         return Location(place_id, address, lat, lng, provider=self.name)
 
-    def route(self, origin: tuple[float, float], destination: tuple[float, float]) -> Route:
-        return self.route_with_geometry(origin, destination)[0]
+    def route(
+        self,
+        origin: tuple[float, float],
+        destination: tuple[float, float],
+        departure_time: datetime | None = None,
+    ) -> Route:
+        return self.route_with_geometry(origin, destination, departure_time)[0]
 
     def route_with_geometry(
-        self, origin: tuple[float, float], destination: tuple[float, float]
+        self,
+        origin: tuple[float, float],
+        destination: tuple[float, float],
+        departure_time: datetime | None = None,
     ) -> tuple[Route, list[tuple[float, float]] | None]:
         url = f"{self.routing_url.rstrip('/')}/route/v1/driving/{origin[1]},{origin[0]};{destination[1]},{destination[0]}"
         try:
@@ -252,5 +275,5 @@ class OSMProvider:
         if key not in self._route_geometry_cache and len(self._route_geometry_cache) >= 256:
             self._route_geometry_cache.pop(next(iter(self._route_geometry_cache)))
         self._route_geometry_cache[key] = geometry
-        route = Route(float(first["distance"]) / 1000, round(float(first["duration"]) / 60), self.name)
+        route = Route(float(first["distance"]) / 1000, ceil(float(first["duration"]) / 60), self.name)
         return route, geometry
