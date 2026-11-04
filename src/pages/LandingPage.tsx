@@ -184,26 +184,102 @@ export function LandingPage() {
         </Stack>
       </Box>
 
-      <Box component="main" sx={{ maxWidth: 1180, mx: 'auto', px: { xs: 2.5, md: 5 }, pb: { xs: 5, md: 9 } }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.05fr 0.95fr' }, gap: { xs: 4, md: 8 }, alignItems: 'center', pt: { xs: 4, md: 8 } }}>
+      <Box component="main" sx={{ maxWidth: 1180, mx: 'auto', px: { xs: 2.5, md: 5 }, pb: { xs: 5, md: 9 }, '@media (max-height: 800px)': { pb: { xs: 4, md: 6 } } }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', lg: '1.08fr 0.92fr' },
+            gap: { xs: 4, md: 6, lg: 8 },
+            alignItems: 'center',
+            pt: { xs: 4, md: 6, lg: 8 },
+            pb: { xs: 1, md: 2 },
+            '@media (max-height: 800px)': {
+              pt: { xs: 3, md: 4, lg: 5 },
+              gap: { xs: 3, md: 4, lg: 6 },
+              pb: { xs: 0.5, md: 1 },
+            },
+            '@media (max-height: 720px)': {
+              pt: { xs: 2.5, md: 3 },
+              gap: { xs: 2.5, md: 3 },
+            },
+          }}
+        >
           <Box>
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box sx={{ width: 30, height: 2, bgcolor: brand.orange }} />
               <Typography sx={{ color: brand.orangeInk, fontWeight: 800, fontSize: 12, letterSpacing: '0.14em' }}>FLETES SIN VUELTAS</Typography>
             </Stack>
-            <Typography component="h1" sx={{ mt: 1.8, fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: { xs: 38, md: 58 }, lineHeight: 1.02, letterSpacing: '-0.04em', maxWidth: 620 }}>
+            <Typography
+              component="h1"
+              sx={{
+                mt: 1.8,
+                fontFamily: "'Manrope', sans-serif",
+                fontWeight: 800,
+                fontSize: { xs: 'clamp(34px, 7vw, 46px)', sm: 'clamp(38px, 6vw, 52px)', md: 'clamp(42px, 4.5vw, 54px)', lg: 'clamp(46px, 4vw, 58px)' },
+                lineHeight: 1.02,
+                letterSpacing: '-0.04em',
+                maxWidth: 620,
+                textWrap: 'balance',
+                '@media (max-height: 800px)': {
+                  mt: 1.4,
+                  fontSize: { xs: 'clamp(32px, 6.5vw, 42px)', md: 'clamp(38px, 4vw, 48px)' },
+                },
+                '@media (max-height: 720px)': {
+                  mt: 1.2,
+                  fontSize: { xs: 'clamp(30px, 6vw, 38px)', md: 'clamp(34px, 3.8vw, 44px)' },
+                },
+              }}
+            >
               Mové lo que necesitás, con todo claro desde el inicio.
             </Typography>
-            <Typography sx={{ mt: 2.2, color: color.ink, fontSize: { xs: 16, md: 18 }, lineHeight: 1.55, maxWidth: 540 }}>
+            <Typography
+              sx={{
+                mt: 2.2,
+                color: color.ink,
+                fontSize: { xs: 16, md: 17, lg: 18 },
+                lineHeight: 1.55,
+                maxWidth: 540,
+                '@media (max-height: 800px)': {
+                  mt: 1.6,
+                  fontSize: { xs: 15, md: 16 },
+                },
+                '@media (max-height: 720px)': {
+                  mt: 1.4,
+                  fontSize: { xs: 14.5, md: 15.5 },
+                },
+              }}
+            >
               Indicá tu recorrido y coordinamos el servicio con vos. Tu solicitud queda registrada para que el equipo pueda confirmar disponibilidad y condiciones.
             </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.2} sx={{ mt: 4 }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2.2}
+              sx={{
+                mt: 4,
+                '@media (max-height: 800px)': { mt: 2.5, spacing: { xs: 1.5, sm: 1.8 } },
+                '@media (max-height: 720px)': { mt: 2, spacing: { xs: 1.2, sm: 1.5 } },
+              }}
+            >
               <Benefit icon={<Route />} text="Origen y destino en un solo paso" />
               <Benefit icon={<CheckCircleOutline />} text="Seguimiento de tu solicitud" />
             </Stack>
           </Box>
 
-          <Box sx={{ bgcolor: '#fff', border: `1px solid ${brand.border}`, borderRadius: 4, p: { xs: 2.5, md: 4 }, boxShadow: '0 12px 30px rgba(19,43,74,0.06)' }}>
+          <Box
+            sx={{
+              bgcolor: '#fff',
+              border: `1px solid ${brand.border}`,
+              borderRadius: 4,
+              p: { xs: 2.5, sm: 3, md: 3.5, lg: 4 },
+              boxShadow: '0 12px 30px rgba(19,43,74,0.06)',
+              '@media (max-height: 800px)': {
+                p: { xs: 2, sm: 2.5, md: 3 },
+              },
+              '@media (max-height: 720px)': {
+                p: { xs: 1.8, sm: 2.2, md: 2.6 },
+              },
+            }}
+          >
             {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} originPlace={originPlace} destinationPlace={destinationPlace} cargo={cargo} notes={notes} busy={busy} errors={errors} touched={touched} onBlur={onFieldBlur} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setOriginPlace={setOriginPlace} setDestinationPlace={setDestinationPlace} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
             {step === 'sent' && <SuccessState onNewRequest={() => setStep('request')} />}
           </Box>
@@ -238,43 +314,63 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
 
   const errorFor = (field: LandingField) => touched[field] ? errors[field] : undefined
 
-  return <Box component="form" onSubmit={onSubmit} noValidate>
-    <Typography variant="h5">Solicitá tu flete</Typography>
-    <Typography sx={{ mt: 0.8, color: brand.muted, fontSize: 14 }}>Dejanos tus datos y completá el recorrido. No necesitás crear una cuenta.</Typography>
-    <Stack spacing={2} sx={{ mt: 3 }}>
-      <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} errors={errors} touched={touched} onBlur={onBlur} />
-      <LandingTextField id="landing-date" label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} onBlur={() => onBlur('date')} error={errorFor('date')} InputLabelProps={{ shrink: true }} />
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-        <LandingTextField id="landing-arrival-from" label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} onBlur={() => onBlur('arrivalFrom')} error={errorFor('arrivalFrom')} InputLabelProps={{ shrink: true }} />
-        <LandingTextField id="landing-arrival-to" label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} onBlur={() => onBlur('arrivalTo')} error={errorFor('arrivalTo')} />
+  return (
+    <Box component="form" onSubmit={onSubmit} noValidate>
+      <Typography variant="h5" sx={{ fontSize: { xs: 18, md: 20 } }}>Solicitá tu flete</Typography>
+      <Typography sx={{ mt: 0.6, color: brand.muted, fontSize: 14 }}>Dejanos tus datos y completá el recorrido. No necesitás crear una cuenta.</Typography>
+      <Stack
+        spacing={{ xs: 1.5, md: 2 }}
+        sx={{
+          mt: { xs: 2, md: 3 },
+          '@media (max-height: 800px)': { spacing: 1.25, mt: 2 },
+          '@media (max-height: 720px)': { spacing: 1, mt: 1.6 },
+        }}
+      >
+        <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} errors={errors} touched={touched} onBlur={onBlur} />
+        <LandingTextField id="landing-date" label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} onBlur={() => onBlur('date')} error={errorFor('date')} InputLabelProps={{ shrink: true }} />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.25, md: 1.5 }}>
+          <LandingTextField id="landing-arrival-from" label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} onBlur={() => onBlur('arrivalFrom')} error={errorFor('arrivalFrom')} InputLabelProps={{ shrink: true }} />
+          <LandingTextField id="landing-arrival-to" label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} onBlur={() => onBlur('arrivalTo')} error={errorFor('arrivalTo')} />
+        </Stack>
+        <PlaceAutocomplete
+          label="¿Desde dónde retiramos?"
+          value={origin}
+          onValueChange={changeOrigin}
+          onSelect={setOriginPlace}
+          selected={originPlace !== null}
+          placeholder="Buscá calle y número…"
+          helperText={errorFor('origin') ?? 'Escribí al menos 3 letras y elegí una sugerencia.'}
+        />
+        <MensajeCampo id="landing-origin-error" mensaje={errorFor('origin')} />
+        <PlaceAutocomplete
+          label="¿A dónde lo llevamos?"
+          value={destination}
+          onValueChange={changeDestination}
+          onSelect={setDestinationPlace}
+          selected={destinationPlace !== null}
+          placeholder="Buscá calle y número…"
+          helperText={errorFor('destination') ?? 'Escribí al menos 3 letras y elegí una sugerencia.'}
+        />
+        <MensajeCampo id="landing-destination-error" mensaje={errorFor('destination')} />
+        <LandingTextField id="landing-cargo" label="¿Qué hay que trasladar?" value={cargo} onChange={(event) => setCargo(event.target.value)} onBlur={() => onBlur('cargo')} error={errorFor('cargo')} multiline minRows={2} />
+        <TextField label="Observaciones (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth autoComplete="off" />
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          disabled={busy}
+          endIcon={<ArrowForward />}
+          sx={{
+            minHeight: { xs: 44, md: 48 },
+            mt: { xs: 0.5, md: 1 },
+            '@media (max-height: 720px)': { minHeight: 44, mt: 0.5 },
+          }}
+        >
+          {busy ? 'Enviando...' : 'Enviar solicitud'}
+        </Button>
       </Stack>
-      <PlaceAutocomplete
-        label="¿Desde dónde retiramos?"
-        value={origin}
-        onValueChange={changeOrigin}
-        onSelect={setOriginPlace}
-        selected={originPlace !== null}
-        placeholder="Buscá calle y número…"
-        helperText={errorFor('origin') ?? 'Escribí al menos 3 letras y elegí una sugerencia.'}
-      />
-      <MensajeCampo id="landing-origin-error" mensaje={errorFor('origin')} />
-      <PlaceAutocomplete
-        label="¿A dónde lo llevamos?"
-        value={destination}
-        onValueChange={changeDestination}
-        onSelect={setDestinationPlace}
-        selected={destinationPlace !== null}
-        placeholder="Buscá calle y número…"
-        helperText={errorFor('destination') ?? 'Escribí al menos 3 letras y elegí una sugerencia.'}
-      />
-      <MensajeCampo id="landing-destination-error" mensaje={errorFor('destination')} />
-      <LandingTextField id="landing-cargo" label="¿Qué hay que trasladar?" value={cargo} onChange={(event) => setCargo(event.target.value)} onBlur={() => onBlur('cargo')} error={errorFor('cargo')} multiline minRows={2} />
-      <TextField label="Observaciones (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} fullWidth autoComplete="off" />
-      <Button type="submit" variant="contained" size="large" disabled={busy} endIcon={<ArrowForward />} sx={{ minHeight: 48, mt: 1 }}>
-        {busy ? 'Enviando...' : 'Enviar solicitud'}
-      </Button>
-    </Stack>
-  </Box>
+    </Box>
+  )
 }
 
 function LandingTextField({ id, label, error, ...props }: { id: string; label: string; error?: string } & Omit<React.ComponentProps<typeof TextField>, 'id' | 'label' | 'error'>) {
