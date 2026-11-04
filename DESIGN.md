@@ -158,6 +158,32 @@ contenido**, en ese orden. `useAsync` ya expone `loading`, `error` y `reload`.
   un punto de aviso cuando hay filtros activos. En la barra solo se muestra el
   interruptor de vista y la leyenda de estados.
 
+## Disponibilidad operativa
+
+- `hora_hasta` representa la llegada al destino. En planificación se estima
+  con inicio + carga + ETA de Maps y el administrador puede ajustarla. La
+  solicitud inicial ofrece descargas de 30, 60, 90 o 120 minutos; luego el
+  administrador puede indicar cualquier duración entera de 0 a 1440 minutos.
+  La descarga extiende la ocupación de chofer y vehículo, pero no cambia la
+  hora de llegada ni los minutos de espera facturables.
+- Solo las solicitudes confirmadas reservan. Las pendientes pueden solaparse,
+  pero se reportan como advertencias.
+- Entre servicios se exige un margen operativo independiente de 30 minutos.
+  Administración puede aumentarlo desde Ajustes (mínimo 30 por la restricción
+  de concurrencia de PostgreSQL). El margen de ganancia también se configura
+  allí; el valor inicial es 50 % sobre el costo del chofer.
+  Para el chofer también se calcula el traslado desde el destino del servicio
+  anterior al origen del siguiente; si no hay datos de ruta, se permite
+  confirmar con una advertencia explícita, nunca suponiendo traslado cero.
+- La confirmación vuelve a evaluar la agenda bajo bloqueo de chofer y vehículo.
+- `backend/sql/seed_operational_availability_test.sql` reemplaza las solicitudes
+  existentes y sus ítems/pagos dependientes por diez escenarios en tres fechas.
+  Es destructivo: por defecto se cancela y exige habilitación manual; además,
+  solo continúa si encuentra exactamente 27 solicitudes. No elimina choferes,
+  clientes ni vehículos. Revisar el archivo y tener un respaldo antes de
+  habilitarlo. Las restricciones PostgreSQL cubren descarga + margen y
+  protegen contra solapamientos concurrentes.
+
 ## Detalle del viaje (seguimiento)
 
 - El modal se lee como seguimiento, no como ficha: estado y horario arriba,

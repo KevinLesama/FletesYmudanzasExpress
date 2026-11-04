@@ -189,6 +189,23 @@ El backend expone el autocomplete y las rutas a través de `services/scraping/`,
 pero no realiza scraping del DOM de Google Maps. El proveedor principal reutiliza
 la integración oficial de Places API y Routes API de `services/geo.py`.
 
+Para usar Google desde Docker, definir `GOOGLE_MAPS_API_KEY` en `backend/.env`
+(no en el `.env` del frontend ni como `VITE_*`) y recrear el backend. Compose
+carga ese archivo como variables del contenedor; la configuración se cachea al
+iniciar el proceso. Si Google está configurado, se intenta primero y OSM/OSRM
+queda como fallback explícito ante indisponibilidad. El endpoint autenticado
+`POST /api/geo/route` incluye `provider` en su respuesta; también se registra
+`Route provider selected: google` o `osm` en los logs del backend sin incluir
+credenciales. Para comprobarlo:
+
+```powershell
+docker compose logs backend | Select-String "Route provider"
+```
+
+Cuando la salida programada es futura, se envía a Routes API como `departureTime`
+en la zona horaria de Buenos Aires. Para solicitudes pasadas se omite, ya que
+Google no puede estimar tráfico futuro para ellas.
+
 Opcionalmente se puede habilitar un fallback HTTP a Nominatim y OSRM:
 
 ```env
