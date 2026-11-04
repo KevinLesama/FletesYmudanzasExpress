@@ -440,7 +440,7 @@ export function PlanificacionPage() {
 
   if (requestState.loading || catalogState.loading) {
     return (
-      <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
+      <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación" mobileBackTo={R.solicitudes}>
         <Box sx={{ bgcolor: color.paper, border: '1px solid', borderColor: color.border, borderRadius: 3 }}>
           <LoadingState label="Cargando solicitud..." />
         </Box>
@@ -450,7 +450,7 @@ export function PlanificacionPage() {
 
   if (requestState.error || !request) {
     return (
-      <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación">
+      <AppShell active="solicitudes" breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']} title="Detalle y planificación" mobileBackTo={R.solicitudes}>
         <Box sx={{ bgcolor: color.paper, border: '1px solid', borderColor: color.border, borderRadius: 3 }}>
           <ErrorState message={requestState.error ?? 'No encontramos la solicitud solicitada.'} onRetry={requestState.reload} />
         </Box>
@@ -714,6 +714,7 @@ export function PlanificacionPage() {
       <AppShell
         active="solicitudes"
         breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Detalle y planificación']}
+        mobileBackTo={R.solicitudes}
         kicker="Solicitud"
         title={joinParts([requestId, 'Detalle y planificación'])}
         description={

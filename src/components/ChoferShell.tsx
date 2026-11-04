@@ -224,11 +224,8 @@ export function ChoferShell({
         {isMobile && (
           <MobileTopBar
             title={mobileBarTitle}
-            onOpenMenu={() => setMobileMenuOpen(true)}
+            onOpenMenu={mobileBack ? undefined : () => setMobileMenuOpen(true)}
             onBack={mobileBack}
-            action={
-              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
-            }
           />
         )}
 

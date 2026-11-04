@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { Badge, Box, Button, IconButton, Link, MenuItem, Stack, Typography, useMediaQuery, useTheme } from '@mui/material'
-import { Add, ArrowForward, Tune } from '@mui/icons-material'
+import { Add, Tune } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EncabezadoPagina } from '../components/EncabezadoPagina'
 import {
@@ -26,6 +26,7 @@ import { MobileBottomSheet } from '../components/mobile/MobileBottomSheet'
 import { MobileCard } from '../components/mobile/MobileCard'
 import { MobileDayStrip } from '../components/mobile/MobileDayStrip'
 import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
+import { MobileRouteSummary } from '../components/mobile/MobileRouteSummary'
 import { wrapAnywhere } from '../components/mobile/mobileSx'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -209,10 +210,9 @@ export function AgendaPage() {
   // Mobile cards reuse the same read-only lookups as the desktop modal.
   const driverNameFor = (trip: ShiftRequest) =>
     trip.driverId ? drivers.find((driver) => driver.id === trip.driverId)?.name : undefined
-  const vehicleNameFor = (trip: ShiftRequest) => {
+  const vehicleFor = (trip: ShiftRequest) => {
     if (!trip.vehicleId) return undefined
-    const vehicle = vehicles.find((item) => item.vehicleId === trip.vehicleId)
-    return vehicle ? joinParts([vehicle.type, vehicle.id]) || undefined : undefined
+    return vehicles.find((item) => item.vehicleId === trip.vehicleId)
   }
 
   // El nombre de pila sale del perfil local (el mismo que alimenta la foto y el
@@ -303,6 +303,7 @@ export function AgendaPage() {
     </Box>
   )
 
+  const showMobileCreateRequestAction = true
   const header = (
     <EncabezadoPagina
       kicker={agendaDateLabel}
@@ -357,6 +358,7 @@ export function AgendaPage() {
     <AppShell
       active="agenda"
       breadcrumb={[SECCION_BREADCRUMB, 'Agenda']}
+      showMobileCreateRequestAction={showMobileCreateRequestAction}
       fill
       mapTrip={mapChoice}
       mapTrips={mapTrips}
@@ -365,22 +367,6 @@ export function AgendaPage() {
       mapReason={selectedMapTrip ? 'seleccionado' : mapChoice && isTripInProgress(mapChoice) ? 'en-curso' : mapChoice ? 'proximo' : null}
       onClearMapTrip={() => selectMapTrip(null)}
       onOpenMapTripDetail={(trip) => setSelectedId(trip.id)}
-      mobileAction={
-        <IconButton
-          component="a"
-          href={R.nuevaSolicitud}
-          aria-label="Nueva solicitud"
-          sx={{
-            width: 44,
-            height: 44,
-            bgcolor: brand.orangeStrong,
-            color: 'common.white',
-            '&:hover': { bgcolor: brand.orangeInk },
-          }}
-        >
-          <Add />
-        </IconButton>
-      }
       header={header}
     >
       <Box
@@ -462,10 +448,12 @@ export function AgendaPage() {
         ) : isMobile ? (
           <Stack spacing={1.5} sx={{ p: 2 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: color.inkStrong }}>
-              {fmtDayMonth(anchor)} · {trips.length} {trips.length === 1 ? 'viaje' : 'viajes'}
+              {fmtDayMonth(anchor).replace(/^./, (letter) => letter.toLocaleUpperCase('es-AR'))} · {trips.length}{' '}
+              {trips.length === 1 ? 'viaje' : 'viajes'}
             </Typography>
             {trips.map((trip) => {
-              const crew = joinParts([driverNameFor(trip), vehicleNameFor(trip)])
+              const vehicle = vehicleFor(trip)
+              const crew = joinParts([driverNameFor(trip), vehicle?.type])
               return (
                 <MobileCard
                   key={trip.id}
@@ -487,44 +475,12 @@ export function AgendaPage() {
                       {trip.client}
                     </Typography>
                     <Typography sx={{ fontSize: 12.5, color: color.muted }}>{trip.id}</Typography>
-                    <Stack direction="row" alignItems="flex-start" spacing={0.75} sx={{ mt: 0.75, minWidth: 0 }}>
-                      <Typography
-                        sx={{
-                          flex: 1,
-                          fontSize: 12.5,
-                          lineHeight: 1.35,
-                          color: color.inkStrong,
-                          display: '-webkit-box',
-                          WebkitBoxOrient: 'vertical',
-                          WebkitLineClamp: 2,
-                          overflow: 'hidden',
-                          ...wrapAnywhere,
-                        }}
-                      >
-                        {formatShortPlace(trip.origin)}
-                      </Typography>
-                      <ArrowForward sx={{ fontSize: 14, color: color.mutedSoft, mt: '2px', flexShrink: 0 }} />
-                      <Typography
-                        sx={{
-                          flex: 1,
-                          fontSize: 12.5,
-                          lineHeight: 1.35,
-                          color: color.inkStrong,
-                          display: '-webkit-box',
-                          WebkitBoxOrient: 'vertical',
-                          WebkitLineClamp: 2,
-                          overflow: 'hidden',
-                          ...wrapAnywhere,
-                        }}
-                      >
-                        {formatShortPlace(trip.destination)}
-                      </Typography>
-                    </Stack>
-                    {crew && (
-                      <Typography sx={{ mt: 0.75, fontSize: 12.5, color: color.inkStrong, ...wrapAnywhere }}>
-                        {crew}
-                      </Typography>
-                    )}
+                    <MobileRouteSummary
+                      origin={formatShortPlace(trip.origin)}
+                      destination={formatShortPlace(trip.destination)}
+                      crew={crew || undefined}
+                      plate={vehicle?.id}
+                    />
                   </Box>
                 </MobileCard>
               )
@@ -555,11 +511,7 @@ export function AgendaPage() {
             onClose={() => setFiltersOpen(false)}
             onClear={() => setFilters(EMPTY_FILTERS)}
             activeCount={activeFilters}
-            resultLabel={
-              trips.length === 0
-                ? 'Sin resultados'
-                : `Ver ${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'}`
-            }
+            resultLabel={`Ver ${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'}`}
           >
             <CampoSelect
               label="Chofer"

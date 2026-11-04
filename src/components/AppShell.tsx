@@ -27,7 +27,13 @@ import { EncabezadoPagina } from './EncabezadoPagina'
 import { MapPreview } from './MapPreview'
 import { MobileNavDrawer, type MobileNavItem } from './mobile/MobileNavDrawer'
 import { MobileTopBar } from './mobile/MobileTopBar'
-import { MOBILE_GUTTER, MOBILE_PAGE_BOTTOM_SPACE, MOBILE_PAGE_TOP_SPACE } from './mobile/mobileSx'
+import { MobileCreateRequestAction } from './mobile/MobileCreateRequestAction'
+import {
+  MOBILE_GUTTER,
+  MOBILE_PAGE_BOTTOM_SPACE,
+  MOBILE_PAGE_TOP_SPACE,
+} from './mobile/mobileSx'
+import { space } from '../design/tokens'
 import { brand } from '../theme'
 import { loadSettings } from '../settingsStore'
 import type { TripForMapReason } from '../tripForMap'
@@ -151,8 +157,10 @@ interface AppShellProps {
    * item). Has no effect on desktop.
    */
   mobileTitle?: string
-  /** Mobile only: contextual action rendered on the right of the top bar. */
-  mobileAction?: ReactNode
+  /** Mobile only: shows the shared create-request header action on this page. */
+  showMobileCreateRequestAction?: boolean
+  /** Mobile only: parent-list fallback and back-button mode for secondary screens. */
+  mobileBackTo?: string
   /**
    * Mobile only: hides the header lead when another block already shows the
    * same information. Has no effect on desktop.
@@ -181,7 +189,8 @@ export function AppShell({
   header,
   action,
   mobileTitle,
-  mobileAction,
+  showMobileCreateRequestAction = false,
+  mobileBackTo,
   descriptionVisibleOnMobile = true,
   fill,
   compacto,
@@ -358,8 +367,8 @@ export function AppShell({
         {isMobile && (
           <MobileTopBar
             title={mobileBarTitle}
-            onOpenMenu={() => setMobileMenuOpen(true)}
-            action={mobileAction}
+            onOpenMenu={mobileBackTo ? undefined : () => setMobileMenuOpen(true)}
+            backTo={mobileBackTo}
           />
         )}
 
@@ -382,7 +391,12 @@ export function AppShell({
           sx={{
             pt: { xs: MOBILE_PAGE_TOP_SPACE, md: compacto ? 2.5 : 3.5 },
             px: { xs: `${MOBILE_GUTTER}px`, md: 4 },
-            pb: { xs: MOBILE_PAGE_BOTTOM_SPACE, md: compacto ? 2.5 : 4 },
+            pb: {
+              xs: showMobileCreateRequestAction
+                ? `calc(${MOBILE_PAGE_BOTTOM_SPACE} + 56px + ${space.lg}px)`
+                : MOBILE_PAGE_BOTTOM_SPACE,
+              md: compacto ? 2.5 : 4,
+            },
             ...(!isMobile && {
               boxSizing: 'border-box',
               flex: 1,
@@ -418,6 +432,7 @@ export function AppShell({
             {children}
           </Box>
         </Box>
+        {isMobile && showMobileCreateRequestAction && <MobileCreateRequestAction />}
       </Box>
     </Box>
   )

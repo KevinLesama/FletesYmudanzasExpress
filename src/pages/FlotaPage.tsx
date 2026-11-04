@@ -106,15 +106,6 @@ export function FlotaPage() {
         }
         // The 2x2 metrics grid below repeats these counts on mobile.
         descriptionVisibleOnMobile={false}
-        mobileAction={
-          <IconButton
-            onClick={openAdd}
-            aria-label={tab === 0 ? 'Agregar chofer' : 'Agregar vehículo'}
-            sx={{ color: 'inherit', width: 44, height: 44 }}
-          >
-            <Add />
-          </IconButton>
-        }
         action={
           !isMobile && (
             <Button

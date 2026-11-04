@@ -308,6 +308,7 @@ export function NuevaSolicitudPage() {
       <AppShell
         active="solicitudes"
         breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes', 'Nueva solicitud']}
+        mobileBackTo={R.solicitudes}
         kicker="Gestión de pedidos"
         title="Nueva solicitud"
         description="Completá los datos para revisar disponibilidad y condiciones."

@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react'
-import { AppBar, Box, IconButton, Toolbar, Typography } from '@mui/material'
+import { AppBar, IconButton, Toolbar, Typography } from '@mui/material'
 import { ArrowBack, Menu as MenuIcon } from '@mui/icons-material'
-import { color, shadow } from '../../design/tokens'
-import { MOBILE_SAFE_TOP, MOBILE_TOP_BAR_H } from './mobileSx'
+import { color } from '../../design/tokens'
+import { MOBILE_SAFE_TOP, MOBILE_TOP_BAR_H, mobileType } from './mobileSx'
 
 export interface MobileTopBarProps {
   /** Section name. The page body keeps the eyebrow/lead; the h1 is visually hidden. */
@@ -13,10 +12,8 @@ export interface MobileTopBarProps {
   onBack?: () => void
   /** Link navigation back to the previous screen. */
   backHref?: string
-  /** Contextual action for the current screen. */
-  action?: ReactNode
-  /** Bottom hairline + shadow. Default `true`. */
-  elevation?: boolean
+  /** Parent list fallback for a secondary screen. */
+  backTo?: string
 }
 
 /**
@@ -30,10 +27,30 @@ export function MobileTopBar({
   onOpenMenu,
   onBack,
   backHref,
-  action,
-  elevation = true,
+  backTo,
 }: MobileTopBarProps) {
-  const showBack = Boolean(onBack || backHref)
+  const showBack = Boolean(onBack || backHref || backTo)
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack()
+      return
+    }
+    if (!backTo) return
+
+    const referrer = document.referrer
+    if (window.history.length > 1 && referrer) {
+      try {
+        if (new URL(referrer).origin === window.location.origin) {
+          window.history.back()
+          return
+        }
+      } catch {
+        // A malformed or unavailable referrer uses the parent-list fallback.
+      }
+    }
+    window.location.assign(backTo)
+  }
 
   return (
     <AppBar
@@ -43,17 +60,25 @@ export function MobileTopBar({
         top: 0,
         left: 0,
         right: 0,
-        bgcolor: color.navy,
-        color: color.paper,
+        bgcolor: color.cream,
+        color: color.navy,
         border: 'none',
         pt: MOBILE_SAFE_TOP,
-        ...(elevation && {
-          boxShadow: shadow.card,
-          borderBottom: '1px solid rgba(255,255,255,0.10)',
-        }),
+        boxShadow: 'none',
+        borderBottom: `1px solid ${color.border}`,
       }}
     >
       <Toolbar sx={{ minHeight: MOBILE_TOP_BAR_H, px: 1, gap: 0.5 }}>
+        {!showBack && onOpenMenu && (
+          <IconButton
+            aria-label="Abrir menú"
+            onClick={onOpenMenu}
+            sx={{ color: 'inherit', width: 44, height: 44, flexShrink: 0 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
+
         {showBack ? (
           backHref ? (
             <IconButton
@@ -67,23 +92,13 @@ export function MobileTopBar({
           ) : (
             <IconButton
               aria-label="Volver"
-              onClick={onBack}
+              onClick={handleBack}
               sx={{ color: 'inherit', width: 44, height: 44, flexShrink: 0 }}
             >
               <ArrowBack />
             </IconButton>
           )
-        ) : (
-          onOpenMenu && (
-            <IconButton
-              aria-label="Abrir menú"
-              onClick={onOpenMenu}
-              sx={{ color: 'inherit', width: 44, height: 44, flexShrink: 0 }}
-            >
-              <MenuIcon />
-            </IconButton>
-          )
-        )}
+        ) : null}
 
         <Typography
           component="p"
@@ -91,7 +106,7 @@ export function MobileTopBar({
           sx={{
             flexGrow: 1,
             minWidth: 0,
-            fontSize: 15,
+            fontSize: mobileType.pageTitle,
             fontWeight: 700,
             letterSpacing: '0.01em',
           }}
@@ -99,11 +114,6 @@ export function MobileTopBar({
           {title}
         </Typography>
 
-        {action && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-            {action}
-          </Box>
-        )}
       </Toolbar>
     </AppBar>
   )

@@ -25,6 +25,7 @@ import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { MobileCard } from '../components/mobile/MobileCard'
 import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
+import { MobileRouteSummary } from '../components/mobile/MobileRouteSummary'
 import { MOBILE_INPUT_SX, wrapAnywhere } from '../components/mobile/mobileSx'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -125,19 +126,10 @@ export function SolicitudesPage() {
     <AppShell
       active="solicitudes"
       breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes']}
+      showMobileCreateRequestAction
       kicker="Gestión de pedidos"
       title="Solicitudes"
       description="Revisá los pedidos y organizá cada servicio."
-      mobileAction={
-        <IconButton
-          component="a"
-          href={R.nuevaSolicitud}
-          aria-label="Nueva solicitud"
-          sx={{ color: 'inherit', width: 44, height: 44 }}
-        >
-          <Add />
-        </IconButton>
-      }
       action={
         !isMobile && (
           <Button
@@ -169,7 +161,7 @@ export function SolicitudesPage() {
                 fullWidth
                 size="small"
                 type="search"
-                placeholder="Buscar por cliente o número de solicitud"
+                placeholder={isMobile ? 'Buscar cliente o N.º' : 'Buscar por cliente o número de solicitud'}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 sx={{ ...SEARCH_FIELD_SX, ...MOBILE_INPUT_SX }}
@@ -456,39 +448,10 @@ export function SolicitudesPage() {
                   {r.client}
                 </Typography>
                 <Typography sx={{ fontSize: 12.5, color: color.muted }}>{fmtDate(r.date, true)}</Typography>
-                <Stack direction="row" alignItems="flex-start" spacing={0.75} sx={{ mt: 0.75, minWidth: 0 }}>
-                  <Typography
-                    sx={{
-                      flex: 1,
-                      fontSize: 12.5,
-                      lineHeight: 1.35,
-                      color: color.inkStrong,
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical',
-                      WebkitLineClamp: 2,
-                      overflow: 'hidden',
-                      ...wrapAnywhere,
-                    }}
-                  >
-                    {formatShortPlace(r.origin)}
-                  </Typography>
-                  <ArrowForward sx={{ fontSize: 14, color: color.mutedSoft, mt: '2px', flexShrink: 0 }} />
-                  <Typography
-                    sx={{
-                      flex: 1,
-                      fontSize: 12.5,
-                      lineHeight: 1.35,
-                      color: color.inkStrong,
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical',
-                      WebkitLineClamp: 2,
-                      overflow: 'hidden',
-                      ...wrapAnywhere,
-                    }}
-                  >
-                    {formatShortPlace(r.destination)}
-                  </Typography>
-                </Stack>
+                <MobileRouteSummary
+                  origin={formatShortPlace(r.origin)}
+                  destination={formatShortPlace(r.destination)}
+                />
                 <Box sx={{ mt: 1 }}>
                   <Chip
                     label={paymentLabel(r)}

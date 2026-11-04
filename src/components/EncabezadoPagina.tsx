@@ -45,45 +45,54 @@ export function EncabezadoPagina({
       }}
     >
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        {kicker && (
-          <Typography
-            sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
-          >
-            {kicker.toUpperCase()}
-          </Typography>
-        )}
-        {/*
-          Mobile shows the title in the fixed top bar, so the page keeps the h1
-          for screen readers only. Desktop renders it exactly as before.
-          Pages that own their heading text (the agenda greeting) opt out.
-        */}
-        <Typography
-          variant="h4"
-          component="h1"
-          sx={{
-            fontSize: { xs: 22, md: 26 },
-            ...(tituloVisibleEnMobile
-              ? null
-              : {
-                  position: { xs: 'absolute', md: 'static' },
-                  width: { xs: 1, md: 'auto' },
-                  height: { xs: 1, md: 'auto' },
-                  p: { xs: 0, md: undefined },
-                  m: { xs: -1, md: 0 },
-                  overflow: { xs: 'hidden', md: 'visible' },
-                  clip: { xs: 'rect(0 0 0 0)', md: 'auto' },
-                  whiteSpace: { xs: 'nowrap', md: 'normal' },
-                  border: 0,
-                }),
-          }}
-        >
-          {titulo}
-        </Typography>
+        <Box sx={{ minWidth: 0 }}>
+            {kicker && (
+              <Typography
+                sx={{
+                  fontSize: { xs: 13, md: 11 },
+                  fontWeight: { xs: 600, md: 800 },
+                  color: brand.orangeInk,
+                  letterSpacing: '0.14em',
+                  mb: 0.5,
+                }}
+              >
+                {kicker.toUpperCase()}
+              </Typography>
+            )}
+            {/*
+              Mobile shows the title in the fixed top bar, so the page keeps the h1
+              for screen readers only. Desktop renders it exactly as before.
+              Pages that own their heading text (the agenda greeting) opt out.
+            */}
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{
+                fontSize: { xs: 22, md: 26 },
+                ...(tituloVisibleEnMobile
+                  ? null
+                  : {
+                      position: { xs: 'absolute', md: 'static' },
+                      width: { xs: 1, md: 'auto' },
+                      height: { xs: 1, md: 'auto' },
+                      p: { xs: 0, md: undefined },
+                      m: { xs: -1, md: 0 },
+                      overflow: { xs: 'hidden', md: 'visible' },
+                      clip: { xs: 'rect(0 0 0 0)', md: 'auto' },
+                      whiteSpace: { xs: 'nowrap', md: 'normal' },
+                      border: 0,
+                    }),
+              }}
+            >
+              {titulo}
+            </Typography>
+        </Box>
         {bajada && (
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: { xs: 15, md: 14 },
+              lineHeight: { xs: '22px', md: 1.5 },
               mt: 0.5,
               ...(!bajadaVisibleEnMobile && { display: { xs: 'none', md: 'block' } }),
             }}
