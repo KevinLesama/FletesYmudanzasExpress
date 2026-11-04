@@ -25,7 +25,7 @@ import { brand } from '../theme'
 import type { PlaceDetail } from '../types'
 
 type LandingStep = 'request' | 'sent'
-type LandingField = 'name' | 'phone' | 'date' | 'arrivalFrom' | 'arrivalTo' | 'origin' | 'destination' | 'cargo'
+type LandingField = 'name' | 'phone' | 'date' | 'arrivalTime' | 'origin' | 'destination' | 'cargo'
 type LandingErrors = Partial<Record<LandingField, string>>
 
 type ContactFormProps = Readonly<{
@@ -41,8 +41,7 @@ type ContactFormProps = Readonly<{
 
 type RequestFormProps = Readonly<{
   date: string
-  arrivalFrom: string
-  arrivalTo: string
+  arrivalTime: string
   origin: string
   destination: string
   originPlace: PlaceDetail | null
@@ -51,8 +50,7 @@ type RequestFormProps = Readonly<{
   notes: string
   busy: boolean
   setDate: (value: string) => void
-  setArrivalFrom: (value: string) => void
-  setArrivalTo: (value: string) => void
+  setArrivalTime: (value: string) => void
   setOrigin: (value: string) => void
   setDestination: (value: string) => void
   setOriginPlace: (place: PlaceDetail | null) => void
@@ -73,8 +71,7 @@ export function LandingPage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [date, setDate] = useState(getTodayISO)
-  const [arrivalFrom, setArrivalFrom] = useState('09:00')
-  const [arrivalTo, setArrivalTo] = useState('11:00')
+  const [arrivalTime, setArrivalTime] = useState('09:00')
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [originPlace, setOriginPlace] = useState<PlaceDetail | null>(null)
@@ -91,8 +88,7 @@ export function LandingPage() {
     if (!name.trim()) next.name = 'Ingresá tu nombre y apellido.'
     if (!phone.trim()) next.phone = 'Ingresá tu teléfono.'
     if (!date) next.date = 'Elegí el día del servicio.'
-    if (!arrivalFrom) next.arrivalFrom = 'Elegí desde qué hora.'
-    if (!arrivalTo) next.arrivalTo = 'Elegí hasta qué hora.'
+    if (!arrivalTime) next.arrivalTime = 'Elegí la hora en que querés que lleguemos.'
     if (!origin.trim()) next.origin = 'Ingresá el punto de retiro.'
     if (!destination.trim()) next.destination = 'Ingresá el punto de entrega.'
     if (!cargo.trim()) next.cargo = 'Contanos qué hay que trasladar.'
@@ -108,7 +104,7 @@ export function LandingPage() {
     event.preventDefault()
     const validationErrors = validate()
     setErrors(validationErrors)
-    setTouched({ name: true, phone: true, date: true, arrivalFrom: true, arrivalTo: true, origin: true, destination: true, cargo: true })
+    setTouched({ name: true, phone: true, date: true, arrivalTime: true, origin: true, destination: true, cargo: true })
     if (Object.keys(validationErrors).length > 0) return
     setBusy(true)
     try {
@@ -116,10 +112,8 @@ export function LandingPage() {
         contact_name: name.trim(),
         contact_phone: phone.trim(),
         date,
-        arrival_from: arrivalFrom,
-        arrival_to: arrivalTo,
-        service_from: arrivalFrom,
-        service_to: arrivalTo,
+        arrival_from: arrivalTime,
+        service_from: arrivalTime,
         origin: {
           address: origin,
           barrio: originPlace?.locality || originPlace?.partido || '',
@@ -190,21 +184,23 @@ export function LandingPage() {
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', lg: '1.08fr 0.92fr' },
             gap: { xs: 4, md: 6, lg: 8 },
-            alignItems: 'center',
-            pt: { xs: 4, md: 6, lg: 8 },
+            alignItems: { xs: 'start', lg: 'center' },
+            pt: { xs: 4, md: 6, lg: 7 },
             pb: { xs: 1, md: 2 },
             '@media (max-height: 800px)': {
-              pt: { xs: 3, md: 4, lg: 5 },
+              pt: { xs: 3, md: 4, lg: 4.5 },
               gap: { xs: 3, md: 4, lg: 6 },
               pb: { xs: 0.5, md: 1 },
+              alignItems: { xs: 'start', lg: 'center' },
             },
             '@media (max-height: 720px)': {
               pt: { xs: 2.5, md: 3 },
               gap: { xs: 2.5, md: 3 },
+              alignItems: { xs: 'start', lg: 'center' },
             },
           }}
         >
-          <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', alignSelf: { xs: 'start', lg: 'center' } }}>
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box sx={{ width: 30, height: 2, bgcolor: brand.orange }} />
               <Typography sx={{ color: brand.orangeInk, fontWeight: 800, fontSize: 12, letterSpacing: '0.14em' }}>FLETES SIN VUELTAS</Typography>
@@ -280,7 +276,7 @@ export function LandingPage() {
               },
             }}
           >
-            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalFrom={arrivalFrom} arrivalTo={arrivalTo} origin={origin} destination={destination} originPlace={originPlace} destinationPlace={destinationPlace} cargo={cargo} notes={notes} busy={busy} errors={errors} touched={touched} onBlur={onFieldBlur} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalFrom={setArrivalFrom} setArrivalTo={setArrivalTo} setOrigin={setOrigin} setDestination={setDestination} setOriginPlace={setOriginPlace} setDestinationPlace={setDestinationPlace} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
+            {step === 'request' && <RequestForm name={name} phone={phone} date={date} arrivalTime={arrivalTime} origin={origin} destination={destination} originPlace={originPlace} destinationPlace={destinationPlace} cargo={cargo} notes={notes} busy={busy} errors={errors} touched={touched} onBlur={onFieldBlur} setName={setName} setPhone={setPhone} setDate={setDate} setArrivalTime={setArrivalTime} setOrigin={setOrigin} setDestination={setDestination} setOriginPlace={setOriginPlace} setDestinationPlace={setDestinationPlace} setCargo={setCargo} setNotes={setNotes} onSubmit={submitRequest} />}
             {step === 'sent' && <SuccessState onNewRequest={() => setStep('request')} />}
           </Box>
         </Box>
@@ -302,7 +298,7 @@ function ContactForm({ name, phone, busy, setName, setPhone, errors, touched, on
   </Stack>
 }
 
-function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destination, originPlace, destinationPlace, cargo, notes, busy, errors, touched, onBlur, setName, setPhone, setDate, setArrivalFrom, setArrivalTo, setOrigin, setDestination, setOriginPlace, setDestinationPlace, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
+function RequestForm({ name, phone, date, arrivalTime, origin, destination, originPlace, destinationPlace, cargo, notes, busy, errors, touched, onBlur, setName, setPhone, setDate, setArrivalTime, setOrigin, setDestination, setOriginPlace, setDestinationPlace, setCargo, setNotes, onSubmit }: RequestFormProps & ContactFormProps) {
   const changeOrigin = (value: string) => {
     setOrigin(value)
     if (originPlace && value !== originPlace.address) setOriginPlace(null)
@@ -327,10 +323,9 @@ function RequestForm({ name, phone, date, arrivalFrom, arrivalTo, origin, destin
         }}
       >
         <ContactForm name={name} phone={phone} busy={busy} setName={setName} setPhone={setPhone} errors={errors} touched={touched} onBlur={onBlur} />
-        <LandingTextField id="landing-date" label="Día del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} onBlur={() => onBlur('date')} error={errorFor('date')} InputLabelProps={{ shrink: true }} />
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.25, md: 1.5 }}>
-          <LandingTextField id="landing-arrival-from" label="Desde las" type="time" value={arrivalFrom} onChange={(event) => setArrivalFrom(event.target.value)} onBlur={() => onBlur('arrivalFrom')} error={errorFor('arrivalFrom')} InputLabelProps={{ shrink: true }} />
-          <LandingTextField id="landing-arrival-to" label="Hasta las" type="time" value={arrivalTo} onChange={(event) => setArrivalTo(event.target.value)} onBlur={() => onBlur('arrivalTo')} error={errorFor('arrivalTo')} />
+          <LandingTextField id="landing-date" label="Fecha del servicio" type="date" value={date} onChange={(event) => setDate(event.target.value)} onBlur={() => onBlur('date')} error={errorFor('date')} InputLabelProps={{ shrink: true }} />
+          <LandingTextField id="landing-arrival-time" label="Hora de llegada deseada" type="time" value={arrivalTime} onChange={(event) => setArrivalTime(event.target.value)} onBlur={() => onBlur('arrivalTime')} error={errorFor('arrivalTime')} InputLabelProps={{ shrink: true }} />
         </Stack>
         <PlaceAutocomplete
           label="¿Desde dónde retiramos?"
