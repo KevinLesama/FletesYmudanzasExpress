@@ -52,7 +52,10 @@ export function MiniCalendar({
 
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.4 }}>
         {LABELS.map((l) => (
-          <Typography key={l} sx={{ textAlign: 'center', fontSize: 11, fontWeight: 800, color: brand.muted }}>
+          <Typography
+            key={l}
+            sx={{ textAlign: 'center', fontSize: { xs: 12, md: 11 }, fontWeight: 800, color: brand.muted }}
+          >
             {l}
           </Typography>
         ))}
@@ -78,7 +81,11 @@ export function MiniCalendar({
               aria-pressed={isSelected}
               sx={{
                 textAlign: 'center',
-                py: 0.65,
+                // Mobile: 44px touch target without moving the desktop layout.
+                display: { xs: 'grid', md: 'block' },
+                placeItems: 'center',
+                minHeight: { xs: 44, md: 'auto' },
+                py: { xs: 0, md: 0.65 },
                 borderRadius: 2,
                 fontSize: 12.5,
                 fontWeight: isSelected ? 800 : 600,
@@ -94,7 +101,7 @@ export function MiniCalendar({
               <Box
                 sx={{
                   position: 'absolute',
-                  bottom: 2,
+                  bottom: { xs: 8, md: 2 },
                   left: '50%',
                   transform: 'translateX(-50%)',
                   width: 4,
@@ -110,7 +117,7 @@ export function MiniCalendar({
 
       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 1.4 }}>
         <Box sx={{ width: 4, height: 4, borderRadius: 50, bgcolor: brand.orange }} />
-        <Typography sx={{ fontSize: 11, color: '#64707C' }}>Día con viajes</Typography>
+        <Typography sx={{ fontSize: { xs: 12, md: 11 }, color: '#64707C' }}>Día con viajes</Typography>
       </Stack>
     </Box>
   )

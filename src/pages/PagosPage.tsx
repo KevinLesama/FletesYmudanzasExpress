@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  Badge,
   Box,
   Button,
   Dialog,
@@ -20,7 +21,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, Close, InfoOutlined, Paid, ReceiptLong, Search } from '@mui/icons-material'
+import { Add, Close, FilterAlt, InfoOutlined, Paid, ReceiptLong, Search } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState } from '../components/EmptyState'
 import { TruckLoader } from '../components/TruckLoader'
@@ -28,6 +29,14 @@ import { CampoSelect, CampoTexto, EtiquetaCampo } from '../components/FormFields
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
+import { MobileCard } from '../components/mobile/MobileCard'
+import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
+import {
+  MOBILE_INPUT_SX,
+  MOBILE_SAFE_BOTTOM,
+  MOBILE_SAFE_TOP,
+  wrapAnywhere,
+} from '../components/mobile/mobileSx'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { usePagedList } from '../usePagedList'
@@ -63,6 +72,8 @@ export function PagosPage() {
   const [date, setDate] = useState('all')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
+  // Mobile only: the filters live in a bottom sheet.
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [dialogTrip, setDialogTrip] = useState<PaymentSummary | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -93,6 +104,13 @@ export function PagosPage() {
   }, [paymentTrips, date, status, search])
 
   const pages = usePagedList(rows, PAYMENTS_PAGE_SIZE)
+
+  // Badge on the mobile "Filtros" button: the filters that live inside the sheet.
+  const sheetFilterCount = (date !== 'all' ? 1 : 0) + (status !== 'all' ? 1 : 0)
+  const clearFilters = () => {
+    setDate('all')
+    setStatus('all')
+  }
 
   const registerPayment = async (trip: PaymentSummary, payment: Payment) => {
     setBusy(true)
@@ -163,26 +181,51 @@ export function PagosPage() {
   const paymentGridMobile = (
     <Stack spacing={1.5}>
       {rows.map((r) => (
-        <Box key={r.id} sx={{ bgcolor: color.paper, border: `1px solid ${color.border}`, borderRadius: 3, p: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
-            <Stack direction="row" alignItems="center" spacing={1}>
+        <MobileCard
+          key={r.id}
+          header={
+            <>
               <ReceiptLong sx={{ fontSize: 16, color: color.muted }} />
               <Typography sx={{ fontWeight: 800, fontSize: 13.5, color: brand.navy }}>{r.id}</Typography>
-            </Stack>
-            <StatusChip label={r.state} />
-          </Stack>
-          <Typography sx={{ mt: 0.6, fontWeight: 700, fontSize: 14 }}>{r.client}</Typography>
-          <Typography sx={{ fontSize: 12, color: color.muted }}>{fmtDate(r.date)}</Typography>
-          <Box sx={{ my: 1.4, p: 1.4, borderRadius: 2, bgcolor: color.sand, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2 }}>
-            <Money label="Precio acordado" value={ars(r.price)} />
-            <Money label="Seña recibida" value={ars(r.depositReceived)} />
-            <Money label="Total cobrado" value={ars(r.collected)} />
-            <Money label="Saldo pendiente" value={ars(r.balance)} strong />
+              <Box sx={{ flexGrow: 1 }} />
+              <StatusChip label={r.state} />
+            </>
+          }
+          footer={
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Add />}
+              onClick={() => setDialogTrip(r)}
+              sx={{ color: brand.navy, borderColor: color.border }}
+            >
+              Registrar pago
+            </Button>
+          }
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, color: color.navy, ...wrapAnywhere }}>
+              {r.client}
+            </Typography>
+            <Typography sx={{ fontSize: 12.5, color: color.muted }}>{fmtDate(r.date)}</Typography>
+            <Box
+              sx={{
+                mt: 1.25,
+                p: 1.4,
+                borderRadius: 2,
+                bgcolor: color.sand,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 1.2,
+              }}
+            >
+              <Money label="Precio acordado" value={ars(r.price)} />
+              <Money label="Seña recibida" value={ars(r.depositReceived)} />
+              <Money label="Total cobrado" value={ars(r.collected)} />
+              <Money label="Saldo pendiente" value={ars(r.balance)} strong />
+            </Box>
           </Box>
-          <Button fullWidth variant="outlined" size="small" startIcon={<Add />} onClick={() => setDialogTrip(r)} sx={{ color: brand.navy, borderColor: color.border }}>
-            Registrar pago
-          </Button>
-        </Box>
+        </MobileCard>
       ))}
     </Stack>
   )
@@ -202,63 +245,134 @@ export function PagosPage() {
           </Typography>
         }
       >
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1, color: color.amberInk }}>
-          <InfoOutlined sx={{ fontSize: 14, color: color.amberInk }} />
+        <Stack
+          direction="row"
+          spacing={0.75}
+          alignItems={{ xs: 'flex-start', md: 'center' }}
+          sx={{
+            mb: { xs: 1.5, md: 1 },
+            color: color.amberInk,
+            // Mobile: compact amber notice. Desktop keeps the plain inline text.
+            bgcolor: { xs: color.amberSoft, md: 'transparent' },
+            border: { xs: `1px solid ${color.border}`, md: 'none' },
+            borderRadius: { xs: 2, md: 0 },
+            px: { xs: 1.25, md: 0 },
+            py: { xs: 1, md: 0 },
+          }}
+        >
+          <InfoOutlined sx={{ fontSize: 14, color: color.amberInk, mt: { xs: '1px', md: 0 } }} />
           <Typography sx={{ fontSize: 12, color: color.amberInk, fontWeight: 600 }}>
             Que el cliente haya pagado al chofer no significa que el dinero ya se rindió a la empresa.
           </Typography>
         </Stack>
 
-        <Box
-          sx={{
-            bgcolor: color.paper,
-            border: `1px solid ${color.border}`,
-            borderRadius: 3,
-            p: 1.25,
-            mb: 1,
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 2fr) minmax(170px, 1fr) minmax(170px, 1fr)' },
-            gap: 1.25,
-            alignItems: 'center',
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <EtiquetaCampo text="Buscar" htmlFor="pagos-search" />
-            <TextField
-              id="pagos-search"
+        {isMobile ? (
+          <>
+            {/* Search + filter sheet: same state and same handlers as desktop. */}
+            <Stack direction="row" alignItems="flex-end" spacing={1} sx={{ mb: 1.5 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <EtiquetaCampo text="Buscar" htmlFor="pagos-search-mobile" />
+                <TextField
+                  id="pagos-search-mobile"
+                  size="small"
+                  type="search"
+                  fullWidth
+                  placeholder="Buscar por viaje o cliente"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  sx={{ ...SEARCH_FIELD_SX, ...MOBILE_INPUT_SX }}
+                  inputProps={SEARCH_INPUT_PROPS}
+                  InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
+                />
+              </Box>
+              <Badge badgeContent={sheetFilterCount} color="secondary" overlap="circular">
+                <IconButton
+                  aria-label={sheetFilterCount > 0 ? `Filtros (${sheetFilterCount} activos)` : 'Filtros'}
+                  onClick={() => setFiltersOpen(true)}
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: color.border,
+                    bgcolor: color.paper,
+                    color: brand.navy,
+                  }}
+                >
+                  <FilterAlt />
+                </IconButton>
+              </Badge>
+            </Stack>
+
+            <MobileFilterSheet
+              open={filtersOpen}
+              onClose={() => setFiltersOpen(false)}
+              onClear={clearFilters}
+              activeCount={sheetFilterCount}
+            >
+              <CampoSelect label="Fecha" value={date} onChange={(e) => setDate(e.target.value)}>
+                <MenuItem value="all">Todas las fechas</MenuItem>
+                <MenuItem value="2026-09-24">24/09/2026</MenuItem>
+              </CampoSelect>
+              <CampoSelect label="Estado" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <MenuItem value="all">Todos los estados</MenuItem>
+                {availableStatuses.has('Parcial') && <MenuItem value="Parcial">Parcial</MenuItem>}
+                {availableStatuses.has('Cobrado') && <MenuItem value="Cobrado">Pagado</MenuItem>}
+              </CampoSelect>
+            </MobileFilterSheet>
+          </>
+        ) : (
+          <Box
+            sx={{
+              bgcolor: color.paper,
+              border: `1px solid ${color.border}`,
+              borderRadius: 3,
+              p: 1.25,
+              mb: 1,
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 2fr) minmax(170px, 1fr) minmax(170px, 1fr)' },
+              gap: 1.25,
+              alignItems: 'center',
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <EtiquetaCampo text="Buscar" htmlFor="pagos-search" />
+              <TextField
+                id="pagos-search"
+                size="small"
+                type="search"
+                fullWidth
+                placeholder="Buscar por viaje o cliente"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                sx={{ ...SEARCH_FIELD_SX, '& .MuiOutlinedInput-root': { height: 44 } }}
+                inputProps={SEARCH_INPUT_PROPS}
+                InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
+              />
+            </Box>
+            <CampoSelect
+              label="Fecha"
               size="small"
-              type="search"
-              fullWidth
-              placeholder="Buscar por viaje o cliente"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{ ...SEARCH_FIELD_SX, '& .MuiOutlinedInput-root': { height: 44 } }}
-              inputProps={SEARCH_INPUT_PROPS}
-              InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
-            />
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { height: 44 } }}
+            >
+                <MenuItem value="all">Todas las fechas</MenuItem>
+                <MenuItem value="2026-09-24">24/09/2026</MenuItem>
+            </CampoSelect>
+            <CampoSelect
+              label="Estado"
+              size="small"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { height: 44 } }}
+            >
+                <MenuItem value="all">Todos los estados</MenuItem>
+                {availableStatuses.has('Parcial') && <MenuItem value="Parcial">Parcial</MenuItem>}
+                {availableStatuses.has('Cobrado') && <MenuItem value="Cobrado">Pagado</MenuItem>}
+            </CampoSelect>
           </Box>
-          <CampoSelect
-            label="Fecha"
-            size="small"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            sx={{ '& .MuiOutlinedInput-root': { height: 44 } }}
-          >
-              <MenuItem value="all">Todas las fechas</MenuItem>
-              <MenuItem value="2026-09-24">24/09/2026</MenuItem>
-          </CampoSelect>
-          <CampoSelect
-            label="Estado"
-            size="small"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            sx={{ '& .MuiOutlinedInput-root': { height: 44 } }}
-          >
-              <MenuItem value="all">Todos los estados</MenuItem>
-              {availableStatuses.has('Parcial') && <MenuItem value="Parcial">Parcial</MenuItem>}
-              {availableStatuses.has('Cobrado') && <MenuItem value="Cobrado">Pagado</MenuItem>}
-          </CampoSelect>
-        </Box>
+        )}
 
         {paymentsState.loading ? (
           <Box
@@ -320,7 +434,7 @@ export function PagosPage() {
 function Money({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <Box>
-      <Typography sx={{ fontSize: 11, color: color.muted, fontWeight: strong ? 800 : 600 }}>{label.toUpperCase()}</Typography>
+      <Typography sx={{ fontSize: 12, color: color.muted, fontWeight: strong ? 800 : 600 }}>{label.toUpperCase()}</Typography>
       <Typography sx={{ fontSize: 14, fontWeight: strong ? 800 : 700, color: strong ? brand.navy : color.inkStrong }}>{value}</Typography>
     </Box>
   )
@@ -367,7 +481,7 @@ function PaymentDialog({
 
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth fullScreen={isMobile}>
-      <DialogTitle sx={{ px: 3, pt: { xs: 4, md: 3 } }}>
+      <DialogTitle sx={{ px: { xs: 2, md: 3 }, pt: { xs: `calc(32px + ${MOBILE_SAFE_TOP})`, md: 3 } }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: color.blueSoft, color: brand.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Paid sx={{ fontSize: 18 }} />
@@ -381,7 +495,7 @@ function PaymentDialog({
           </IconButton>
         </Stack>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 2 }}>
+      <DialogContent sx={{ px: { xs: 2, md: 3 }, pt: 2 }}>
         <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: color.amberSoft, border: `1px solid ${color.border}`, mb: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: color.amberInk }}>{concept === 'Seña' ? 'Falta de seña' : 'Saldo pendiente'}</Typography>
@@ -408,7 +522,7 @@ function PaymentDialog({
             <MenuItem value="Seña">Seña</MenuItem>
             <MenuItem value="Saldo">Saldo</MenuItem>
           </CampoSelect>
-          <Stack direction="row" spacing={1.5}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2, md: 1.5 }}>
             <CampoSelect label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} size="small">
               <MenuItem value="Transferencia">Transferencia</MenuItem>
               <MenuItem value="Efectivo">Efectivo</MenuItem>
@@ -425,7 +539,17 @@ function PaymentDialog({
           Registro manual. No se realiza verificación bancaria.
         </Typography>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
+      <DialogActions
+        sx={{
+          px: { xs: 2, md: 3 },
+          pt: { xs: 1.5, md: 1 },
+          // Mobile: pinned to the bottom edge of the full-screen dialog.
+          pb: { xs: `calc(12px + ${MOBILE_SAFE_BOTTOM})`, md: 3 },
+          justifyContent: 'space-between',
+          bgcolor: { xs: color.paper, md: 'transparent' },
+          borderTop: { xs: `1px solid ${color.border}`, md: 'none' },
+        }}
+      >
         <Button onClick={onClose} sx={{ color: color.ink }}>Cancelar</Button>
         <Button variant="contained" startIcon={<Add />} disabled={busy} onClick={save}>{busy ? 'Guardando...' : 'Guardar pago'}</Button>
       </DialogActions>

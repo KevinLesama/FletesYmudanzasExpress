@@ -1,20 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent, MouseEvent } from 'react'
-import { Box, Button, IconButton, Link, useMediaQuery, useTheme } from '@mui/material'
-import { Add } from '@mui/icons-material'
+import { Badge, Box, Button, IconButton, Link, MenuItem, Stack, Typography, useMediaQuery, useTheme } from '@mui/material'
+import { Add, Tune } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EncabezadoPagina } from '../components/EncabezadoPagina'
-import { AgendaToolbar, EMPTY_FILTERS, type AgendaFilters, type AgendaView } from '../components/AgendaToolbar'
+import {
+  AgendaToolbar,
+  EMPTY_FILTERS,
+  calendarMonthOf,
+  countActiveFilters,
+  driverFilterOptions,
+  shiftMonth,
+  statusFilterOptions,
+  vehicleFilterOptions,
+  type AgendaFilters,
+  type AgendaView,
+} from '../components/AgendaToolbar'
 import { AgendaGrid } from '../components/AgendaGrid'
 import { TripDetailModal } from '../components/TripDetailModal'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
+import { CampoSelect } from '../components/FormFields'
+import { MiniCalendar } from '../components/MiniCalendar'
+import { StatusChip } from '../components/StatusChip'
+import { MobileBottomSheet } from '../components/mobile/MobileBottomSheet'
+import { MobileCard } from '../components/mobile/MobileCard'
+import { MobileDayStrip } from '../components/mobile/MobileDayStrip'
+import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
+import { MobileRouteSummary } from '../components/mobile/MobileRouteSummary'
+import { wrapAnywhere } from '../components/mobile/mobileSx'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { R } from '../routes'
 import { brand } from '../theme'
 import { color } from '../design/tokens'
-import { addDays, getInitialAnchor, getInitialWeekStart, getTodayISO, workWeekDays } from '../agendaDates'
-import { givenName, joinParts } from '../format'
+import { addDays, fmtDayMonth, getInitialAnchor, getInitialWeekStart, getTodayISO, workWeekDays } from '../agendaDates'
+import { givenName, joinParts, formatShortPlace } from '../format'
 import { countPendingReview, PENDING_DEPOSIT_STATUS, PENDING_REVIEW_STATUS } from '../requestMetrics'
 import { loadSettings } from '../settingsStore'
 import { currentUser } from '../supabase'
@@ -67,6 +87,10 @@ export function AgendaPage() {
   const [view, setView] = useState<AgendaView>('workWeek')
   const [filters, setFilters] = useState<AgendaFilters>(EMPTY_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Mobile only: the filters and the month picker live in bottom sheets.
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [monthOpen, setMonthOpen] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthOf(anchor))
   const [mapTripId, setMapTripId] = useState<string | null>(() => {
     try {
       return typeof window === 'undefined' ? null : window.sessionStorage.getItem('fex_map_trip_id')
@@ -130,8 +154,37 @@ export function AgendaPage() {
     return dates
   }, [allRequests])
 
+  // Same filter options and same active count as the desktop toolbar.
+  const activeFilters = countActiveFilters(filters)
+  const driverOptions = useMemo(() => driverFilterOptions(drivers), [drivers])
+  const vehicleOptions = useMemo(() => vehicleFilterOptions(vehicles), [vehicles])
+  const statusOptions = useMemo(() => statusFilterOptions(), [])
+
   const shift = (direction: -1 | 1) => {
     setAnchor(addDays(anchor, direction * (effectiveView === 'day' ? 1 : 7)))
+  }
+
+  // Mobile week strip: always moves a full week, keeping the weekday.
+  const shiftWeek = (direction: -1 | 1) => {
+    setAnchor(addDays(anchor, direction * 7))
+  }
+
+  const handleToday = () => {
+    if (effectiveView === 'day') {
+      setAnchor(getTodayISO())
+    } else {
+      setAnchor(getInitialWeekStart(new Date()))
+    }
+  }
+
+  const openMonthPicker = () => {
+    setCalendarMonth(calendarMonthOf(anchor))
+    setMonthOpen(true)
+  }
+
+  const pickMonthDate = (date: string) => {
+    setAnchor(date)
+    setMonthOpen(false)
   }
 
   const user = currentUser()
@@ -153,6 +206,14 @@ export function AgendaPage() {
   const selectedVehicleName = selectedVehicle
     ? joinParts([selectedVehicle.type, selectedVehicle.id]) || undefined
     : undefined
+
+  // Mobile cards reuse the same read-only lookups as the desktop modal.
+  const driverNameFor = (trip: ShiftRequest) =>
+    trip.driverId ? drivers.find((driver) => driver.id === trip.driverId)?.name : undefined
+  const vehicleFor = (trip: ShiftRequest) => {
+    if (!trip.vehicleId) return undefined
+    return vehicles.find((item) => item.vehicleId === trip.vehicleId)
+  }
 
   // El nombre de pila sale del perfil local (el mismo que alimenta la foto y el
   // menú superior). `usuarios.nombre` de una cuenta compartida trae el rol
@@ -204,7 +265,7 @@ export function AgendaPage() {
     <Box component="span">
       {todayTrips.length > 0 ? (
         <>
-          Durante el trayecto del día tenes{' '}
+          Durante el trayecto del día tenés{' '}
           <Link component="button" type="button" onClick={openToday} aria-label="Ver los viajes de hoy" sx={summaryLinkSx}>
             {todayTrips.length} {todayTrips.length === 1 ? 'viaje' : 'viajes'}
           </Link>
@@ -242,28 +303,16 @@ export function AgendaPage() {
     </Box>
   )
 
+  const showMobileCreateRequestAction = true
   const header = (
     <EncabezadoPagina
       kicker={agendaDateLabel}
       titulo={greeting}
       bajada={summary}
+      tituloVisibleEnMobile
+      compactoEnMobile
       accion={
-        isMobile ? (
-          <IconButton
-            href={R.nuevaSolicitud}
-            aria-label="Nueva solicitud"
-            sx={{
-              flexShrink: 0,
-              width: 44,
-              height: 44,
-              bgcolor: brand.orangeStrong,
-              color: 'common.white',
-              '&:hover': { bgcolor: brand.orangeInk },
-            }}
-          >
-            <Add />
-          </IconButton>
-        ) : (
+        !isMobile && (
           <Button
             variant="contained"
             size="medium"
@@ -274,7 +323,6 @@ export function AgendaPage() {
             Nueva solicitud
           </Button>
         )
-
       }
     />
   )
@@ -310,6 +358,7 @@ export function AgendaPage() {
     <AppShell
       active="agenda"
       breadcrumb={[SECCION_BREADCRUMB, 'Agenda']}
+      showMobileCreateRequestAction={showMobileCreateRequestAction}
       fill
       mapTrip={mapChoice}
       mapTrips={mapTrips}
@@ -330,30 +379,56 @@ export function AgendaPage() {
           ...(!isMobile && { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }),
         }}
       >
-        <Box sx={{ px: { xs: 1.5, md: 2 }, py: 1.5, borderBottom: `1px solid ${color.border}` }}>
-          <AgendaToolbar
-            view={effectiveView}
-            onViewChange={setView}
-            days={days}
-            anchor={anchor}
-            marked={marked}
-            onSelectDate={setAnchor}
-            onShift={shift}
-            onToday={() => {
-              if (effectiveView === 'day') {
-                setAnchor(getTodayISO())
-              } else {
-                setAnchor(getInitialWeekStart(new Date()))
+        {isMobile ? (
+          <Box sx={{ px: 1.5, py: 1.5, borderBottom: `1px solid ${color.border}` }}>
+            <MobileDayStrip
+              value={anchor}
+              marked={marked}
+              todayISO={today}
+              onSelect={setAnchor}
+              onShift={shiftWeek}
+              onToday={handleToday}
+              onOpenMonth={openMonthPicker}
+              trailing={
+                <Badge badgeContent={activeFilters} color="secondary" overlap="circular">
+                  <IconButton
+                    aria-label={activeFilters > 0 ? `Filtros, ${activeFilters} activos` : 'Filtros'}
+                    onClick={() => setFiltersOpen(true)}
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 2,
+                      border: `1px solid ${activeFilters > 0 ? color.navy : color.border}`,
+                      bgcolor: color.paper,
+                      color: activeFilters > 0 ? color.navy : color.muted,
+                    }}
+                  >
+                    <Tune />
+                  </IconButton>
+                </Badge>
               }
-            }}
-            filters={filters}
-            onFiltersChange={setFilters}
-            drivers={drivers}
-            vehicles={vehicles}
-            showViewSwitch={!isMobile}
-            showLegend={!isMobile}
-          />
-        </Box>
+            />
+          </Box>
+        ) : (
+          <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${color.border}` }}>
+            <AgendaToolbar
+              view={effectiveView}
+              onViewChange={setView}
+              days={days}
+              anchor={anchor}
+              marked={marked}
+              onSelectDate={setAnchor}
+              onShift={shift}
+              onToday={handleToday}
+              filters={filters}
+              onFiltersChange={setFilters}
+              drivers={drivers}
+              vehicles={vehicles}
+              showViewSwitch={!isMobile}
+              showLegend={!isMobile}
+            />
+          </Box>
+        )}
 
         {requestsState.loading ? (
           <Box sx={{ p: 3 }}>
@@ -370,9 +445,50 @@ export function AgendaPage() {
               subtext="Probá con otra selección o movete a otra fecha para ver los viajes cargados."
             />
           </Box>
+        ) : isMobile ? (
+          <Stack spacing={1.5} sx={{ p: 2 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: color.inkStrong }}>
+              {fmtDayMonth(anchor).replace(/^./, (letter) => letter.toLocaleUpperCase('es-AR'))} · {trips.length}{' '}
+              {trips.length === 1 ? 'viaje' : 'viajes'}
+            </Typography>
+            {trips.map((trip) => {
+              const vehicle = vehicleFor(trip)
+              const crew = joinParts([driverNameFor(trip), vehicle?.type])
+              return (
+                <MobileCard
+                  key={trip.id}
+                  onClick={() => openTripDetail(trip.id)}
+                  header={
+                    <>
+                      <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.2, color: color.navy }}>
+                        {trip.serviceRange[0]}–{trip.serviceRange[1]}
+                      </Typography>
+                      <Box sx={{ flexGrow: 1 }} />
+                      <StatusChip label={trip.status} />
+                    </>
+                  }
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, color: color.navy, ...wrapAnywhere }}
+                    >
+                      {trip.client}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12.5, color: color.muted }}>{trip.id}</Typography>
+                    <MobileRouteSummary
+                      origin={formatShortPlace(trip.origin)}
+                      destination={formatShortPlace(trip.destination)}
+                      crew={crew || undefined}
+                      plate={vehicle?.id}
+                    />
+                  </Box>
+                </MobileCard>
+              )
+            })}
+          </Stack>
         ) : (
           <Box
-            sx={!isMobile ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' } : { position: 'relative' }}
+            sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}
             onDoubleClickCapture={handleGridDoubleClickCapture}
             onKeyDownCapture={handleGridKeyDownCapture}
           >
@@ -381,12 +497,70 @@ export function AgendaPage() {
               trips={trips}
               today={today}
               now={now}
-              fill={!isMobile}
+              fill
               onOpenTrip={(trip) => openTripDetail(trip.id)}
             />
           </Box>
         )}
       </Box>
+
+      {isMobile && (
+        <>
+          <MobileFilterSheet
+            open={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            onClear={() => setFilters(EMPTY_FILTERS)}
+            activeCount={activeFilters}
+            resultLabel={`Ver ${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'}`}
+          >
+            <CampoSelect
+              label="Chofer"
+              value={filters.driver}
+              onChange={(e) => setFilters({ ...filters, driver: e.target.value })}
+            >
+              {driverOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+            <CampoSelect
+              label="Vehículo"
+              value={filters.vehicle}
+              onChange={(e) => setFilters({ ...filters, vehicle: e.target.value })}
+            >
+              {vehicleOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+            <CampoSelect
+              label="Estado"
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            >
+              {statusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+          </MobileFilterSheet>
+
+          <MobileBottomSheet open={monthOpen} onClose={() => setMonthOpen(false)} title="Elegir fecha">
+            <MiniCalendar
+              year={calendarMonth.year}
+              month={calendarMonth.month}
+              selected={anchor}
+              marked={marked}
+              onSelect={pickMonthDate}
+              onPrevMonth={() => setCalendarMonth((current) => shiftMonth(current, -1))}
+              onNextMonth={() => setCalendarMonth((current) => shiftMonth(current, 1))}
+            />
+          </MobileBottomSheet>
+        </>
+      )}
 
       {selected && (
         <TripDetailModal

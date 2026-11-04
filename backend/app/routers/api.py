@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -47,7 +47,7 @@ from app.schemas import (
     ConfiguracionSistemaIn,
     ConfiguracionSistemaOut,
 )
-from app.services import business, pricing, serializers
+from app.services import business, pricing, serializers, telegram_notifier
 from app.services.supabase_admin import SupabaseAdminError, delete_user, invite_user
 from app.services.scraping import get_geo_service
 from app.services.scraping.service import scheduled_departure
@@ -684,22 +684,40 @@ def list_requests(
     status_code=201,
     dependencies=[Depends(require_role("administrador"))],
 )
-def create_request(payload: SolicitudIn, db: Session = Depends(get_db)) -> dict:
-    return _create_request(payload, db, require_client=True)
+def create_request(
+    payload: SolicitudIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict:
+    return _create_request(
+        payload, db, background_tasks=background_tasks, require_client=True
+    )
 
 
 @public_requests_router.post("", status_code=201)
-def create_public_request(payload: SolicitudIn, db: Session = Depends(get_db)) -> dict:
+def create_public_request(
+    payload: SolicitudIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict:
     if payload.cliente_id is not None:
         raise HTTPException(status_code=400, detail="Las solicitudes públicas no aceptan cliente_id.")
     if not payload.contacto_nombre or not payload.contacto_nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre de contacto es obligatorio.")
     if not payload.contacto_telefono or not payload.contacto_telefono.strip():
         raise HTTPException(status_code=422, detail="El teléfono de contacto es obligatorio.")
-    return _create_request(payload, db, require_client=False)
+    return _create_request(
+        payload, db, background_tasks=background_tasks, require_client=False
+    )
 
 
-def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) -> dict:
+def _create_request(
+    payload: SolicitudIn,
+    db: Session,
+    *,
+    background_tasks: BackgroundTasks,
+    require_client: bool,
+) -> dict:
     cliente = db.get(Usuario, payload.cliente_id) if payload.cliente_id is not None else None
     if require_client and (cliente is None or cliente.rol != "cliente"):
         raise HTTPException(status_code=404, detail="Cliente no encontrado.")
@@ -829,7 +847,15 @@ def _create_request(payload: SolicitudIn, db: Session, *, require_client: bool) 
         )
     db.commit()
     db.refresh(solicitud)
-    return serializers.serialize_solicitud(solicitud)
+    result = serializers.serialize_solicitud(solicitud)
+    # El aviso a Telegram corre despues de persistir y responder. Si falla, el
+    # solicitante igual recibe su alta: es un extra best-effort.
+    background_tasks.add_task(
+        telegram_notifier.notify_new_request,
+        result,
+        "Panel admin" if require_client else "Landing web",
+    )
+    return result
 
 
 @requests_router.get("/{request_ref}/quote", response_model=CotizacionOut)

@@ -106,6 +106,7 @@ export function AccountMenu({ user, items, surface = 'light', onSignOut }: Accou
           sx: {
             mt: 1,
             minWidth: 264,
+            maxWidth: 'calc(100vw - 32px)',
             border: `1px solid ${color.border}`,
             borderRadius: `${radius.md}px`,
             boxShadow: shadow.raised,

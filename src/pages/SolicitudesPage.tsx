@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import {
+  Badge,
   Box,
   Button,
   Chip,
+  IconButton,
   MenuItem,
   Stack,
   Table,
@@ -15,17 +17,22 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, ArrowForward, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
+import { Add, ArrowForward, Close, FilterAlt, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { CampoSelect, EtiquetaCampo } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
+import { MobileCard } from '../components/mobile/MobileCard'
+import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
+import { MobileRouteSummary } from '../components/mobile/MobileRouteSummary'
+import { MOBILE_INPUT_SX, wrapAnywhere } from '../components/mobile/mobileSx'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { usePagedList } from '../usePagedList'
 import { R } from '../routes'
 import { brand } from '../theme'
+import { color } from '../design/tokens'
 import { fmtDate, formatShortPlace } from '../format'
 import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
 import type { ShiftRequest } from '../types'
@@ -54,6 +61,8 @@ export function SolicitudesPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [search, setSearch] = useState('')
   const [date, setDate] = useState('all')
+  // Mobile only: the filters live in a bottom sheet.
+  const [filtersOpen, setFiltersOpen] = useState(false)
   // Permite llegar con un filtro preseleccionado, por ejemplo desde la agenda:
   // /solicitudes?estado=Pendiente%20de%20revisi%C3%B3n
   const [status, setStatus] = useState(() => {
@@ -96,6 +105,20 @@ export function SolicitudesPage() {
   }
 
   const filtersActive = search !== '' || date !== 'all' || status !== 'all'
+  // Badge on the mobile "Filtros" button: the filters that live inside the sheet.
+  const sheetFilterCount = (date !== 'all' ? 1 : 0) + (status !== 'all' ? 1 : 0)
+
+  // Same setters as the desktop controls, rendered as removable chips on mobile.
+  const activeChips: Array<{ key: string; label: string; clear: () => void }> = []
+  if (search.trim()) activeChips.push({ key: 'search', label: `Búsqueda: ${search.trim()}`, clear: () => setSearch('') })
+  if (date !== 'all') {
+    activeChips.push({
+      key: 'date',
+      label: `Fecha: ${dateOptions.find((option) => option.value === date)?.label ?? date}`,
+      clear: () => setDate('all'),
+    })
+  }
+  if (status !== 'all') activeChips.push({ key: 'status', label: `Estado: ${status}`, clear: () => setStatus('all') })
 
   const statusOptions = STATUS_FILTER_OPTIONS
 
@@ -103,103 +126,184 @@ export function SolicitudesPage() {
     <AppShell
       active="solicitudes"
       breadcrumb={[SECCION_BREADCRUMB, 'Solicitudes']}
+      showMobileCreateRequestAction
       kicker="Gestión de pedidos"
       title="Solicitudes"
       description="Revisá los pedidos y organizá cada servicio."
       action={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
-          href={R.nuevaSolicitud}
-        >
-          Nueva solicitud
-        </Button>
+        !isMobile && (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
+            href={R.nuevaSolicitud}
+          >
+            Nueva solicitud
+          </Button>
+        )
       }
     >
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: { xs: 1.5, md: 2 } }}>
         <Chip label="Listado completo" size="small" sx={{ bgcolor: '#EEF2FA', color: '#526B8A', fontWeight: 700 }} />
         <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>
           {list.length} {list.length === 1 ? 'solicitud' : 'solicitudes'} en total
         </Typography>
       </Stack>
 
-      {/* Filters */}
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 3,
-          px: 2,
-          py: 2,
-          mb: 2.5,
-          display: 'flex',
-          alignItems: 'flex-end',
-          gap: 1.5,
-          '& > .search-filter': {
-            flex: 1,
-            minWidth: 0,
-            '& .MuiOutlinedInput-root': { height: 48 },
-          },
-          '& > .select-filter': {
-            width: 180,
-            flexShrink: 0,
-            '& .MuiOutlinedInput-root': { height: 48 },
-          },
-          '& > .clear-filters': {
-            height: 48,
-            minHeight: 48,
-            flexShrink: 0,
-            alignSelf: 'flex-end',
-          },
-          '@media (max-width: 600px)': {
-            flexDirection: 'column',
-            alignItems: 'stretch',
-            '& > .search-filter, & > .select-filter, & > .clear-filters': {
-              width: '100%',
-              flex: 'none',
+      {isMobile ? (
+        <>
+          {/* Search + filter sheet: same state and same handlers as desktop. */}
+          <Stack direction="row" alignItems="flex-end" spacing={1} sx={{ mb: 1.5 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <EtiquetaCampo text="Buscar" htmlFor="solicitudes-search-mobile" />
+              <TextField
+                id="solicitudes-search-mobile"
+                fullWidth
+                size="small"
+                type="search"
+                placeholder={isMobile ? 'Buscar cliente o N.º' : 'Buscar por cliente o número de solicitud'}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                sx={{ ...SEARCH_FIELD_SX, ...MOBILE_INPUT_SX }}
+                inputProps={SEARCH_INPUT_PROPS}
+                InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
+              />
+            </Box>
+            <Badge badgeContent={sheetFilterCount} color="secondary" overlap="circular">
+              <IconButton
+                aria-label={sheetFilterCount > 0 ? `Filtros (${sheetFilterCount} activos)` : 'Filtros'}
+                onClick={() => setFiltersOpen(true)}
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  color: brand.navy,
+                }}
+              >
+                <FilterAlt />
+              </IconButton>
+            </Badge>
+          </Stack>
+
+          {activeChips.length > 0 && (
+            <Stack direction="row" useFlexGap spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+              {activeChips.map((chip) => (
+                <Chip
+                  key={chip.key}
+                  label={chip.label}
+                  onClick={chip.clear}
+                  onDelete={chip.clear}
+                  deleteIcon={<Close sx={{ fontSize: 18 }} />}
+                  aria-label={`Quitar filtro ${chip.label}`}
+                  sx={{
+                    minHeight: 44,
+                    height: 'auto',
+                    maxWidth: '100%',
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: color.inkStrong,
+                    '& .MuiChip-label': { py: 0.75, ...wrapAnywhere },
+                  }}
+                />
+              ))}
+            </Stack>
+          )}
+
+          <MobileFilterSheet
+            open={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            onClear={clearFilters}
+            activeCount={sheetFilterCount}
+          >
+            <CampoSelect label="Filtrar por fecha" value={date} onChange={(e) => setDate(e.target.value)}>
+              {dateOptions.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+            <CampoSelect label="Filtrar por estado" value={status} onChange={(e) => setStatus(e.target.value)}>
+              {statusOptions.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+          </MobileFilterSheet>
+        </>
+      ) : (
+        <Box
+          sx={{
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 3,
+            px: 2,
+            py: 2,
+            mb: 2.5,
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 1.5,
+            '& > .search-filter': {
+              flex: 1,
+              minWidth: 0,
+              '& .MuiOutlinedInput-root': { height: 48 },
             },
-          },
-        }}
-      >
-        <Box className="search-filter">
-          <EtiquetaCampo text="Buscar" htmlFor="solicitudes-search" />
-          <TextField
-            id="solicitudes-search"
-            fullWidth
-            size="small"
-            type="search"
-            placeholder="Buscar por cliente o número de solicitud"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={SEARCH_FIELD_SX}
-            inputProps={SEARCH_INPUT_PROPS}
-            InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
-          />
+            '& > .select-filter': {
+              width: 180,
+              flexShrink: 0,
+              '& .MuiOutlinedInput-root': { height: 48 },
+            },
+            '& > .clear-filters': {
+              height: 48,
+              minHeight: 48,
+              flexShrink: 0,
+              alignSelf: 'flex-end',
+            },
+          }}
+        >
+          <Box className="search-filter">
+            <EtiquetaCampo text="Buscar" htmlFor="solicitudes-search" />
+            <TextField
+              id="solicitudes-search"
+              fullWidth
+              size="small"
+              type="search"
+              placeholder="Buscar por cliente o número de solicitud"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={SEARCH_FIELD_SX}
+              inputProps={SEARCH_INPUT_PROPS}
+              InputProps={{ startAdornment: <Search sx={{ fontSize: 17, color: 'text.secondary', mr: 1 }} /> }}
+            />
+          </Box>
+          <Box className="select-filter">
+            <CampoSelect label="Filtrar por fecha" size="small" value={date} onChange={(e) => setDate(e.target.value)}>
+              {dateOptions.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+          </Box>
+          <Box className="select-filter">
+            <CampoSelect label="Filtrar por estado" size="small" value={status} onChange={(e) => setStatus(e.target.value)}>
+              {statusOptions.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </CampoSelect>
+          </Box>
+          <Button className="clear-filters" startIcon={<FilterAltOff />} onClick={clearFilters} sx={{ color: brand.navy, fontWeight: 700 }}>
+            Limpiar filtros
+          </Button>
         </Box>
-        <Box className="select-filter">
-          <CampoSelect label="Filtrar por fecha" size="small" value={date} onChange={(e) => setDate(e.target.value)}>
-            {dateOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>
-                {o.label}
-              </MenuItem>
-            ))}
-          </CampoSelect>
-        </Box>
-        <Box className="select-filter">
-          <CampoSelect label="Filtrar por estado" size="small" value={status} onChange={(e) => setStatus(e.target.value)}>
-            {statusOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>
-                {o.label}
-              </MenuItem>
-            ))}
-          </CampoSelect>
-        </Box>
-        <Button className="clear-filters" startIcon={<FilterAltOff />} onClick={clearFilters} sx={{ color: brand.navy, fontWeight: 700 }}>
-          Limpiar filtros
-        </Button>
-      </Box>
+      )}
 
       {/* List */}
       {loading ? (
@@ -327,46 +431,37 @@ export function SolicitudesPage() {
       ) : (
         <Stack spacing={1.5}>
           {list.map((r) => (
-            <Box
+            // The whole card is the link to the same destination as "Ver detalle".
+            <MobileCard
               key={r.id}
-              sx={{
-                bgcolor: '#FFFFFF',
-                border: '1px solid #E9E6DF',
-                borderRadius: 3,
-                p: 2,
-              }}
-            >
-              <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <Typography sx={{ fontWeight: 800, fontSize: 13, color: brand.navy }}>{r.id}</Typography>
-                  <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>· {fmtDate(r.date, true)}</Typography>
-                </Stack>
-                <Stack spacing={0.5} alignItems="flex-end">
+              href={R.planificacion(r.id)}
+              header={
+                <>
+                  <Typography sx={{ fontWeight: 800, fontSize: 13.5, color: brand.navy }}>{r.id}</Typography>
+                  <Box sx={{ flexGrow: 1 }} />
                   <StatusChip label={r.status} />
+                </>
+              }
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, color: color.navy, ...wrapAnywhere }}>
+                  {r.client}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: color.muted }}>{fmtDate(r.date, true)}</Typography>
+                <MobileRouteSummary
+                  origin={formatShortPlace(r.origin)}
+                  destination={formatShortPlace(r.destination)}
+                />
+                <Box sx={{ mt: 1 }}>
                   <Chip
                     label={paymentLabel(r)}
                     size="small"
                     variant="outlined"
                     sx={{ color: 'text.secondary', borderColor: 'divider', fontSize: 11 }}
                   />
-                </Stack>
-              </Stack>
-              <Typography sx={{ mt: 1, fontSize: 15, fontWeight: 700 }}>{r.client}</Typography>
-              <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.5 }}>
-                <Typography sx={{ fontSize: 13, color: '#5C6B7A' }}>{r.origin.barrio}</Typography>
-                <ArrowForward sx={{ fontSize: 13, color: '#8A929B' }} />
-                <Typography sx={{ fontSize: 13, color: '#5C6B7A' }}>{r.destination.barrio}</Typography>
-              </Stack>
-              <Button
-                size="small"
-                fullWidth
-                variant="outlined"
-                sx={{ mt: 1.5, color: brand.navy, borderColor: '#D9D4C9' }}
-                href={R.planificacion(r.id)}
-              >
-                Ver detalle
-              </Button>
-            </Box>
+                </Box>
+              </Box>
+            </MobileCard>
           ))}
         </Stack>
       )}

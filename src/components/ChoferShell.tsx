@@ -1,11 +1,9 @@
-import type { ComponentType, ReactNode } from 'react'
+import { useState, type ComponentType, type ReactNode } from 'react'
 import type { SvgIconProps } from '@mui/material/SvgIcon'
 import {
-  AppBar,
   Box,
   Drawer,
   Stack,
-  Toolbar,
   Typography,
   useMediaQuery,
   useTheme,
@@ -20,6 +18,9 @@ import { R } from '../routes'
 import { currentUser, roleLabel, signOut } from '../supabase'
 import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
+import { MobileNavDrawer, type MobileNavItem } from './mobile/MobileNavDrawer'
+import { MobileTopBar } from './mobile/MobileTopBar'
+import { MOBILE_GUTTER, MOBILE_PAGE_BOTTOM_SPACE, MOBILE_PAGE_TOP_SPACE } from './mobile/mobileSx'
 import { brand } from '../theme'
 
 export type ChoferNavKey = 'viajes' | 'config'
@@ -51,6 +52,9 @@ export function ChoferShell({
   title,
   description,
   action,
+  compactMobile = false,
+  mobileTitle,
+  mobileBack,
   children,
 }: {
   active: ChoferNavKey
@@ -59,10 +63,26 @@ export function ChoferShell({
   kicker?: string
   description?: string
   action?: ReactNode
+  /**
+   * Mobile only: hides the eyebrow/title/description block when a trip is open
+   * and the trip detail owns the screen. Desktop is unaffected.
+   */
+  compactMobile?: boolean
+  /**
+   * Mobile only: replaces the top bar title (the trip id while a trip is open).
+   * Desktop is unaffected.
+   */
+  mobileTitle?: string
+  /**
+   * Mobile only: swaps the hamburger for a back button that runs this handler
+   * (the same close-trip handler the flow already uses). Desktop is unaffected.
+   */
+  mobileBack?: () => void
   children: ReactNode
 }) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // La identidad del chofer sale de la sesión validada por el backend.
   const user = currentUser()
@@ -74,6 +94,9 @@ export function ChoferShell({
     initials: initialsFrom(name),
     accent: brand.orangeStrong,
   }
+  const mobileNavItems: MobileNavItem[] = NAV.map(({ key, label, icon, href }) => ({ key, label, icon, href }))
+  // The bar carries the section title; pages can override it (trip id).
+  const mobileBarTitle = mobileTitle ?? NAV.find((item) => item.key === active)?.label ?? title
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -142,7 +165,7 @@ export function ChoferShell({
   )
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: isMobile ? '100dvh' : '100vh' }}>
       {!isMobile && (
         <Drawer
           variant="permanent"
@@ -199,32 +222,48 @@ export function ChoferShell({
         )}
 
         {isMobile && (
-          <AppBar position="fixed" elevation={0} sx={{ bgcolor: brand.navy, top: 0, left: 0, right: 0 }}>
-            <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
-              <Brand surface="dark" />
-              <Box sx={{ flexGrow: 1 }} />
-              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
-            </Toolbar>
-          </AppBar>
+          <MobileTopBar
+            title={mobileBarTitle}
+            onOpenMenu={mobileBack ? undefined : () => setMobileMenuOpen(true)}
+            onBack={mobileBack}
+          />
+        )}
+
+        {isMobile && (
+          <MobileNavDrawer
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            active={active}
+            items={mobileNavItems}
+            sectionLabel="Mi área"
+            brand={<Brand subtitle="" />}
+            account={account}
+            onSignOut={() => void signOut()}
+          />
         )}
 
         <Box
           sx={{
-            pt: { xs: 9.5, md: 3.5 },
-            px: { xs: 2, md: 4 },
-            // En móvil hay barra inferior con dos accesos; reservamos su alto.
-            pb: { xs: 12, md: 4 },
+            pt: { xs: MOBILE_PAGE_TOP_SPACE, md: 3.5 },
+            px: { xs: `${MOBILE_GUTTER}px`, md: 4 },
+            // No bottom navigation bar on mobile: only the home indicator.
+            pb: { xs: MOBILE_PAGE_BOTTOM_SPACE, md: 4 },
           }}
         >
           <Box sx={{ maxWidth: 980, mx: 'auto' }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2.5 }}>
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={2}
+              alignItems={{ xs: 'flex-start', md: 'center' }}
+              sx={{ mb: 2.5, ...(compactMobile && { display: { xs: 'none', md: 'flex' } }) }}
+            >
               <Box sx={{ flexGrow: 1 }}>
                 <Typography
                   sx={{ fontSize: 11, fontWeight: 800, color: brand.orangeInk, letterSpacing: '0.14em', mb: 0.5 }}
                 >
                   MODO CHOFER
                 </Typography>
-                <Typography variant="h4" component="h1" sx={{ fontSize: { xs: 22, md: 26 } }}>
+                <Typography variant="h4" component="h1" sx={{ fontSize: { xs: 22, md: 26 }, position: { xs: 'absolute', md: 'static' }, width: { xs: 1, md: 'auto' }, height: { xs: 1, md: 'auto' }, p: { xs: 0, md: undefined }, m: { xs: -1, md: 0 }, overflow: { xs: 'hidden', md: 'visible' }, clip: { xs: 'rect(0 0 0 0)', md: 'auto' }, whiteSpace: { xs: 'nowrap', md: 'normal' }, border: 0 }}>
                   {title}
                 </Typography>
                 {description && <Typography sx={{ color: 'text.secondary', fontSize: 14, mt: 0.5 }}>{description}</Typography>}
@@ -235,31 +274,6 @@ export function ChoferShell({
           </Box>
         </Box>
       </Box>
-
-      {isMobile && NAV.length > 1 && (
-        <AppBar position="fixed" elevation={8} sx={{ top: 'auto', bottom: 0, bgcolor: brand.navy, color: '#fff' }}>
-          <Box component="nav" sx={{ display: 'grid', gridTemplateColumns: `repeat(${NAV.length}, 1fr)`, pb: 'env(safe-area-inset-bottom)' }}>
-            {NAV.map((item) => {
-              const Icon = item.icon
-              const isActive = item.key === active
-              return (
-                <a
-                  key={item.key}
-                  href={item.href}
-                  aria-current={isActive ? 'page' : undefined}
-                  style={{ textDecoration: 'none', color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.55)' }}
-                >
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.4, py: 0.9, position: 'relative' }}>
-                    {isActive && <Box sx={{ position: 'absolute', top: 0, height: 3, width: 40, borderRadius: 4, bgcolor: brand.orange }} />}
-                    <Icon fontSize="small" sx={{ position: 'relative' }} />
-                    <Typography sx={{ fontSize: 11, fontWeight: isActive ? 700 : 600 }}>{item.label}</Typography>
-                  </Box>
-                </a>
-              )
-            })}
-          </Box>
-        </AppBar>
-      )}
     </Box>
   )
 }

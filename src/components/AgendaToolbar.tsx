@@ -37,6 +37,37 @@ export function countActiveFilters(filters: AgendaFilters): number {
   return Object.values(filters).filter((value) => value !== 'all').length
 }
 
+/**
+ * Filter option lists shared by the desktop popover and the mobile filter
+ * sheet, so both render exactly the same choices.
+ */
+export function driverFilterOptions(drivers: Driver[]): { value: string; label: string }[] {
+  return [{ value: 'all', label: 'Todos los choferes' }, ...drivers.map((d) => ({ value: d.id, label: d.name }))]
+}
+
+export function vehicleFilterOptions(vehicles: Vehicle[]): { value: string; label: string }[] {
+  return [
+    { value: 'all', label: 'Todos los vehículos' },
+    ...vehicles.map((v) => ({ value: v.id, label: `${v.id} · ${v.type}` })),
+  ]
+}
+
+export function statusFilterOptions(): { value: string; label: string }[] {
+  return [{ value: 'all', label: 'Todos los estados' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s }))]
+}
+
+/** Calendar month (`0`-based) that contains an ISO date. */
+export function calendarMonthOf(iso: string): { year: number; month: number } {
+  const [year, month] = iso.split('-').map(Number)
+  return { year, month: (month ?? 1) - 1 }
+}
+
+/** Moves a calendar month by `delta` months, keeping the day at 1. */
+export function shiftMonth(current: { year: number; month: number }, delta: number) {
+  const moved = new Date(current.year, current.month + delta, 1)
+  return { year: moved.getFullYear(), month: moved.getMonth() }
+}
+
 function LegendSwatch({ tone, label }: { tone: string; label: string }) {
   return (
     <Stack direction="row" alignItems="center" spacing={0.6}>
@@ -108,17 +139,13 @@ export function AgendaToolbar({
 }) {
   const [dateAnchor, setDateAnchor] = useState<HTMLElement | null>(null)
   const [filtersAnchor, setFiltersAnchor] = useState<HTMLElement | null>(null)
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const [year, month] = anchor.split('-').map(Number)
-    return { year, month: (month ?? 1) - 1 }
-  })
+  const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthOf(anchor))
 
   const activeFilters = countActiveFilters(filters)
   const rangeLabel = fmtRange(days)
 
   const openCalendar = (event: React.MouseEvent<HTMLElement>) => {
-    const [year, month] = anchor.split('-').map(Number)
-    setCalendarMonth({ year, month: (month ?? 1) - 1 })
+    setCalendarMonth(calendarMonthOf(anchor))
     setDateAnchor(event.currentTarget)
   }
 
@@ -128,24 +155,14 @@ export function AgendaToolbar({
   }
 
   const shiftCalendarMonth = (delta: number) => {
-    const moved = new Date(calendarMonth.year, calendarMonth.month + delta, 1)
-    setCalendarMonth({ year: moved.getFullYear(), month: moved.getMonth() })
+    setCalendarMonth(shiftMonth(calendarMonth, delta))
   }
 
   const clearFilters = () => onFiltersChange(EMPTY_FILTERS)
 
-  const driverOptions = useMemo(
-    () => [{ value: 'all', label: 'Todos los choferes' }, ...drivers.map((d) => ({ value: d.id, label: d.name }))],
-    [drivers],
-  )
-  const vehicleOptions = useMemo(
-    () => [{ value: 'all', label: 'Todos los vehículos' }, ...vehicles.map((v) => ({ value: v.id, label: `${v.id} · ${v.type}` }))],
-    [vehicles],
-  )
-  const statusOptions = useMemo(
-    () => [{ value: 'all', label: 'Todos los estados' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s }))],
-    [],
-  )
+  const driverOptions = useMemo(() => driverFilterOptions(drivers), [drivers])
+  const vehicleOptions = useMemo(() => vehicleFilterOptions(vehicles), [vehicles])
+  const statusOptions = useMemo(() => statusFilterOptions(), [])
 
   return (
     <>

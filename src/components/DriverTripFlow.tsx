@@ -11,6 +11,8 @@ import {
   Divider,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import {
   ArrowBack,
@@ -30,6 +32,8 @@ import { clearDriverProgress, loadDriverProgress, saveDriverProgress } from '../
 import type { DriverPhase, DriverTripProgress } from '../driverTripProgress'
 import type { Place, ShiftRequest } from '../types'
 import { DriverRouteMap } from './DriverRouteMap'
+import { MobileActionBar } from './mobile/MobileActionBar'
+import { MOBILE_ACTION_BAR_SPACE, MOBILE_SCROLL_OFFSET } from './mobile/mobileSx'
 import { PlaceMarker } from './PlaceMarker'
 import { SegmentedControl } from './SegmentedControl'
 import { StatusChip } from './StatusChip'
@@ -145,8 +149,24 @@ function PlaceBlock({ label, place }: { label: string; place: Place }) {
           {label.toUpperCase()}
         </Typography>
         <Typography sx={{ fontSize: typeScale.body, fontWeight: 700, color: color.navy, overflowWrap: 'anywhere' }}>
-          {place.address || 'Sin dirección'}
+          {formatShortPlace(place) || 'Sin dirección'}
         </Typography>
+        {place.address && (
+          <Typography
+            sx={{
+              fontSize: typeScale.caption,
+              color: color.muted,
+              overflowWrap: 'anywhere',
+              // Mobile: the full address never eats more than two lines.
+              display: { xs: '-webkit-box', md: 'block' },
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: { xs: 2, md: 'none' },
+              overflow: { xs: 'hidden', md: 'visible' },
+            }}
+          >
+            {place.address}
+          </Typography>
+        )}
         {details && <Typography sx={{ fontSize: typeScale.caption, color: color.muted }}>{details}</Typography>}
         {place.label && place.label !== 'Origen' && place.label !== 'Destino' && (
           <Typography sx={{ fontSize: typeScale.caption, color: color.muted }}>{place.label}</Typography>
@@ -206,6 +226,8 @@ export function DriverTripFlow({
   const [photo, setPhoto] = useState<{ name: string; dataUrl: string } | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const fileRef = useRef<HTMLInputElement>(null)
   const cargoRef = useRef<HTMLDivElement>(null)
 
@@ -224,6 +246,10 @@ export function DriverTripFlow({
   const balance = Math.max(0, trip.price - trip.depositReceived - paidBalance)
   const requiresPayment = balance > 0.5
   const canFinish = (!requiresPayment || Boolean(progress.paymentMethod)) && Boolean(photo)
+  // Same label and same `disabled` in both breakpoints; only its home changes.
+  const cargoPrimaryLabel = allLoaded
+    ? 'Carga completa · ir al destino'
+    : `${remaining === 1 ? 'Falta' : 'Faltan'} ${remaining} ítem${remaining === 1 ? '' : 's'}`
 
   const update = (patch: Partial<DriverTripProgress>) =>
     setProgress((current) => ({ ...current, ...patch }))
@@ -291,14 +317,27 @@ export function DriverTripFlow({
       : 'Sacá la foto del remito para cerrar el viaje.'
     : 'Elegí cómo se cobra el saldo para cerrar el viaje.'
 
+  // Mobile: one fixed bar carries the primary action of the current step, with
+  // the same handler and the same `disabled` as the in-panel version.
+  const mobileHint =
+    progress.phase === 1
+      ? progress.originArrived
+        ? undefined
+        : 'Confirmá la llegada para ver la lista de cosas que tenés que subir.'
+      : progress.phase === 2
+        ? 'Al confirmar, pasás al cierre del viaje y al remito.'
+        : finishHint
+
   return (
-    <Stack spacing={2} sx={{ pb: 2 }}>
+    // The fixed action bar owns the primary action on mobile, so the content
+    // reserves its height. Desktop keeps the original padding.
+    <Stack spacing={2} sx={{ pb: { xs: MOBILE_ACTION_BAR_SPACE.pb, md: 2 } }}>
       <Stack direction="row" alignItems="center" spacing={1}>
         <Button
           size="small"
           startIcon={<ArrowBack sx={{ fontSize: 17 }} />}
           onClick={onClose}
-          sx={{ minHeight: 40, color: color.inkStrong, px: 1 }}
+          sx={{ minHeight: { xs: 44, md: 40 }, color: color.inkStrong, px: 1 }}
         >
           Mis viajes
         </Button>
@@ -312,15 +351,28 @@ export function DriverTripFlow({
           sx={{
             fontFamily: "'Manrope', sans-serif",
             fontWeight: 800,
-            fontSize: { xs: 22, md: 26 },
+            fontSize: { xs: 20, md: 26 },
             lineHeight: 1.15,
             letterSpacing: '-0.02em',
             color: color.navy,
+            // Mobile: the route never pushes the map below the fold.
+            display: { xs: '-webkit-box', md: 'block' },
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: { xs: 2, md: 'none' },
+            overflow: { xs: 'hidden', md: 'visible' },
           }}
         >
           {formatShortPlace(trip.origin) || 'Origen'} → {formatShortPlace(trip.destination) || 'Destino'}
         </Typography>
-        <Typography sx={{ mt: 0.5, fontSize: typeScale.caption, color: color.muted }}>
+        <Typography
+          sx={{
+            mt: 0.5,
+            fontSize: { xs: 12.5, md: typeScale.caption },
+            lineHeight: 1.45,
+            color: color.muted,
+            overflowWrap: 'anywhere',
+          }}
+        >
           {joinParts([
             trip.id,
             trip.client,
@@ -335,7 +387,7 @@ export function DriverTripFlow({
       {progress.phase === 1 && (
         <>
           <Panel title="Ir al origen" meta={`Paso 1 de 3 · ${trip.serviceRange[0]}`}>
-            <DriverRouteMap target={trip.origin} targetKind="origin" height={300} />
+            <DriverRouteMap target={trip.origin} targetKind="origin" height={isMobile ? 240 : 300} />
             <Divider sx={{ my: 2, borderColor: color.borderSoft }} />
             <PlaceBlock label="Origen" place={trip.origin} />
             {trip.origin.notes && (
@@ -348,28 +400,30 @@ export function DriverTripFlow({
               {progress.originArrived ? (
                 <ArrivalBanner text="Llegada al origen confirmada" />
               ) : (
-                <>
-                  <Button
-                    fullWidth
-                    size="large"
-                    variant="contained"
-                    startIcon={<MyLocation />}
-                    onClick={confirmOrigin}
-                    sx={{ minHeight: 50 }}
-                  >
-                    Llegué al origen
-                  </Button>
-                  <Typography sx={{ mt: 1, textAlign: 'center', fontSize: typeScale.caption, color: color.muted }}>
-                    Confirmá la llegada para ver la lista de cosas que tenés que subir.
-                  </Typography>
-                </>
+                !isMobile && (
+                  <>
+                    <Button
+                      fullWidth
+                      size="large"
+                      variant="contained"
+                      startIcon={<MyLocation />}
+                      onClick={confirmOrigin}
+                      sx={{ minHeight: 50 }}
+                    >
+                      Llegué al origen
+                    </Button>
+                    <Typography sx={{ mt: 1, textAlign: 'center', fontSize: typeScale.caption, color: color.muted }}>
+                      Confirmá la llegada para ver la lista de cosas que tenés que subir.
+                    </Typography>
+                  </>
+                )
               )}
             </Box>
           </Panel>
 
           {progress.originArrived && (
-            <Box ref={cargoRef}>
-              <Panel title="Carga a subir" meta={`${cargoItems.length} tipos · ${trip.cargo.approxUnits} bultos`}>
+            <Box ref={cargoRef} sx={{ scrollMarginTop: { xs: MOBILE_SCROLL_OFFSET, md: 0 } }}>
+              <Panel title="Carga a subir" meta={`${loadedSet.size} de ${cargoItems.length} cargados`}>
                 <Typography sx={{ mb: 1.5, fontSize: typeScale.caption, color: color.ink }}>
                   Marcá cada cosa cuando ya esté arriba del flete.
                 </Typography>
@@ -391,7 +445,7 @@ export function DriverTripFlow({
                             alignItems: 'flex-start',
                             gap: 1.25,
                             p: 1.5,
-                            minHeight: 48,
+                            minHeight: { xs: 56, md: 48 },
                             borderRadius: 2,
                             border: `1px solid ${checked ? color.green : color.border}`,
                             bgcolor: checked ? color.greenSoft : color.sand,
@@ -428,21 +482,23 @@ export function DriverTripFlow({
                 )}
 
                 {cargoItems.length > 0 && (
-                  <Button size="small" onClick={toggleAll} sx={{ mt: 1, minHeight: 38, color: color.navy }}>
+                  <Button size="small" onClick={toggleAll} sx={{ mt: 1, minHeight: { xs: 44, md: 38 }, color: color.navy }}>
                     {allLoaded ? 'Desmarcar todos' : 'Marcar todos'}
                   </Button>
                 )}
 
-                <Button
-                  fullWidth
-                  size="large"
-                  variant="contained"
-                  disabled={!allLoaded}
-                  onClick={() => goToPhase(2)}
-                  sx={{ mt: 1.5, minHeight: 50 }}
-                >
-                  {allLoaded ? 'Carga completa · ir al destino' : `Faltan ${remaining} ítem${remaining === 1 ? '' : 's'}`}
-                </Button>
+                {!isMobile && (
+                  <Button
+                    fullWidth
+                    size="large"
+                    variant="contained"
+                    disabled={!allLoaded}
+                    onClick={() => goToPhase(2)}
+                    sx={{ mt: 1.5, minHeight: 50 }}
+                  >
+                    {cargoPrimaryLabel}
+                  </Button>
+                )}
               </Panel>
             </Box>
           )}
@@ -455,7 +511,7 @@ export function DriverTripFlow({
             title="Viaje al destino"
             meta={joinParts(['Paso 2 de 3', trip.totalKm ? `${trip.totalKm} km` : ''])}
           >
-            <DriverRouteMap target={trip.destination} fallbackFrom={trip.origin} targetKind="destination" height={320} />
+            <DriverRouteMap target={trip.destination} fallbackFrom={trip.origin} targetKind="destination" height={isMobile ? 240 : 320} />
             <Divider sx={{ my: 2, borderColor: color.borderSoft }} />
             <PlaceBlock label="Destino" place={trip.destination} />
             {trip.destination.notes && (
@@ -464,21 +520,23 @@ export function DriverTripFlow({
               </Typography>
             )}
 
-            <Box sx={{ mt: 2 }}>
-              <Button
-                fullWidth
-                size="large"
-                variant="contained"
-                startIcon={<Check />}
-                onClick={() => goToPhase(3)}
-                sx={{ minHeight: 50 }}
-              >
-                Llegué al destino
-              </Button>
-              <Typography sx={{ mt: 1, textAlign: 'center', fontSize: typeScale.caption, color: color.muted }}>
-                Al confirmar, pasás al cierre del viaje y al remito.
-              </Typography>
-            </Box>
+            {!isMobile && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  fullWidth
+                  size="large"
+                  variant="contained"
+                  startIcon={<Check />}
+                  onClick={() => goToPhase(3)}
+                  sx={{ minHeight: 50 }}
+                >
+                  Llegué al destino
+                </Button>
+                <Typography sx={{ mt: 1, textAlign: 'center', fontSize: typeScale.caption, color: color.muted }}>
+                  Al confirmar, pasás al cierre del viaje y al remito.
+                </Typography>
+              </Box>
+            )}
           </Panel>
 
           {trip.phone && (
@@ -488,7 +546,12 @@ export function DriverTripFlow({
               href={waLink(trip.phone, `Hola ${trip.client}, soy el chofer asignado al viaje ${trip.id}.`)}
               target="_blank"
               rel="noreferrer"
-              sx={{ minHeight: 46, alignSelf: 'flex-start' }}
+              sx={{
+                minHeight: { xs: 44, md: 46 },
+                // Mobile: full width, so the label never gets squeezed.
+                alignSelf: { xs: 'stretch', md: 'flex-start' },
+                textAlign: 'center',
+              }}
             >
               Avisar a {trip.client || 'el cliente'} por WhatsApp
             </Button>
@@ -506,8 +569,9 @@ export function DriverTripFlow({
             <Divider sx={{ my: 2, borderColor: color.borderSoft }} />
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ color: color.ink }}>
               <LocalShipping sx={{ fontSize: 18 }} />
-              <Typography sx={{ fontSize: typeScale.caption }}>
-                {cargoItems.length} tipos de carga · {trip.cargo.approxUnits} bultos entregados
+              <Typography sx={{ fontSize: typeScale.caption, overflowWrap: 'anywhere' }}>
+                {cargoItems.length} {cargoItems.length === 1 ? 'tipo' : 'tipos'} de carga ·{' '}
+                {trip.cargo.approxUnits} {trip.cargo.approxUnits === 1 ? 'bulto entregado' : 'bultos entregados'}
               </Typography>
             </Stack>
           </Panel>
@@ -602,7 +666,63 @@ export function DriverTripFlow({
             </Typography>
           </Panel>
 
-          <Box>
+          {!isMobile && (
+            <Box>
+              <Button
+                fullWidth
+                size="large"
+                variant="contained"
+                disabled={!canFinish || busy}
+                startIcon={busy ? <CircularProgress size={18} sx={{ color: color.paper }} /> : <Check />}
+                onClick={() => setConfirmOpen(true)}
+                sx={{ minHeight: 52 }}
+              >
+                Viaje finalizado
+              </Button>
+              <Typography role="status" sx={{ mt: 1, textAlign: 'center', fontSize: typeScale.caption, color: canFinish ? color.green : color.muted }}>
+                {finishHint}
+              </Typography>
+            </Box>
+          )}
+        </>
+      )}
+
+      {isMobile && (
+        <MobileActionBar hint={mobileHint}>
+          {progress.phase === 1 && !progress.originArrived && (
+            <Button
+              fullWidth
+              size="large"
+              variant="contained"
+              startIcon={<MyLocation />}
+              onClick={confirmOrigin}
+            >
+              Llegué al origen
+            </Button>
+          )}
+          {progress.phase === 1 && progress.originArrived && (
+            <Button
+              fullWidth
+              size="large"
+              variant="contained"
+              disabled={!allLoaded}
+              onClick={() => goToPhase(2)}
+            >
+              {cargoPrimaryLabel}
+            </Button>
+          )}
+          {progress.phase === 2 && (
+            <Button
+              fullWidth
+              size="large"
+              variant="contained"
+              startIcon={<Check />}
+              onClick={() => goToPhase(3)}
+            >
+              Llegué al destino
+            </Button>
+          )}
+          {progress.phase === 3 && (
             <Button
               fullWidth
               size="large"
@@ -610,18 +730,21 @@ export function DriverTripFlow({
               disabled={!canFinish || busy}
               startIcon={busy ? <CircularProgress size={18} sx={{ color: color.paper }} /> : <Check />}
               onClick={() => setConfirmOpen(true)}
-              sx={{ minHeight: 52 }}
             >
               Viaje finalizado
             </Button>
-            <Typography role="status" sx={{ mt: 1, textAlign: 'center', fontSize: typeScale.caption, color: canFinish ? color.green : color.muted }}>
-              {finishHint}
-            </Typography>
-          </Box>
-        </>
+          )}
+        </MobileActionBar>
       )}
 
-      <Dialog open={confirmOpen} onClose={busy ? undefined : () => setConfirmOpen(false)} fullWidth maxWidth="xs" aria-labelledby="finish-trip-title">
+      <Dialog
+        open={confirmOpen}
+        onClose={busy ? undefined : () => setConfirmOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        aria-labelledby="finish-trip-title"
+        PaperProps={{ sx: { m: { xs: 2, md: 4 } } }}
+      >
         <DialogTitle id="finish-trip-title" sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800 }}>
           ¿Finalizar el viaje?
         </DialogTitle>
