@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L, { type LatLngTuple } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet'
-import { Box, Button, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material'
+import { Box, Button, CircularProgress, IconButton, Stack, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import { MyLocation, OpenInNew, Refresh } from '@mui/icons-material'
 import { api } from '../api'
 import { color, radius, shadow, type as typeScale } from '../design/tokens'
@@ -86,8 +86,8 @@ function RecenterButton({ point }: { point: LatLngTuple }) {
           right: 10,
           bottom: 24,
           zIndex: 500,
-          width: 36,
-          height: 36,
+          width: { xs: 44, md: 36 },
+          height: { xs: 44, md: 36 },
           bgcolor: 'rgba(255,255,255,0.94)',
           border: `1px solid ${color.border}`,
           boxShadow: shadow.card,
@@ -112,6 +112,8 @@ export function DriverRouteMap({
   targetKind: 'origin' | 'destination'
   height?: number
 }) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const targetPoint = useMemo(() => pointOf(target), [target])
   const fallbackPoint = useMemo(() => pointOf(fallbackFrom), [fallbackFrom])
   const [myPoint, setMyPoint] = useState<LatLngTuple | null>(null)
@@ -232,17 +234,29 @@ export function DriverRouteMap({
 
   return (
     <Stack spacing={1.25}>
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <Typography sx={{ flexGrow: 1, fontSize: typeScale.caption, color: color.muted }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        alignItems={{ xs: 'stretch', md: 'center' }}
+        spacing={1}
+      >
+        <Typography sx={{ flexGrow: 1, fontSize: { xs: 13, md: typeScale.caption }, color: color.muted }}>
           {targetKind === 'origin' ? 'Camino al punto de carga' : 'Camino al destino'}
         </Typography>
         <Button
           size="small"
+          variant={isMobile ? 'outlined' : 'text'}
+          fullWidth={isMobile}
           endIcon={<OpenInNew sx={{ fontSize: 15 }} />}
           href={mapsHref}
           target="_blank"
           rel="noreferrer"
-          sx={{ color: color.navy, fontSize: typeScale.caption, minHeight: 36 }}
+          sx={{
+            color: color.navy,
+            fontSize: { xs: 13, md: typeScale.caption },
+            minHeight: { xs: 44, md: 36 },
+            // Mobile: the label keeps a single line.
+            whiteSpace: 'nowrap',
+          }}
         >
           Abrir en Google Maps
         </Button>
@@ -255,8 +269,8 @@ export function DriverRouteMap({
           display: 'flex',
           alignItems: 'center',
           gap: 1,
-          px: 1.5,
-          py: 1,
+          px: { xs: 1, md: 1.5 },
+          py: { xs: 0.5, md: 1 },
           borderRadius: 2,
           bgcolor:
             locationState === 'granted'
@@ -272,7 +286,21 @@ export function DriverRouteMap({
         ) : (
           <MyLocation sx={{ fontSize: 17, color: locationState === 'granted' ? color.green : color.amberInk }} />
         )}
-        <Typography sx={{ flexGrow: 1, fontSize: typeScale.caption, color: color.inkStrong }}>
+        <Typography
+          sx={{
+            flexGrow: 1,
+            minWidth: 0,
+            fontSize: { xs: 12.5, md: typeScale.caption },
+            color: color.inkStrong,
+            // Mobile: up to two lines, then clamp.
+            display: { xs: '-webkit-box', md: 'block' },
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: { xs: 2, md: 'none' },
+            overflow: { xs: 'hidden', md: 'visible' },
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+          }}
+        >
           {locationCopy}
         </Typography>
         {locationState !== 'granted' && locationState !== 'requesting' && (
@@ -280,7 +308,7 @@ export function DriverRouteMap({
             size="small"
             startIcon={<Refresh sx={{ fontSize: 15 }} />}
             onClick={requestLocation}
-            sx={{ minHeight: 34, color: color.navy }}
+            sx={{ minHeight: { xs: 44, md: 34 }, flexShrink: 0, color: color.navy }}
           >
             Reintentar
           </Button>
@@ -295,6 +323,14 @@ export function DriverRouteMap({
           overflow: 'hidden',
           border: `1px solid ${color.border}`,
           bgcolor: color.sandDeep,
+          // Mobile: Leaflet's zoom buttons reach the 44px touch target.
+          // Scoped to this map only; the extra class beats leaflet-touch's rule.
+          '& .leaflet-bar.leaflet-control-zoom a': {
+            width: { xs: 44, md: 30 },
+            height: { xs: 44, md: 30 },
+            lineHeight: { xs: '44px', md: '30px' },
+            fontSize: { xs: 22, md: 18 },
+          },
         }}
       >
         {targetPoint ? (
@@ -346,8 +382,12 @@ export function DriverRouteMap({
           <Box
             sx={{
               position: 'absolute',
-              top: 10,
-              right: 10,
+              // Mobile: bottom-left so the badge never covers the marker.
+              // Desktop keeps the original top-right corner.
+              top: { xs: 'auto', md: 10 },
+              right: { xs: 'auto', md: 10 },
+              bottom: { xs: 10, md: 'auto' },
+              left: { xs: 10, md: 'auto' },
               zIndex: 500,
               display: 'flex',
               alignItems: 'center',
@@ -364,12 +404,12 @@ export function DriverRouteMap({
             {route.status === 'loading' ? (
               <>
                 <TruckLoader size="sm" />
-                <Typography sx={{ fontSize: typeScale.micro, fontWeight: 700, color: color.navy }}>
+                <Typography sx={{ fontSize: { xs: 12.5, md: typeScale.micro }, fontWeight: 700, color: color.navy }}>
                   Calculando ruta...
                 </Typography>
               </>
             ) : (
-              <Typography sx={{ fontSize: typeScale.micro, fontWeight: 700, color: color.navy }}>
+              <Typography sx={{ fontSize: { xs: 12.5, md: typeScale.micro }, fontWeight: 700, color: color.navy }}>
                 {routeCopy}
               </Typography>
             )}

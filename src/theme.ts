@@ -1,4 +1,4 @@
-import { createTheme, alpha } from '@mui/material/styles'
+import { createTheme, alpha, type Theme } from '@mui/material/styles'
 import { color, motion, radius, shadow } from './design/tokens'
 
 /**
@@ -73,13 +73,18 @@ export const theme = createTheme({
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: {
+        // Mobile-only touch target. Everything below `md` is the redesigned
+        // experience; desktop keeps its exact current metrics.
+        root: ({ theme }: { theme: Theme }) => ({
           textTransform: 'none',
           fontWeight: 700,
           boxShadow: 'none',
           borderRadius: radius.md,
           transition: `background-color ${motion.fast}, border-color ${motion.fast}`,
-        },
+          [theme.breakpoints.down('md')]: {
+            minHeight: 44,
+          },
+        }),
         containedPrimary: {
           backgroundColor: color.navy,
           '&:hover': { backgroundColor: color.navyDeep, boxShadow: 'none' },
@@ -109,14 +114,32 @@ export const theme = createTheme({
         },
       },
     },
+    MuiIconButton: {
+      styleOverrides: {
+        root: ({ theme }: { theme: Theme }) => ({
+          [theme.breakpoints.down('md')]: {
+            minWidth: 44,
+            minHeight: 44,
+          },
+        }),
+      },
+    },
     MuiDialog: {
       styleOverrides: {
-        paper: {
+        paper: ({ theme }: { theme: Theme }) => ({
           borderRadius: radius.xl,
           border: `1px solid ${color.border}`,
           boxShadow: shadow.raised,
           backgroundImage: 'none',
-        },
+          // A full-screen dialog on mobile is a page, not a floating card.
+          [theme.breakpoints.down('md')]: {
+            '&.MuiDialog-paperFullScreen': {
+              borderRadius: 0,
+              border: 'none',
+              boxShadow: 'none',
+            },
+          },
+        }),
       },
     },
     MuiMenu: {
@@ -168,6 +191,15 @@ export const theme = createTheme({
             WebkitTextFillColor: theme.palette.text.primary,
             caretColor: theme.palette.text.primary,
           },
+          // 16px stops iOS Safari from zooming the viewport on focus.
+          [theme.breakpoints.down('md')]: { fontSize: 16 },
+        }),
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        select: ({ theme }: { theme: Theme }) => ({
+          [theme.breakpoints.down('md')]: { fontSize: 16 },
         }),
       },
     },

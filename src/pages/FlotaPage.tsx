@@ -29,12 +29,15 @@ import { StatusChip } from '../components/StatusChip'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
 import { Toast, type ToastState } from '../components/Toast'
+import { MobileCard } from '../components/mobile/MobileCard'
+import { MOBILE_SAFE_BOTTOM, MOBILE_SAFE_TOP, wrapAnywhere } from '../components/mobile/mobileSx'
 import { filtrarTelefono, validarTelefono } from '../utils/telefono'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
 import { usePagedList } from '../usePagedList'
 import { ars } from '../format'
 import { brand } from '../theme'
+import { color } from '../design/tokens'
 import type { Driver, DriverStatus, Vehicle, VehicleStatus } from '../types'
 
 const FLEET_PAGE_SIZE = 10
@@ -101,15 +104,28 @@ export function FlotaPage() {
             ? `${drivers.length} choferes registrados · ${activeDrivers} activos`
             : `${vehicles.length} vehículos registrados · ${activeVehicles} disponibles · ${assignedVehicles} asignado · ${workshopVehicles} en taller`
         }
-        action={
-          <Button
-            variant="contained"
-            startIcon={<Add />}
+        // The 2x2 metrics grid below repeats these counts on mobile.
+        descriptionVisibleOnMobile={false}
+        mobileAction={
+          <IconButton
             onClick={openAdd}
-            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
+            aria-label={tab === 0 ? 'Agregar chofer' : 'Agregar vehículo'}
+            sx={{ color: 'inherit', width: 44, height: 44 }}
           >
-            {tab === 0 ? 'Agregar chofer' : 'Agregar vehículo'}
-          </Button>
+            <Add />
+          </IconButton>
+        }
+        action={
+          !isMobile && (
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openAdd}
+              sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
+            >
+              {tab === 0 ? 'Agregar chofer' : 'Agregar vehículo'}
+            </Button>
+          )
         }
       >
         <Box sx={{ mb: 2.5, p: 1.6, borderRadius: 2, bgcolor: '#EEF2FA', border: '1px solid #D9E2EE', color: '#526B8A' }}>
@@ -127,6 +143,7 @@ export function FlotaPage() {
               value={tab}
               onChange={setTab}
               ariaLabel="Choferes y vehículos"
+              fullWidth={isMobile}
               options={[
                 { value: 0, label: `Choferes (${drivers.length})` },
                 { value: 1, label: `Vehículos (${vehicles.length})` },
@@ -134,28 +151,87 @@ export function FlotaPage() {
             />
           </Box>
 
+          {/* Mobile: same counts as the header lead, laid out as a 2x2 grid. */}
+          {isMobile && (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 1.25,
+                px: 2,
+                pt: 2,
+              }}
+            >
+              {(tab === 0
+                ? [
+                    { label: 'Choferes', value: drivers.length },
+                    { label: 'Activos', value: activeDrivers },
+                  ]
+                : [
+                    { label: 'Vehículos', value: vehicles.length },
+                    { label: 'Disponibles', value: activeVehicles },
+                    { label: 'Asignados', value: assignedVehicles },
+                    { label: 'En taller', value: workshopVehicles },
+                  ]
+              ).map((metric) => (
+                <Box
+                  key={metric.label}
+                  sx={{
+                    border: `1px solid ${color.border}`,
+                    borderRadius: 2,
+                    bgcolor: color.sand,
+                    px: 1.5,
+                    py: 1.25,
+                  }}
+                >
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: color.muted }}>
+                    {metric.label}
+                  </Typography>
+                  <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2, color: color.navy }}>
+                    {metric.value}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+
           {tab === 0 &&
             (isMobile ? (
               <Stack spacing={1.5} sx={{ p: 2 }}>
                 {drivers.map((d) => (
-                  <Box key={d.id} sx={{ border: '1px solid #EDEAE3', borderRadius: 2.5, p: 1.8 }}>
-                    <Stack direction="row" spacing={1.5} alignItems="center">
-                      <Avatar sx={{ width: 38, height: 38, bgcolor: '#E9EDF1', color: brand.navy, fontWeight: 800, fontSize: 13 }}>
-                        {d.initials}
-                      </Avatar>
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{d.name}</Typography>
-                        <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>{d.phone}</Typography>
-                        <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: brand.navy, mt: 0.25 }}>
-                          Tarifa base · {ars(d.baseRate)} / viaje
-                        </Typography>
-                      </Box>
-                      <StatusChip label={d.status} />
-                    </Stack>
-                    <Button size="small" fullWidth variant="outlined" sx={{ mt: 1.5, color: brand.navy, borderColor: '#D9D4C9' }} onClick={() => openEdit('driver', d)}>
-                      Editar
-                    </Button>
-                  </Box>
+                  <MobileCard
+                    key={d.id}
+                    header={
+                      <>
+                        <Avatar sx={{ width: 36, height: 36, bgcolor: color.sandDeep, color: brand.navy, fontWeight: 800, fontSize: 13 }}>
+                          {d.initials}
+                        </Avatar>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, color: color.navy, ...wrapAnywhere }}>
+                            {d.name}
+                          </Typography>
+                        </Box>
+                        <StatusChip label={d.status} />
+                      </>
+                    }
+                    footer={
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={() => openEdit('driver', d)}
+                        sx={{ color: brand.navy, borderColor: '#D9D4C9' }}
+                      >
+                        Editar
+                      </Button>
+                    }
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 12.5, color: color.muted, ...wrapAnywhere }}>{d.phone}</Typography>
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: brand.navy, mt: 0.25 }}>
+                        Tarifa base · {ars(d.baseRate)} / viaje
+                      </Typography>
+                    </Box>
+                  </MobileCard>
                 ))}
               </Stack>
             ) : (
@@ -210,27 +286,44 @@ export function FlotaPage() {
             (isMobile ? (
               <Stack spacing={1.5} sx={{ p: 2 }}>
                 {vehicles.map((v) => (
-                  <Box key={v.id} sx={{ border: '1px solid #EDEAE3', borderRadius: 2.5, p: 1.8 }}>
-                    <Stack direction="row" spacing={1.5} alignItems="center">
-                      <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: '#F0F2F5', color: brand.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <LocalShipping sx={{ fontSize: 19 }} />
-                      </Box>
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{v.id}</Typography>
-                          <Typography sx={{ fontSize: 12.5, color: '#64707C' }}>{v.type}</Typography>
-                        </Stack>
-                        <Typography sx={{ fontSize: 12, color: '#64707C' }}>Capacidad registrada · {v.capacityKg} kg</Typography>
-                      </Box>
-                      <StatusChip label={v.status} />
-                    </Stack>
-                    {v.status === 'Asignado' && (
-                      <Typography sx={{ mt: 1, fontSize: 12, color: '#98621B', fontWeight: 600 }}>{v.assignedNote}</Typography>
-                    )}
-                    <Button size="small" fullWidth variant="outlined" sx={{ mt: 1.5, color: brand.navy, borderColor: '#D9D4C9' }} onClick={() => openEdit('vehicle', v)}>
-                      Editar
-                    </Button>
-                  </Box>
+                  <MobileCard
+                    key={v.id}
+                    header={
+                      <>
+                        <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: color.sandDeep, color: brand.navy, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <LocalShipping sx={{ fontSize: 18 }} />
+                        </Box>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, color: color.navy, ...wrapAnywhere }}>
+                            {v.id}
+                          </Typography>
+                          <Typography sx={{ fontSize: 12.5, color: color.muted, ...wrapAnywhere }}>{v.type}</Typography>
+                        </Box>
+                        <StatusChip label={v.status} />
+                      </>
+                    }
+                    footer={
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={() => openEdit('vehicle', v)}
+                        sx={{ color: brand.navy, borderColor: '#D9D4C9' }}
+                      >
+                        Editar
+                      </Button>
+                    }
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 12.5, color: color.muted, ...wrapAnywhere }}>
+                        Capacidad registrada · {v.capacityKg} kg
+                      </Typography>
+                      {v.status === 'Asignado' && (
+                        <Typography sx={{ mt: 0.5, fontSize: 12, color: color.amberInk, fontWeight: 600, ...wrapAnywhere }}>
+                          {v.assignedNote}
+                        </Typography>
+                      )}
+                    </Box>
+                  </MobileCard>
                 ))}
               </Stack>
             ) : (
@@ -304,6 +397,8 @@ function RecordDialog({
   onClose: () => void
   onSaved: (message: string) => void
 }) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const isDriver = state.mode === 'driver'
   const initialD = (state.data as Driver) ?? null
   const initialV = (state.data as Vehicle) ?? null
@@ -412,8 +507,8 @@ function RecordDialog({
   }
 
   return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="xs" fullScreen={false}>
-      <DialogTitle sx={{ px: 3, pt: 3 }}>
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs" fullScreen={isMobile}>
+      <DialogTitle sx={{ px: { xs: 2, md: 3 }, pt: { xs: `calc(24px + ${MOBILE_SAFE_TOP})`, md: 3 } }}>
         <Stack direction="row" alignItems="center" spacing={1}>
           <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: '#EEF2FA', color: brand.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDriver ? <Person sx={{ fontSize: 18 }} /> : <LocalShipping sx={{ fontSize: 18 }} />}
@@ -431,7 +526,7 @@ function RecordDialog({
           </IconButton>
         </Stack>
       </DialogTitle>
-      <DialogContent sx={{ px: 3 }}>
+      <DialogContent sx={{ px: { xs: 2, md: 3 } }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -547,7 +642,17 @@ function RecordDialog({
           </Stack>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
+      <DialogActions
+        sx={{
+          px: { xs: 2, md: 3 },
+          pt: { xs: 1.5, md: 1 },
+          // Mobile: pinned to the bottom edge of the full-screen dialog.
+          pb: { xs: `calc(12px + ${MOBILE_SAFE_BOTTOM})`, md: 3 },
+          justifyContent: 'space-between',
+          bgcolor: { xs: color.paper, md: 'transparent' },
+          borderTop: { xs: `1px solid ${color.border}`, md: 'none' },
+        }}
+      >
         <Button onClick={onClose} sx={{ color: '#5C6B7A' }}>Cancelar</Button>
         <Button variant="contained" startIcon={<Check />} disabled={saving} onClick={save}>
           {saving ? 'Guardando...' : 'Guardar'}

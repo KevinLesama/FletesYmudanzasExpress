@@ -1,12 +1,10 @@
-import type { ComponentType, ReactNode } from 'react'
+import { useState, type ComponentType, type ReactNode } from 'react'
 import type { SvgIconProps } from '@mui/material/SvgIcon'
 import {
-  AppBar,
   Box,
   Drawer,
   IconButton,
   Stack,
-  Toolbar,
   Typography,
   useMediaQuery,
   useTheme,
@@ -27,6 +25,9 @@ import { AccountMenu, initialsFrom, type AccountMenuItem } from './AccountMenu'
 import { Brand } from './Brand'
 import { EncabezadoPagina } from './EncabezadoPagina'
 import { MapPreview } from './MapPreview'
+import { MobileNavDrawer, type MobileNavItem } from './mobile/MobileNavDrawer'
+import { MobileTopBar } from './mobile/MobileTopBar'
+import { MOBILE_GUTTER, MOBILE_PAGE_BOTTOM_SPACE, MOBILE_PAGE_TOP_SPACE } from './mobile/mobileSx'
 import { brand } from '../theme'
 import { loadSettings } from '../settingsStore'
 import type { TripForMapReason } from '../tripForMap'
@@ -145,6 +146,18 @@ interface AppShellProps {
    */
   header?: ReactNode
   action?: ReactNode
+  /**
+   * Mobile only: replaces the top bar title (defaults to the last breadcrumb
+   * item). Has no effect on desktop.
+   */
+  mobileTitle?: string
+  /** Mobile only: contextual action rendered on the right of the top bar. */
+  mobileAction?: ReactNode
+  /**
+   * Mobile only: hides the header lead when another block already shows the
+   * same information. Has no effect on desktop.
+   */
+  descriptionVisibleOnMobile?: boolean
   /** Ocupa el alto del viewport y delega el scroll al contenido (p. ej. la agenda). */
   fill?: boolean
   /** Reduce paddings y alto del encabezado en páginas de tabla compactas. */
@@ -167,6 +180,9 @@ export function AppShell({
   description,
   header,
   action,
+  mobileTitle,
+  mobileAction,
+  descriptionVisibleOnMobile = true,
   fill,
   compacto,
   mapTrip,
@@ -203,6 +219,23 @@ export function AppShell({
   const navItems = NAV.map((item) =>
     item.key === 'solicitudes' ? { ...item, badge: pendingReviewCount } : item,
   )
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  // Mobile navigation reuses the same items and the same pending count.
+  const mobileNavItems: MobileNavItem[] = navItems.map(({ key, label, icon, href, badge }) => ({
+    key,
+    label,
+    icon,
+    href,
+    badge,
+  }))
+  const mobileAccountItems: MobileNavItem[] = ACCOUNT_ITEMS.map(({ key, label, icon, href }) => ({
+    key,
+    label,
+    icon,
+    href,
+  }))
+  // The bar shows the section the user is in; pages can override it.
+  const mobileBarTitle = mobileTitle ?? breadcrumb[breadcrumb.length - 1] ?? title ?? ''
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 2.5, px: 2 }}>
@@ -241,7 +274,7 @@ export function AppShell({
       sx={{
         display: 'flex',
         height: isMobile ? undefined : '100dvh',
-        minHeight: isMobile ? '100vh' : 0,
+        minHeight: isMobile ? '100dvh' : 0,
         overflow: isMobile ? undefined : 'hidden',
       }}
     >
@@ -323,23 +356,33 @@ export function AppShell({
         )}
 
         {isMobile && (
-          <AppBar position="fixed" elevation={0} sx={{ bgcolor: brand.navy, top: 0, left: 0, right: 0 }}>
-            <Toolbar sx={{ px: 2, minHeight: 64, gap: 1 }}>
-              <Brand surface="dark" />
-              <Box sx={{ flexGrow: 1 }} />
-              <IconButton sx={{ color: '#fff' }} size="small" aria-label="Notificaciones">
-                <NotificationsNone fontSize="small" />
-              </IconButton>
-              <AccountMenu user={account} items={ACCOUNT_ITEMS} surface="dark" onSignOut={() => void signOut()} />
-            </Toolbar>
-          </AppBar>
+          <MobileTopBar
+            title={mobileBarTitle}
+            onOpenMenu={() => setMobileMenuOpen(true)}
+            action={mobileAction}
+          />
+        )}
+
+        {isMobile && (
+          <MobileNavDrawer
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            active={active}
+            items={mobileNavItems}
+            sectionLabel="Menú principal"
+            extraItems={mobileAccountItems}
+            extraLabel="Cuenta"
+            brand={<Brand />}
+            account={account}
+            onSignOut={() => void signOut()}
+          />
         )}
 
         <Box
           sx={{
-            pt: { xs: 9.5, md: compacto ? 2.5 : 3.5 },
-            px: { xs: 2, md: 4 },
-            pb: { xs: 12, md: compacto ? 2.5 : 4 },
+            pt: { xs: MOBILE_PAGE_TOP_SPACE, md: compacto ? 2.5 : 3.5 },
+            px: { xs: `${MOBILE_GUTTER}px`, md: 4 },
+            pb: { xs: MOBILE_PAGE_BOTTOM_SPACE, md: compacto ? 2.5 : 4 },
             ...(!isMobile && {
               boxSizing: 'border-box',
               flex: 1,
@@ -363,59 +406,19 @@ export function AppShell({
             {header ? (
               <Box>{header}</Box>
             ) : (
-              <EncabezadoPagina kicker={kicker} titulo={title} bajada={description} accion={action} compacto={compacto} />
+              <EncabezadoPagina
+                kicker={kicker}
+                titulo={title}
+                bajada={description}
+                accion={action}
+                compacto={compacto}
+                bajadaVisibleEnMobile={descriptionVisibleOnMobile}
+              />
             )}
             {children}
           </Box>
         </Box>
       </Box>
-
-      {isMobile && (
-        <AppBar
-          position="fixed"
-          elevation={8}
-          sx={{ top: 'auto', bottom: 0, bgcolor: brand.navy, color: '#fff' }}
-        >
-          <Box
-            component="nav"
-            sx={{ display: 'grid', gridTemplateColumns: `repeat(${NAV.length}, 1fr)`, pb: 'env(safe-area-inset-bottom)' }}
-          >
-            {NAV.map((item) => {
-              const Icon = item.icon
-              const isActive = item.key === active
-              return (
-                <a
-                  key={item.key}
-                  href={item.href}
-                  aria-current={isActive ? 'page' : undefined}
-                  style={{ textDecoration: 'none', color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.55)' }}
-                >
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 0.4,
-                      py: 0.9,
-                      position: 'relative',
-                    }}
-                  >
-                    {isActive && (
-                      <Box sx={{ position: 'absolute', top: 0, height: 3, width: 40, borderRadius: 4, bgcolor: brand.orange }} />
-                    )}
-                    <Icon fontSize="small" sx={{ position: 'relative' }} />
-                    <Typography
-                      sx={{ fontSize: 11, fontWeight: isActive ? 700 : 600, lineHeight: 1.2, textAlign: 'center' }}
-                    >
-                      {item.short ?? item.label}
-                    </Typography>
-                  </Box>
-                </a>
-              )
-            })}
-          </Box>
-        </AppBar>
-      )}
     </Box>
   )
 }

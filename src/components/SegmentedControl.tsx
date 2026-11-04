@@ -110,7 +110,8 @@ export function SegmentedControl<T extends SegmentedValue>({
             sx={{
               flex: fullWidth ? 1 : '0 0 auto',
               minWidth: 0,
-              minHeight: 36,
+              // Mobile touch target; desktop keeps the compact 36px height.
+              minHeight: { xs: 44, md: 36 },
               px: 1.6,
               py: 0.65,
               border: 0,

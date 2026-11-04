@@ -39,6 +39,11 @@ function RouteRow({ kind, text }: { kind: 'origin' | 'destination'; text: string
           fontWeight: 600,
           color: color.navy,
           overflowWrap: 'anywhere',
+          // Mobile: two lines per stop keeps the card compact and tappable.
+          display: { xs: '-webkit-box', md: 'block' },
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: { xs: 2, md: 'none' },
+          overflow: { xs: 'hidden', md: 'visible' },
         }}
       >
         {text}
@@ -62,6 +67,7 @@ function TripCard({ trip, onOpen }: { trip: ShiftRequest; onOpen: () => void }) 
         alignItems: 'start',
         gap: 1.5,
         width: '100%',
+        minHeight: 64,
         p: { xs: 1.75, sm: 2 },
         textAlign: 'left',
         font: 'inherit',
@@ -121,7 +127,9 @@ function TripCard({ trip, onOpen }: { trip: ShiftRequest; onOpen: () => void }) 
         <Typography component="span" sx={{ fontSize: typeScale.caption, color: color.muted }}>
           {joinParts([
             trip.client,
-            trip.cargo.approxUnits ? `${trip.cargo.approxUnits} bultos` : '',
+            trip.cargo.approxUnits
+              ? `${trip.cargo.approxUnits} ${trip.cargo.approxUnits === 1 ? 'bulto' : 'bultos'}`
+              : '',
             trip.cargo.fragile ? 'Frágil' : '',
           ])}
         </Typography>
@@ -177,6 +185,9 @@ export function ChoferPage() {
   const subtitle = fmtLong(today)
   const loadingProfile = driversState.loading
   const profileMissing = !loadingProfile && !driversState.error && !driver
+  // Single handler for closing the open trip: the flow and the mobile back
+  // button run exactly the same thing.
+  const closeTrip = () => setSelectedId(null)
 
   return (
     <>
@@ -185,12 +196,15 @@ export function ChoferPage() {
         breadcrumb={selected ? ['Chofer', 'Viaje en curso'] : ['Chofer', 'Mis viajes']}
         title={selected ? 'Viaje en curso' : 'Mis viajes'}
         description={selected ? joinParts([selected.id, fmtLong(selected.date)]) : subtitle}
+        compactMobile={Boolean(selected)}
+        mobileTitle={selected ? selected.id : undefined}
+        mobileBack={selected ? closeTrip : undefined}
       >
         {selected ? (
           <DriverTripFlow
             trip={selected}
             vehicleName={selectedVehicleName}
-            onClose={() => setSelectedId(null)}
+            onClose={closeTrip}
             onFinished={async () => {
               await tripsState.reload()
               setSelectedId(null)
@@ -264,7 +278,7 @@ export function ChoferPage() {
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: 1.25,
-                p: 1.5,
+                p: { xs: 1.25, md: 1.5 },
                 borderRadius: `${radius.md}px`,
                 bgcolor: color.blueSoft,
                 border: `1px solid ${color.border}`,
@@ -275,7 +289,7 @@ export function ChoferPage() {
                 <Typography sx={{ fontSize: typeScale.caption, fontWeight: 800, color: color.navy }}>
                   {confirmed.length === 1 ? '1 viaje confirmado' : `${confirmed.length} viajes confirmados`}
                 </Typography>
-                <Typography sx={{ fontSize: typeScale.caption, color: color.inkStrong }}>
+                <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: typeScale.caption, color: color.inkStrong }}>
                   Solo ves los servicios confirmados que tenés asignados. Abrí uno para iniciar el recorrido.
                 </Typography>
               </Box>

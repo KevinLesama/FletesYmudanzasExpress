@@ -6,11 +6,15 @@ import {
   InputAdornment,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { InfoOutlined, Paid, RestartAlt, Save } from '@mui/icons-material'
 import { ChoferShell } from '../components/ChoferShell'
 import { CampoTexto } from '../components/FormFields'
 import { ErrorState, LoadingState } from '../components/EmptyState'
+import { MobileActionBar } from '../components/mobile/MobileActionBar'
+import { MOBILE_ACTION_BAR_SPACE } from '../components/mobile/mobileSx'
 import { TruckLoader } from '../components/TruckLoader'
 import { Toast, type ToastState } from '../components/Toast'
 import { api } from '../api'
@@ -38,6 +42,8 @@ function toConfig(driver: Driver): ChoferConfig {
 
 export function ChoferConfigPage() {
   const user = currentUser()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   // El perfil sale del id que el backend resolvio en /me. No se busca por
   // email: el email de Auth y el de `usuarios` pueden no coincidir.
   const driverState = useAsync(() => {
@@ -149,9 +155,11 @@ export function ChoferConfigPage() {
         title="Mi configuración"
         description="Definí tu tarifa base y los adicionales de cada viaje."
         action={
-          <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving} sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}>
-            {saving ? 'Guardando...' : 'Guardar'}
-          </Button>
+          isMobile ? undefined : (
+            <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving} sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </Button>
+          )
         }
       >
         <Box sx={{ mb: 2.5, p: 1.6, borderRadius: 2, bgcolor: '#EEF2FA', border: '1px solid #D9E2EE', color: '#526B8A' }}>
@@ -163,13 +171,13 @@ export function ChoferConfigPage() {
           </Stack>
         </Box>
 
-        <Stack spacing={2.5}>
+        <Stack spacing={2.5} sx={{ pb: { xs: MOBILE_ACTION_BAR_SPACE.pb, md: 0 } }}>
           <Box sx={{ bgcolor: '#FFFFFF', border: '1px solid #E9E6DF', borderRadius: 3, p: 2.5 }}>
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
               <Box sx={{ color: brand.navy, display: 'flex' }}><Paid sx={{ fontSize: 17 }} /></Box>
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>Tarifa del viaje</Typography>
             </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <CampoTexto
                 label="Tarifa base por viaje"
                 value={config.baseRate}
@@ -177,7 +185,9 @@ export function ChoferConfigPage() {
                 fullWidth
                 size="small"
                 helperText="Sueldo base del servicio"
+                inputProps={{ inputMode: 'numeric' }}
                 InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                sx={{ '& .MuiInputBase-root': { minHeight: { xs: 48, md: 'unset' } } }}
               />
               <CampoTexto
                 label="Adicional por km"
@@ -186,7 +196,9 @@ export function ChoferConfigPage() {
                 fullWidth
                 size="small"
                 helperText="Se aplica sobre los km totales (ida y vuelta)"
+                inputProps={{ inputMode: 'numeric' }}
                 InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                sx={{ '& .MuiInputBase-root': { minHeight: { xs: 48, md: 'unset' } } }}
               />
               <CampoTexto
                 label="Adicional por hora"
@@ -195,7 +207,9 @@ export function ChoferConfigPage() {
                 fullWidth
                 size="small"
                 helperText="Viaje, vuelta y espera"
+                inputProps={{ inputMode: 'numeric' }}
                 InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                sx={{ '& .MuiInputBase-root': { minHeight: { xs: 48, md: 'unset' } } }}
               />
             </Stack>
           </Box>
@@ -204,7 +218,7 @@ export function ChoferConfigPage() {
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
               <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 15 }}>Ejemplo de cálculo</Typography>
               <Box sx={{ flexGrow: 1 }} />
-              <Typography sx={{ fontSize: 11, color: '#64707C' }}>{SAMPLE_KM} km de ida · espera 2 h</Typography>
+              <Typography sx={{ fontSize: { xs: 12.5, md: 11 }, color: '#64707C' }}>{SAMPLE_KM} km de ida · espera 2 h</Typography>
             </Stack>
 
             {previewLoading && !preview && (
@@ -255,16 +269,37 @@ export function ChoferConfigPage() {
             )}
           </Box>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
-            <Button variant="outlined" startIcon={<RestartAlt />} onClick={reset} sx={{ color: brand.navy, borderColor: '#D9D4C9' }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              startIcon={<RestartAlt />}
+              onClick={reset}
+              sx={{ color: brand.navy, borderColor: '#D9D4C9', minHeight: { xs: 44, md: undefined }, width: { xs: '100%', md: 'auto' } }}
+            >
               Restaurar valores del servidor
             </Button>
-            <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar configuración'}
-            </Button>
+            {!isMobile && (
+              <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar configuración'}
+              </Button>
+            )}
           </Stack>
         </Stack>
       </ChoferShell>
+
+      {isMobile && (
+        <MobileActionBar>
+          <Button
+            variant="contained"
+            startIcon={<Save />}
+            onClick={save}
+            disabled={saving}
+            sx={{ bgcolor: brand.orangeStrong, '&:hover': { bgcolor: brand.orangeInk } }}
+          >
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </MobileActionBar>
+      )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </>
