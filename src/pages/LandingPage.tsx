@@ -5,6 +5,7 @@ import {
   ArrowUpward,
   CheckCircleOutline,
   LocalShipping,
+  Login,
   MapOutlined,
   Pause,
   PersonOutline,
@@ -37,6 +38,7 @@ import { Toast, type ToastState } from '../components/Toast'
 import { WhatsAppIcon } from '../components/WhatsAppIcon'
 import { color, type } from '../design/tokens'
 import { waLink } from '../format'
+import { R } from '../routes'
 import { getTodayISO } from '../agendaDates'
 import { brand } from '../theme'
 import type { PlaceDetail } from '../types'
@@ -433,6 +435,29 @@ function LandingHeader() {
               sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: color.green, width: 44, height: 44 }}
             >
               <WhatsAppIcon size={21} />
+            </IconButton>
+
+            <Button
+              component="a"
+              href={R.ingreso}
+              variant="outlined"
+              size="small"
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                whiteSpace: 'nowrap',
+                minHeight: { xs: 44, sm: 40 },
+                px: { xs: 1.5, sm: 2 },
+              }}
+            >
+              Iniciar sesión
+            </Button>
+            <IconButton
+              component="a"
+              href={R.ingreso}
+              aria-label="Iniciar sesión"
+              sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: brand.navy, width: 44, height: 44 }}
+            >
+              <Login sx={{ fontSize: 21 }} />
             </IconButton>
 
             <Button
