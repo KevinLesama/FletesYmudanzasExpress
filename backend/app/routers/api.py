@@ -394,6 +394,34 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)) -> ChoferOut:
     return serializers.serialize_driver(driver)
 
 
+def _guard_driver_deactivation(db: Session, driver: Usuario) -> None:
+    """Impide que una baja logica deje viajes confirmados sin responsable.
+
+    La baja es `usuarios.activo = false` (el DELETE esta prohibido por trigger y
+    por `solicitudes.chofer_id ON DELETE RESTRICT`). Aun asi, un chofer con
+    viajes ya confirmados por delante no puede salir de la operacion sin que
+    antes se reasignen o se cancelen.
+    """
+    agendados = db.scalar(
+        select(func.count())
+        .select_from(Solicitud)
+        .where(
+            Solicitud.chofer_id == driver.id,
+            Solicitud.estado == "confirmada",
+            Solicitud.fecha >= date.today(),
+        )
+    )
+    if agendados:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede dar de baja a {driver.nombre}: tiene "
+                f"{agendados} viaje(s) confirmado(s) agendado(s). "
+                "Reasigna o cancela esos viajes primero."
+            ),
+        )
+
+
 @drivers_router.patch(
     "/{driver_id}",
     response_model=ChoferOut,
@@ -403,9 +431,12 @@ def update_driver(driver_id: int, payload: ChoferUpdate, db: Session = Depends(g
     driver = db.get(Usuario, driver_id)
     if driver is None or driver.rol != "chofer":
         raise HTTPException(status_code=404, detail="Chofer no encontrado.")
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("activo") is False:
+        _guard_driver_deactivation(db, driver)
     # Actualizacion parcial: un PATCH del formulario de flota manda solo
     # nombre, telefono, email y estado; no debe borrar licencia ni tarifas.
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    for field, value in data.items():
         setattr(driver, field, value)
     try:
         db.commit()
