@@ -368,12 +368,12 @@ export function SolicitudesPage() {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ width: '9%', whiteSpace: 'nowrap' }}>Número</TableCell>
-                <TableCell sx={{ width: '14%' }}>Cliente</TableCell>
-                <TableCell sx={{ width: '10%', whiteSpace: 'nowrap' }}>Fecha</TableCell>
-                <TableCell sx={{ width: '18%' }}>Origen</TableCell>
-                <TableCell sx={{ width: '18%' }}>Destino</TableCell>
-                <TableCell sx={{ width: 200, whiteSpace: 'nowrap' }}>Estado</TableCell>
-                <TableCell align="right" sx={{ width: 150, whiteSpace: 'nowrap' }}>Acción</TableCell>
+                <TableCell sx={{ width: '11%' }}>Cliente</TableCell>
+                <TableCell sx={{ width: '9%', whiteSpace: 'nowrap' }}>Fecha</TableCell>
+                <TableCell sx={{ width: '15%' }}>Origen</TableCell>
+                <TableCell sx={{ width: '15%' }}>Destino</TableCell>
+                <TableCell sx={{ width: 225, minWidth: 225, paddingRight: '20px', whiteSpace: 'nowrap' }}>Estado</TableCell>
+                <TableCell align="right" sx={{ width: 180, minWidth: 180, paddingLeft: '20px', whiteSpace: 'nowrap' }}>Acción</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -405,9 +405,9 @@ export function SolicitudesPage() {
                       {formatRequestPlace(r.destination)}
                     </Typography>
                   </TableCell>
-                  <TableCell sx={{ minWidth: 200, paddingRight: '20px' }}>
-                    <Stack spacing={0.5} alignItems="flex-start">
-                      <Box sx={{ maxWidth: '100%', '& > span': { whiteSpace: 'nowrap', maxWidth: '100%' } }}>
+                  <TableCell sx={{ width: 225, paddingRight: '20px', verticalAlign: 'middle' }}>
+                    <Stack spacing={0.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                      <Box sx={{ maxWidth: '100%', minWidth: 0, '& > span': { whiteSpace: 'nowrap', maxWidth: '100%' } }}>
                         <StatusChip label={r.status} />
                       </Box>
                       <Chip
@@ -418,7 +418,7 @@ export function SolicitudesPage() {
                       />
                     </Stack>
                   </TableCell>
-                  <TableCell align="right" sx={{ width: 150, paddingLeft: '16px' }}>
+                  <TableCell align="right" sx={{ width: 180, paddingLeft: '20px', verticalAlign: 'middle' }}>
                     <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
                       <Button
                         size="small"
