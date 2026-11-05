@@ -263,7 +263,12 @@ export function DriverTripFlow({
     .reduce((sum, payment) => sum + payment.amount, 0)
   const balance = Math.max(0, trip.price - trip.depositReceived - paidBalance)
   const requiresPayment = balance > 0.5
-  const canFinish = (!requiresPayment || Boolean(progress.paymentMethod)) && Boolean(photo)
+  const missingCloseout = requiresPayment && !progress.paymentMethod
+    ? 'Elegí cómo se cobra el saldo para cerrar el viaje.'
+    : !photo
+      ? 'Sacá la foto del remito para cerrar el viaje.'
+      : null
+  const canFinish = missingCloseout === null
   // Same label and same `disabled` in both breakpoints; only its home changes.
   const cargoPrimaryLabel = allLoaded
     ? 'Carga completa · ir al destino'
@@ -311,6 +316,11 @@ export function DriverTripFlow({
   }
 
   const finish = async () => {
+    if (!canFinish) {
+      setConfirmOpen(false)
+      onNotify(missingCloseout ?? 'Faltan datos para cerrar el viaje.', 'error')
+      return
+    }
     setBusy(true)
     try {
       await api.markFinished(trip.id, nowLocal(), {
@@ -329,11 +339,7 @@ export function DriverTripFlow({
     }
   }
 
-  const finishHint = !requiresPayment || progress.paymentMethod
-    ? photo
-      ? 'Todo listo para cerrar el viaje.'
-      : 'Sacá la foto del remito para cerrar el viaje.'
-    : 'Elegí cómo se cobra el saldo para cerrar el viaje.'
+  const finishHint = missingCloseout ?? 'Todo listo para cerrar el viaje.'
 
   // Mobile: one fixed bar carries the primary action of the current step, with
   // the same handler and the same `disabled` as the in-panel version.
