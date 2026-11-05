@@ -17,7 +17,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, ArrowForward, Block, Close, FilterAlt, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
+import { Add, ArrowForward, Close, FilterAlt, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { CancelDialog } from '../components/CancelDialog'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
@@ -455,9 +455,9 @@ export function SolicitudesPage() {
                         title={canCancel(r) ? 'Cancelar viaje' : 'Un viaje finalizado o cancelado ya no se puede cancelar'}
                         disabled={!canCancel(r)}
                         onClick={() => setCancelTarget(r)}
-                        sx={{ color: canCancel(r) ? color.red : 'text.disabled' }}
+                        sx={{ color: canCancel(r) ? brand.navy : 'text.disabled' }}
                       >
-                        <Block sx={{ fontSize: 18 }} />
+                        <Close sx={{ fontSize: 18 }} />
                       </IconButton>
                       <Button
                         size="small"
