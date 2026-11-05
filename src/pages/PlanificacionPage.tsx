@@ -48,6 +48,7 @@ import {
   RouteOutlined,
 } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
+import { CancelDialog } from '../components/CancelDialog'
 import { EtiquetaCampo, CampoSelect, CampoTexto } from '../components/FormFields'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { Toast, type ToastState } from '../components/Toast'
@@ -1553,28 +1554,17 @@ export function PlanificacionPage() {
                       Registrar seña
                     </Button>
                   )}
-                  <Button
-                    variant="outlined"
-                    startIcon={isCancelled ? <Undo /> : <Block />}
-                    disabled={busy}
-                    sx={
-                      isCancelled
-                        ? { color: brand.navy, borderColor: color.border, py: 1.1 }
-                        : { color: color.red, borderColor: color.red, bgcolor: color.redSoft, py: 1.1, '&:hover': { borderColor: color.red, bgcolor: color.redSoft } }
-                    }
-                    onClick={() => {
-                      if (isCancelled) {
-                        runAction(
-                          () => api.updateRequest(request.id, { status: 'Pendiente de seña', confirmed: false }),
-                          'Viaje reactivado · ' + requestId,
-                        )
-                      } else {
-                        setCancelOpen(true)
-                      }
-                    }}
-                  >
-                    {isCancelled ? 'Reactivar viaje' : 'Cancelar viaje'}
-                  </Button>
+                  {!isCancelled && !isFinalized && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<Block />}
+                      disabled={busy}
+                      sx={{ color: color.red, borderColor: color.red, bgcolor: color.redSoft, py: 1.1, '&:hover': { borderColor: color.red, bgcolor: color.redSoft } }}
+                      onClick={() => setCancelOpen(true)}
+                    >
+                      Cancelar viaje
+                    </Button>
+                  )}
                   {plannedStatus && (
                     <Tooltip title={!confirmacionLista && primerMotivoConfirmacion ? primerMotivoConfirmacion : ''} disableHoverListener={confirmacionLista}>
                       <span>
@@ -1679,51 +1669,6 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
         {value}
       </Typography>
     </Stack>
-  )
-}
-
-function CancelDialog({
-  open,
-  onClose,
-  onConfirm,
-  requestId,
-}: {
-  open: boolean
-  onClose: () => void
-  onConfirm: () => void
-  requestId: string
-}) {
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ px: 3, pt: 3 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: color.redSoft, color: color.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Block sx={{ fontSize: 18 }} />
-          </Box>
-          <Box>
-            <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Cancelar viaje</Typography>
-            <Typography sx={{ fontSize: 12.5, color: color.muted }}>{requestId}</Typography>
-          </Box>
-          <Box sx={{ flexGrow: 1 }} />
-          <IconButton onClick={onClose} aria-label="Cerrar">
-            <Close fontSize="small" />
-          </IconButton>
-        </Stack>
-      </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 2 }}>
-        <Typography sx={{ fontSize: 13.5, color: color.inkStrong }}>
-          ¿Estás seguro de cancelar el viaje {requestId}? El cliente dejará de verlo y se liberará la asignación de chofer y vehículo.
-        </Typography>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
-        <Button onClick={onClose} sx={{ color: color.ink }}>
-          Volver
-        </Button>
-        <Button variant="contained" startIcon={<Block />} sx={{ bgcolor: color.red, '&:hover': { bgcolor: color.red } }} onClick={onConfirm}>
-          Sí, cancelar viaje
-        </Button>
-      </DialogActions>
-    </Dialog>
   )
 }
 
