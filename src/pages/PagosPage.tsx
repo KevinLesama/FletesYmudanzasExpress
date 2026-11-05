@@ -35,7 +35,7 @@ import { getTodayISO } from '../agendaDates'
 import { SEARCH_FIELD_SX, SEARCH_INPUT_PROPS } from '../searchField'
 import { brand } from '../theme'
 import { color } from '../design/tokens'
-import type { Payment, PaymentConcept, PaymentMethod, PaymentSummary, ReceivedBy, ShiftRequest } from '../types'
+import type { Payment, PaymentMethod, PaymentSummary, ReceivedBy, ShiftRequest } from '../types'
 
 const PAYMENTS_PAGE_SIZE = 10
 
@@ -324,7 +324,6 @@ function PaymentDialog({
 
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(getTodayISO)
-  const [concept, setConcept] = useState<PaymentConcept>('Saldo')
   const [method, setMethod] = useState<PaymentMethod>('Transferencia')
   const [receivedBy, setReceivedBy] = useState<ReceivedBy>('Administración')
   const [notes, setNotes] = useState('')
@@ -337,7 +336,7 @@ function PaymentDialog({
       return
     }
     setError(null)
-    onSave({ concept, method, receivedBy, amount: num, date, notes })
+    onSave({ concept: 'Saldo', method, receivedBy, amount: num, date, notes })
   }
 
   return (
@@ -379,10 +378,6 @@ function PaymentDialog({
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           />
           <CampoTexto label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" autoComplete="off" />
-          <CampoSelect label="Concepto" value={concept} onChange={(e) => setConcept(e.target.value as PaymentConcept)} size="small">
-            <MenuItem value="Seña">Seña</MenuItem>
-            <MenuItem value="Saldo">Saldo</MenuItem>
-          </CampoSelect>
           <Stack direction="row" spacing={1.5}>
             <CampoSelect label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} size="small">
               <MenuItem value="Transferencia">Transferencia</MenuItem>
