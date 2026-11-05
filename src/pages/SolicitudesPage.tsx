@@ -17,12 +17,14 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, ArrowForward, Close, FilterAlt, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
+import { Add, ArrowForward, Block, Close, FilterAlt, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
+import { CancelDialog } from '../components/CancelDialog'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { CampoSelect, EtiquetaCampo } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
+import { Toast, type ToastState } from '../components/Toast'
 import { MobileCard } from '../components/mobile/MobileCard'
 import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
 import { MobileRouteSummary } from '../components/mobile/MobileRouteSummary'
@@ -71,6 +73,30 @@ export function SolicitudesPage() {
   })
 
   const { data, loading, error, reload } = useAsync(() => api.listRequests(), [])
+
+  // Cancelar es la unica baja posible: el DELETE esta prohibido en la base y
+  // `cancelada` es un estado terminal. La fila queda visible con su chip.
+  const [cancelTarget, setCancelTarget] = useState<ShiftRequest | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [toast, setToast] = useState<ToastState | null>(null)
+
+  const cancelRequest = async () => {
+    if (!cancelTarget) return
+    setCancelling(true)
+    try {
+      await api.updateRequest(cancelTarget.id, { status: 'Cancelada' })
+      setToast({ message: `Solicitud cancelada · ${cancelTarget.id}`, tone: 'success' })
+      setCancelTarget(null)
+      reload()
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'No pudimos cancelar la solicitud.',
+        tone: 'error',
+      })
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   const list = useMemo(() => {
     const requests = data ?? []
@@ -121,6 +147,11 @@ export function SolicitudesPage() {
   if (status !== 'all') activeChips.push({ key: 'status', label: `Estado: ${status}`, clear: () => setStatus('all') })
 
   const statusOptions = STATUS_FILTER_OPTIONS
+
+  // Un viaje finalizado o ya cancelado no puede volver atras: el trigger de la
+  // base solo permite pendiente/confirmada -> cancelada.
+  const canCancel = (request: ShiftRequest) =>
+    request.status !== 'Cancelada' && request.status !== 'Finalizada'
 
   return (
     <AppShell
@@ -397,23 +428,35 @@ export function SolicitudesPage() {
                     </Stack>
                   </TableCell>
                   <TableCell align="right">
-                    <Button
-                      size="small"
-                      aria-label="Ver detalle"
-                      sx={{
-                        fontWeight: 700,
-                        whiteSpace: 'nowrap',
-                        minWidth: 0,
-                        '@media (max-width: 1100px)': {
-                          '& .detail-label': { display: 'none' },
-                          '& .MuiButton-endIcon': { margin: 0 },
-                        },
-                      }}
-                      endIcon={<ArrowForward sx={{ fontSize: 15 }} />}
-                      href={R.planificacion(r.id)}
-                    >
-                      <Box component="span" className="detail-label">Ver detalle</Box>
-                    </Button>
+                    <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
+                      <IconButton
+                        size="small"
+                        aria-label={`Cancelar ${r.id}`}
+                        title={canCancel(r) ? 'Cancelar viaje' : 'Un viaje finalizado o cancelado ya no se puede cancelar'}
+                        disabled={!canCancel(r)}
+                        onClick={() => setCancelTarget(r)}
+                        sx={{ color: canCancel(r) ? color.red : 'text.disabled' }}
+                      >
+                        <Block sx={{ fontSize: 18 }} />
+                      </IconButton>
+                      <Button
+                        size="small"
+                        aria-label="Ver detalle"
+                        sx={{
+                          fontWeight: 700,
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                          '@media (max-width: 1100px)': {
+                            '& .detail-label': { display: 'none' },
+                            '& .MuiButton-endIcon': { margin: 0 },
+                          },
+                        }}
+                        endIcon={<ArrowForward sx={{ fontSize: 15 }} />}
+                        href={R.planificacion(r.id)}
+                      >
+                        <Box component="span" className="detail-label">Ver detalle</Box>
+                      </Button>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
@@ -472,6 +515,16 @@ export function SolicitudesPage() {
           Una solicitud se confirma cuando se acuerdan las condiciones y se registra la seña.
         </Typography>
       </Stack>
+
+      <CancelDialog
+        open={!!cancelTarget}
+        requestId={cancelTarget?.id ?? ''}
+        busy={cancelling}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={() => void cancelRequest()}
+      />
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </AppShell>
   )
 }

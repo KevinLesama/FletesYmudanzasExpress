@@ -560,6 +560,14 @@ export const api = {
         }),
       }),
     ),
+  /** Baja/alta logica: no existe DELETE de choferes. */
+  setDriverActive: async (id: string, activo: boolean): Promise<Driver> =>
+    mapDriver(
+      await http<Json>(`/drivers/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ activo }),
+      }),
+    ),
   updateDriverRates: async (
     id: string,
     payload: { baseRate: number; ratePerKm: number; ratePerHour: number },
