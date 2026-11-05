@@ -11,7 +11,7 @@ const HOUR_END = 19
 const MIN_START = HOUR_START * 60
 const MIN_END = HOUR_END * 60
 const GUTTER = 62
-const ROW_H = 68
+const ROW_H = 88
 const COL_GAP = 6
 const EDGE_GAP = 6
 const CONTENT_H = (HOUR_END - HOUR_START) * ROW_H
@@ -108,18 +108,19 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
   const startMin = Math.max(MIN_START, Math.min(MIN_END, toMin(trip.serviceRange[0])))
   const endMin = Math.max(MIN_START, Math.min(MIN_END, toMin(trip.serviceRange[1])))
   const top = ((startMin - MIN_START) / 60) * ROW_H + 2
-  const height = Math.max(30, ((endMin - startMin) / 60) * ROW_H - 4)
+  const height = Math.max(30, ((endMin - startMin) / 60) * ROW_H)
   const style = styleFor(trip.status)
-  const compact = height <= ROW_H
+  const compact = height < 44
+  const showDetails = height >= 110
   const cancelled = trip.status === 'Cancelada'
   const origin = formatShortPlace(trip.origin)
   const destination = formatShortPlace(trip.destination)
   const title = [
     trip.client,
     trip.id,
-    trip.serviceRange.join(' a '),
-    `Origen: ${fullPlaceLabel(trip.origin)}`,
-    `Destino: ${fullPlaceLabel(trip.destination)}`,
+    `${trip.serviceRange[0]} – ${trip.serviceRange[1]}`,
+    `${fullPlaceLabel(trip.origin)} → ${fullPlaceLabel(trip.destination)}`,
+    `Estado: ${trip.status}`,
   ].join(' · ')
 
   return (
@@ -143,9 +144,13 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
         height,
         borderRadius: 1.5,
         border: `1px solid ${style.border}`,
+        borderLeft: `3px solid ${style.border}`,
         bgcolor: style.bg,
         px: 0.6,
-        py: 0.6,
+        py: compact ? '2px' : 0.6,
+        display: compact ? 'flex' : undefined,
+        flexDirection: compact ? 'column' : undefined,
+        justifyContent: compact ? 'center' : 'flex-start',
         overflow: 'hidden',
         cursor: 'pointer',
         outline: 0,
@@ -156,84 +161,97 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
         '&:focus-visible': { boxShadow: `0 0 0 2px ${color.orangeInk}` },
       }}
     >
-      <Typography
-        sx={{
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: '0.02em',
-          color: style.ink,
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {cols === 1 ? `${trip.serviceRange[0]}–${trip.serviceRange[1]}` : trip.serviceRange[0]}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: 12,
-          fontWeight: 700,
-          color: color.navy,
-          lineHeight: 1.35,
-          whiteSpace: 'normal',
-          overflowWrap: 'anywhere',
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitBoxOrient: 'vertical',
-          WebkitLineClamp: compact ? 1 : 2,
-          textDecoration: cancelled ? 'line-through' : 'none',
-        }}
-      >
-        {trip.client}
-      </Typography>
-      {!compact && (
+      {compact ? (
+        <Typography
+          sx={{
+            width: '100%',
+            fontSize: 12,
+            fontWeight: 700,
+            color: color.navy,
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            textDecoration: cancelled ? 'line-through' : 'none',
+          }}
+        >
+          {`${trip.serviceRange[0]} · ${trip.client}`}
+        </Typography>
+      ) : (
         <>
           <Typography
             sx={{
               fontSize: 11,
-              color: color.ink,
+              fontWeight: 800,
+              letterSpacing: '0.02em',
+              color: style.ink,
               lineHeight: 1.4,
-              whiteSpace: 'normal',
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {trip.id}
-          </Typography>
-          <Box
-            sx={{
+              whiteSpace: 'nowrap',
               overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
-            {origin && (
+            {cols === 1 ? `${trip.serviceRange[0]}–${trip.serviceRange[1]}` : trip.serviceRange[0]}
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: color.navy,
+              lineHeight: 1.35,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              textDecoration: cancelled ? 'line-through' : 'none',
+            }}
+          >
+            {trip.client}
+          </Typography>
+          {showDetails && (
+            <>
               <Typography
                 sx={{
                   fontSize: 11,
                   color: color.ink,
                   lineHeight: 1.4,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
+                  whiteSpace: 'normal',
+                  overflowWrap: 'anywhere',
                 }}
               >
-                {origin}
+                {trip.id}
               </Typography>
-            )}
-            {destination && (
-              <Typography
-                sx={{
-                  fontSize: 11,
-                  color: color.ink,
-                  lineHeight: 1.4,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {destination}
-              </Typography>
-            )}
-          </Box>
+              <Box sx={{ overflow: 'hidden' }}>
+                {origin && (
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      color: color.ink,
+                      lineHeight: 1.4,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {origin}
+                  </Typography>
+                )}
+                {destination && (
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      color: color.ink,
+                      lineHeight: 1.4,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {destination}
+                  </Typography>
+                )}
+              </Box>
+            </>
+          )}
         </>
       )}
     </Box>

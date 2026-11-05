@@ -687,7 +687,7 @@ function RecordDialog({
               mensaje={fieldErrors.phone}
               fullWidth
               size="small"
-              placeholder="11 5555-0000"
+              placeholder="1155550000"
               inputProps={{ maxLength: 20, inputMode: 'tel' }}
               autoComplete="off"
             />

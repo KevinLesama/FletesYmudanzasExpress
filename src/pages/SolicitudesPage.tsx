@@ -19,15 +19,14 @@ import {
 } from '@mui/material'
 import { Add, ArrowForward, Close, FilterAlt, Search, FilterAltOff, InfoOutlined } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
-import { CancelDialog } from '../components/CancelDialog'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyState'
 import { CampoSelect, EtiquetaCampo } from '../components/FormFields'
 import { StatusChip } from '../components/StatusChip'
 import { TablePaginationFooter } from '../components/TablePaginationFooter'
-import { Toast, type ToastState } from '../components/Toast'
 import { MobileCard } from '../components/mobile/MobileCard'
 import { MobileFilterSheet } from '../components/mobile/MobileFilterSheet'
 import { MobileRouteSummary } from '../components/mobile/MobileRouteSummary'
+import { ESTADOS_AGENDA } from '../components/AgendaGrid'
 import { MOBILE_INPUT_SX, wrapAnywhere } from '../components/mobile/mobileSx'
 import { api } from '../api'
 import { useAsync } from '../useAsync'
@@ -58,6 +57,32 @@ function paymentLabel(request: ShiftRequest): string {
   return collected > 0 ? 'Seña recibida' : 'Sin seña'
 }
 
+function formatRequestPlace(place: ShiftRequest['origin']): string {
+  const formatted = formatShortPlace(place)
+  const parts = formatted.split(', ')
+  if (parts.length < 2) return formatted
+
+  const locality = parts[parts.length - 1]
+  const precedingText = parts.slice(0, -1).join(', ')
+  const normalize = (value: string) =>
+    value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+  return normalize(precedingText).endsWith(normalize(locality)) ? precedingText : formatted
+}
+
+function requestStatusBorder(status: ShiftRequest['status']): string {
+  return ESTADOS_AGENDA.find((item) => item.key === status)?.border ?? color.border
+}
+
+function newestRequestFirst(a: ShiftRequest, b: ShiftRequest): number {
+  const aCreated = a.createdAt ? Date.parse(a.createdAt) : Number.NaN
+  const bCreated = b.createdAt ? Date.parse(b.createdAt) : Number.NaN
+  if (Number.isFinite(aCreated) && Number.isFinite(bCreated) && aCreated !== bCreated) {
+    return bCreated - aCreated
+  }
+  return Number(b.id.slice(4)) - Number(a.id.slice(4))
+}
+
 export function SolicitudesPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -74,34 +99,7 @@ export function SolicitudesPage() {
 
   const { data, loading, error, reload } = useAsync(() => api.listRequests(), [])
 
-  // Cancelar es la unica baja posible: el DELETE esta prohibido en la base y
-  // `cancelada` es un estado terminal. Igual que los choferes dados de baja en
-  // Flota, las canceladas salen del listado y se muestran con un toggle.
-  const [cancelTarget, setCancelTarget] = useState<ShiftRequest | null>(null)
-  const [cancelling, setCancelling] = useState(false)
   const [showCancelled, setShowCancelled] = useState(false)
-  const [toast, setToast] = useState<ToastState | null>(null)
-
-  const cancelRequest = async () => {
-    if (!cancelTarget) return
-    setCancelling(true)
-    try {
-      await api.updateRequest(cancelTarget.id, { status: 'Cancelada' })
-      setToast({
-        message: `Solicitud cancelada${showCancelled ? '' : ' y oculta del listado'} · ${cancelTarget.id}`,
-        tone: 'success',
-      })
-      setCancelTarget(null)
-      reload()
-    } catch (err) {
-      setToast({
-        message: err instanceof Error ? err.message : 'No pudimos cancelar la solicitud.',
-        tone: 'error',
-      })
-    } finally {
-      setCancelling(false)
-    }
-  }
 
   // Las canceladas se ocultan por defecto, como los choferes inactivos en
   // Flota. El filtro de estado "Cancelada" las muestra sin depender del toggle.
@@ -121,7 +119,7 @@ export function SolicitudesPage() {
         if (status === 'all' && !showCancelled && r.status === 'Cancelada') return false
         return true
       })
-      .sort((a, b) => Number(b.id.slice(4)) - Number(a.id.slice(4)))
+      .sort(newestRequestFirst)
   }, [data, search, date, status, showCancelled])
 
   const pages = usePagedList(list, LIST_PAGE_SIZE)
@@ -160,11 +158,6 @@ export function SolicitudesPage() {
   if (status !== 'all') activeChips.push({ key: 'status', label: `Estado: ${status}`, clear: () => setStatus('all') })
 
   const statusOptions = STATUS_FILTER_OPTIONS
-
-  // Un viaje finalizado o ya cancelado no puede volver atras: el trigger de la
-  // base solo permite pendiente/confirmada -> cancelada.
-  const canCancel = (request: ShiftRequest) =>
-    request.status !== 'Cancelada' && request.status !== 'Finalizada'
 
   return (
     <AppShell
@@ -374,19 +367,20 @@ export function SolicitudesPage() {
           <Table sx={{ tableLayout: 'fixed' }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 110, whiteSpace: 'nowrap' }}>Número</TableCell>
-                <TableCell sx={{ width: '18%' }}>Cliente</TableCell>
-                <TableCell sx={{ width: 110, whiteSpace: 'nowrap' }}>Fecha</TableCell>
-                <TableCell sx={{ width: '34%' }}>Origen → destino</TableCell>
-                <TableCell sx={{ width: 130, whiteSpace: 'nowrap' }}>Estado</TableCell>
-                <TableCell align="right" sx={{ width: 130, whiteSpace: 'nowrap' }}>Acción</TableCell>
+                <TableCell sx={{ width: '9%', whiteSpace: 'nowrap' }}>Número</TableCell>
+                <TableCell sx={{ width: '14%' }}>Cliente</TableCell>
+                <TableCell sx={{ width: '10%', whiteSpace: 'nowrap' }}>Fecha</TableCell>
+                <TableCell sx={{ width: '18%' }}>Origen</TableCell>
+                <TableCell sx={{ width: '18%' }}>Destino</TableCell>
+                <TableCell sx={{ width: 200, whiteSpace: 'nowrap' }}>Estado</TableCell>
+                <TableCell align="right" sx={{ width: 150, whiteSpace: 'nowrap' }}>Acción</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {pages.pageItems.map((r) => (
                 <TableRow key={r.id} hover>
-                  <TableCell sx={{ fontWeight: 800, color: brand.navy, whiteSpace: 'nowrap', height: 64 }}>{r.id}</TableCell>
-                  <TableCell sx={{ height: 64 }}>
+                  <TableCell sx={{ fontWeight: 800, color: brand.navy, whiteSpace: 'nowrap' }}>{r.id}</TableCell>
+                  <TableCell>
                     <Typography
                       sx={{
                         display: '-webkit-box',
@@ -401,44 +395,21 @@ export function SolicitudesPage() {
                     </Typography>
                   </TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtDate(r.date)}</TableCell>
-                  <TableCell sx={{ height: 64 }}>
-                    <Stack direction="row" alignItems="center" spacing={0.8} sx={{ minWidth: 0 }}>
-                      <Typography
-                        sx={{
-                          minWidth: 0,
-                          flex: 1,
-                          fontSize: 13.5,
-                          display: '-webkit-box',
-                          overflow: 'hidden',
-                          WebkitBoxOrient: 'vertical',
-                          WebkitLineClamp: 2,
-                          lineHeight: 1.35,
-                        }}
-                        title={r.origin.address}
-                      >
-                        {formatShortPlace(r.origin)}
-                      </Typography>
-                      <ArrowForward sx={{ fontSize: 13, color: '#8A929B' }} />
-                      <Typography
-                        sx={{
-                          minWidth: 0,
-                          flex: 1,
-                          fontSize: 13.5,
-                          display: '-webkit-box',
-                          overflow: 'hidden',
-                          WebkitBoxOrient: 'vertical',
-                          WebkitLineClamp: 2,
-                          lineHeight: 1.35,
-                        }}
-                        title={r.destination.address}
-                      >
-                        {formatShortPlace(r.destination)}
-                      </Typography>
-                    </Stack>
+                  <TableCell sx={{ py: '15px', textAlign: 'left', verticalAlign: 'middle' }}>
+                    <Typography sx={{ fontSize: 13.5, textAlign: 'left', whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35 }} title={r.origin.address}>
+                      {formatRequestPlace(r.origin)}
+                    </Typography>
                   </TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <TableCell sx={{ py: '15px', textAlign: 'left', verticalAlign: 'middle' }}>
+                    <Typography sx={{ fontSize: 13.5, textAlign: 'left', whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35 }} title={r.destination.address}>
+                      {formatRequestPlace(r.destination)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 200, paddingRight: '20px' }}>
                     <Stack spacing={0.5} alignItems="flex-start">
-                      <StatusChip label={r.status} />
+                      <Box sx={{ maxWidth: '100%', '& > span': { whiteSpace: 'nowrap', maxWidth: '100%' } }}>
+                        <StatusChip label={r.status} />
+                      </Box>
                       <Chip
                         label={paymentLabel(r)}
                         size="small"
@@ -447,29 +418,24 @@ export function SolicitudesPage() {
                       />
                     </Stack>
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" sx={{ width: 150, paddingLeft: '16px' }}>
                     <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
-                      <IconButton
-                        size="small"
-                        aria-label={`Cancelar ${r.id}`}
-                        title={canCancel(r) ? 'Cancelar viaje' : 'Un viaje finalizado o cancelado ya no se puede cancelar'}
-                        disabled={!canCancel(r)}
-                        onClick={() => setCancelTarget(r)}
-                        sx={{ color: canCancel(r) ? brand.navy : 'text.disabled' }}
-                      >
-                        <Close sx={{ fontSize: 18 }} />
-                      </IconButton>
                       <Button
                         size="small"
-                        aria-label="Ver detalle"
+                        aria-label={`Ver detalle de ${r.id}`}
+                        variant="outlined"
                         sx={{
                           fontWeight: 700,
                           whiteSpace: 'nowrap',
+                          flexShrink: 0,
                           minWidth: 0,
-                          '@media (max-width: 1100px)': {
-                            '& .detail-label': { display: 'none' },
-                            '& .MuiButton-endIcon': { margin: 0 },
-                          },
+                          height: 36,
+                          px: 1.5,
+                          borderRadius: 2,
+                          borderWidth: 1.5,
+                          fontSize: 12.5,
+                          borderColor: requestStatusBorder(r.status),
+                          '&:hover': { borderColor: requestStatusBorder(r.status), borderWidth: 1.5, bgcolor: `${requestStatusBorder(r.status)}14` },
                         }}
                         endIcon={<ArrowForward sx={{ fontSize: 15 }} />}
                         href={R.planificacion(r.id)}
@@ -512,8 +478,8 @@ export function SolicitudesPage() {
                 </Typography>
                 <Typography sx={{ fontSize: 12.5, color: color.muted }}>{fmtDate(r.date, true)}</Typography>
                 <MobileRouteSummary
-                  origin={formatShortPlace(r.origin)}
-                  destination={formatShortPlace(r.destination)}
+                  origin={formatRequestPlace(r.origin)}
+                  destination={formatRequestPlace(r.destination)}
                 />
                 <Box sx={{ mt: 1 }}>
                   <Chip
@@ -548,15 +514,6 @@ export function SolicitudesPage() {
         </Typography>
       </Stack>
 
-      <CancelDialog
-        open={!!cancelTarget}
-        requestId={cancelTarget?.id ?? ''}
-        busy={cancelling}
-        onClose={() => setCancelTarget(null)}
-        onConfirm={() => void cancelRequest()}
-      />
-
-      <Toast toast={toast} onClose={() => setToast(null)} />
     </AppShell>
   )
 }
