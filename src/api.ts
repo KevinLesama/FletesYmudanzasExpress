@@ -44,7 +44,9 @@ export interface SystemSettings {
   profitMarginPercent: number
 }
 
-async function http<T>(path: string, init?: RequestInit): Promise<T> {
+type HttpOptions = { public?: boolean }
+
+async function http<T>(path: string, init?: RequestInit, options?: HttpOptions): Promise<T> {
   const session = supabase ? (await supabase.auth.getSession()).data.session : null
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
@@ -56,7 +58,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiError(0, 'No pudimos conectar con el servidor. Verificá que el backend esté en ejecución.')
   }
-  if (response.status === 401) {
+  if (response.status === 401 && !options?.public) {
     await supabase?.auth.signOut()
     window.location.href = R.ingreso
   }
@@ -449,7 +451,7 @@ export const api = {
   // Geolocalización (Google Maps, resuelto por el backend)
   searchPlaces: async (query: string, signal?: AbortSignal): Promise<PlaceSuggestion[]> => {
     const qs = new URLSearchParams({ q: query })
-    const rows = await http<Json[]>(`/geo/places?${qs}`, { signal })
+    const rows = await http<Json[]>(`/geo/places?${qs}`, { signal }, { public: true })
     return rows.map((p) => ({
       placeId: String(p.place_id),
       primary: String(p.primary ?? ''),
@@ -459,7 +461,7 @@ export const api = {
     }))
   },
   getPlace: async (placeId: string): Promise<PlaceDetail> => {
-    const p = await http<Json>(`/geo/places/${encodeURIComponent(placeId)}`)
+    const p = await http<Json>(`/geo/places/${encodeURIComponent(placeId)}`, undefined, { public: true })
     return {
       placeId: String(p.place_id),
       address: String(p.direccion ?? ''),
@@ -664,7 +666,13 @@ export const api = {
   createRequest: async (payload: Json): Promise<ShiftRequest> =>
     mapRequest(await http<Json>('/requests', { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) })),
   createPublicRequest: async (payload: Json): Promise<ShiftRequest> =>
-    mapRequest(await http<Json>('/public/requests', { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) })),
+    mapRequest(
+      await http<Json>(
+        '/public/requests',
+        { method: 'POST', body: JSON.stringify(legacySolicitudPayload(payload)) },
+        { public: true },
+      ),
+    ),
   updateRequest: async (id: string, payload: Json): Promise<ShiftRequest> =>
     mapRequest(
       await http<Json>(`/requests/${encodeURIComponent(id)}`, {

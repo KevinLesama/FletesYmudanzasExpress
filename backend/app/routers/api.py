@@ -93,9 +93,9 @@ def _geo_result_http(result):
     return result.value
 
 
-geo_router = APIRouter(
-    prefix="/geo", tags=["geo"], dependencies=[Depends(get_current_user)]
-)
+# Places es publico porque la landing sin sesion lo usa para autocompletar
+# direcciones. La estimacion de ruta sigue requiriendo autenticacion.
+geo_router = APIRouter(prefix="/geo", tags=["geo"])
 
 
 @geo_router.get("/places", response_model=list[PlaceSuggestionOut])
@@ -134,7 +134,7 @@ def get_place(place_id: str) -> PlaceOut:
     )
 
 
-@geo_router.post("/route", response_model=RutaOut)
+@geo_router.post("/route", response_model=RutaOut, dependencies=[Depends(get_current_user)])
 def route_estimate(payload: RutaIn) -> RutaOut:
     origin = (payload.origen.lat, payload.origen.lng)
     destination = (payload.destino.lat, payload.destino.lng)
