@@ -64,7 +64,7 @@ import type { Availability, AvailabilityOptions, Driver, Quote, ReceivedBy, Shif
 import { brand } from '../theme'
 import { color, type as typeScale } from '../design/tokens'
 import { motivosConfirmacionViaje } from './planificacionConfirmacion'
-import { estimatedArrival } from './planificacionHorarios'
+import { estimatedArrival, estimatedFinish, occupiedUntil } from './planificacionHorarios'
 import {
   estadoCampoAsignacion,
   estiloOpcionPlanificacion,
@@ -272,6 +272,9 @@ export function PlanificacionPage() {
     const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
     return { drivers, vehicles }
   }, [])
+  // El margen operativo es lo que la agenda bloquea despues del fin del trabajo.
+  // Si falla, la pantalla sigue mostrando el fin estimado sin la parte de agenda.
+  const settingsState = useAsync(() => api.getSystemSettings(), [])
   const request = requestState.data
   const drivers: Driver[] = catalogState.data?.drivers ?? []
   const vehicles: Vehicle[] = catalogState.data?.vehicles ?? []
@@ -309,6 +312,12 @@ export function PlanificacionPage() {
 
   const selectedDownloadMinutes = parseDownloadMinutes(downloadMinutes)
   const selectedLoadMinutes = parseDownloadMinutes(loadMinutes)
+  const bufferMinutes = settingsState.data?.operationalBufferMinutes ?? null
+  const finishEstimate = estimatedFinish(end, selectedDownloadMinutes)
+  // Si hay llegada y descarga pero el calculo no devuelve hora, es porque cruza
+  // la medianoche: conviene decirlo en vez de mostrar una hora falsa.
+  const finishOverflowsMidnight = Boolean(end) && selectedDownloadMinutes != null && !finishEstimate
+  const occupiedUntilEstimate = finishEstimate ? occupiedUntil(finishEstimate, bufferMinutes) : ''
   const scheduleVerificationMessage = mensajeAgendaIncompleta({
     loadMinutes: selectedLoadMinutes,
     downloadMinutes: selectedDownloadMinutes,
@@ -982,6 +991,24 @@ export function PlanificacionPage() {
           }}
         />
       </Box>
+
+      {finishEstimate ? (
+        <Typography sx={{ mt: 1, fontSize: 12.5, color: color.muted }}>
+          Fin estimado del trabajo{' '}
+          <Box component="span" sx={{ fontWeight: 800, color: color.ink }}>{finishEstimate}</Box>
+          {occupiedUntilEstimate && (
+            <>
+              {' · '}Ocupa hasta{' '}
+              <Box component="span" sx={{ fontWeight: 800, color: color.ink }}>{occupiedUntilEstimate}</Box>
+              {' en la agenda'}
+            </>
+          )}
+        </Typography>
+      ) : finishOverflowsMidnight ? (
+        <Typography sx={{ mt: 1, fontSize: 12.5, color: color.amberInk }}>
+          El fin del trabajo pasa de medianoche.
+        </Typography>
+      ) : null}
 
       <Stack spacing={1.5} sx={{ mt: 1.5 }}>
         <CampoAsignacion
