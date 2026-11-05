@@ -196,6 +196,24 @@ function ArrivalBanner({ text }: { text: string }) {
   )
 }
 
+function ContactClientButton({ trip }: { trip: ShiftRequest }) {
+  if (!trip.phone) return null
+
+  return (
+    <Button
+      fullWidth
+      variant="outlined"
+      startIcon={<WhatsAppIconMui sx={{ fontSize: 18 }} />}
+      href={waLink(trip.phone, `Hola ${trip.client}, soy el chofer asignado al viaje ${trip.id}.`)}
+      target="_blank"
+      rel="noreferrer"
+      sx={{ minHeight: 46 }}
+    >
+      Contactar a {trip.client || 'el cliente'} por WhatsApp
+    </Button>
+  )
+}
+
 function MoneyRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
   return (
     <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -384,6 +402,8 @@ export function DriverTripFlow({
 
       <PhaseIndicator phase={progress.phase} />
 
+      <ContactClientButton trip={trip} />
+
       {progress.phase === 1 && (
         <>
           <Panel title="Ir al origen" meta={`Paso 1 de 3 · ${trip.serviceRange[0]}`}>
@@ -538,24 +558,6 @@ export function DriverTripFlow({
               </Box>
             )}
           </Panel>
-
-          {trip.phone && (
-            <Button
-              variant="outlined"
-              startIcon={<WhatsAppIconMui sx={{ fontSize: 18 }} />}
-              href={waLink(trip.phone, `Hola ${trip.client}, soy el chofer asignado al viaje ${trip.id}.`)}
-              target="_blank"
-              rel="noreferrer"
-              sx={{
-                minHeight: { xs: 44, md: 46 },
-                // Mobile: full width, so the label never gets squeezed.
-                alignSelf: { xs: 'stretch', md: 'flex-start' },
-                textAlign: 'center',
-              }}
-            >
-              Avisar a {trip.client || 'el cliente'} por WhatsApp
-            </Button>
-          )}
         </>
       )}
 
@@ -662,7 +664,7 @@ export function DriverTripFlow({
               </Button>
             )}
             <Typography sx={{ mt: 1.25, fontSize: typeScale.caption, color: color.muted }}>
-              La foto del remito queda en este dispositivo por ahora.
+              Por ahora la imagen no se sube: solo queda registrado que fotografiaste el remito.
             </Typography>
           </Panel>
 
