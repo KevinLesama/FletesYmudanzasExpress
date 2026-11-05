@@ -1,5 +1,10 @@
 -- Fletes Express - Migración: elimina las tablas del mock original
 --
+-- ADVERTENCIA: BORRA DATOS SIN VERIFICAR
+--   Elimina las 8 tablas del mock con todo su contenido, tengan filas o no.
+--   No hay rollback. Pensada para bases descartables (entorno de prueba que
+--   se recarga a mano). Si necesitás conservar algo, no la ejecutes.
+--
 -- CONTEXTO
 --   La base conserva DOS esquemas completos en `public`:
 --
@@ -17,59 +22,40 @@
 --   No hay claves foráneas desde las tablas nuevas hacia las viejas, así que
 --   borrarlas no rompe nada del negocio.
 --
--- SEGURIDAD
---   La migración ABORTA si alguna de las 8 tablas tiene filas. Así no se
---   pierde ningún dato por accidente. Si el conteo da 0, borra todo en una
---   sola transacción.
+-- QUÉ SE BORRA
+--   clients, drivers, driver_factors, vehicles, requests,
+--   request_cargo_items, incidents, payments.
+--   CASCADE arrastra además cualquier objeto que dependa de ellas.
 --
---   Si alguna tabla tiene datos que querés conservar:
---     1. pg_dump -t clients -t drivers ... > backup_mock.sql
---     2. reemplazá el DROP de abajo por:
---          ALTER TABLE clients RENAME TO legacy_clients;
---        (y lo mismo con cada tabla)
---     3. decidí después si migrar o descartar.
+-- QUÉ NO SE TOCA
+--   usuarios, vehiculos, solicitudes, items_carga, pagos,
+--   configuracion_sistema y las vistas (v_personal, v_solicitudes,
+--   v_agenda_confirmada, v_remitos_pendientes, v_recaudacion_usuario).
 --
--- Ejecutar manualmente en Supabase > SQL Editor, con backup previo.
+-- ANTES DE EJECUTAR (opcional, solo lectura)
+--   Para saber cuántas filas vas a perder, corré aparte:
+--
+--     SELECT 'clients' AS tabla, count(*) FROM clients
+--     UNION ALL SELECT 'drivers', count(*) FROM drivers
+--     UNION ALL SELECT 'driver_factors', count(*) FROM driver_factors
+--     UNION ALL SELECT 'vehicles', count(*) FROM vehicles
+--     UNION ALL SELECT 'requests', count(*) FROM requests
+--     UNION ALL SELECT 'request_cargo_items', count(*) FROM request_cargo_items
+--     UNION ALL SELECT 'incidents', count(*) FROM incidents
+--     UNION ALL SELECT 'payments', count(*) FROM payments;
+--
+-- Ejecutar manualmente en Supabase > SQL Editor.
 
 BEGIN;
 
-DO $$
-DECLARE
-    v_tabla    text;
-    v_filas    bigint;
-    v_pendientes text[] := ARRAY[]::text[];
-BEGIN
-    FOREACH v_tabla IN ARRAY ARRAY[
-        'clients', 'drivers', 'driver_factors', 'vehicles',
-        'requests', 'request_cargo_items', 'incidents', 'payments'
-    ]
-    LOOP
-        -- Si la tabla ya no existe (migración corrida antes), no hay nada que hacer.
-        CONTINUE WHEN to_regclass(format('public.%I', v_tabla)) IS NULL;
-
-        EXECUTE format('SELECT count(*) FROM public.%I', v_tabla) INTO v_filas;
-
-        IF v_filas > 0 THEN
-            v_pendientes := v_pendientes || format('%s (%s filas)', v_tabla, v_filas);
-        END IF;
-    END LOOP;
-
-    IF array_length(v_pendientes, 1) > 0 THEN
-        RAISE EXCEPTION USING
-            MESSAGE = 'La migración no se aplicó: hay tablas del mock con datos.',
-            DETAIL  = array_to_string(v_pendientes, ', '),
-            HINT    = 'Archivá esas tablas (pg_dump) o renombralas a legacy_* antes de volver a ejecutar.';
-    END IF;
-END $$;
-
 -- El orden respeta las dependencias, aunque CASCADE lo haría innecesario.
-DROP TABLE IF EXISTS public.payments           CASCADE;
-DROP TABLE IF EXISTS public.incidents          CASCADE;
+DROP TABLE IF EXISTS public.payments            CASCADE;
+DROP TABLE IF EXISTS public.incidents           CASCADE;
 DROP TABLE IF EXISTS public.request_cargo_items CASCADE;
-DROP TABLE IF EXISTS public.requests           CASCADE;
-DROP TABLE IF EXISTS public.driver_factors     CASCADE;
-DROP TABLE IF EXISTS public.vehicles           CASCADE;
-DROP TABLE IF EXISTS public.drivers            CASCADE;
-DROP TABLE IF EXISTS public.clients            CASCADE;
+DROP TABLE IF EXISTS public.requests            CASCADE;
+DROP TABLE IF EXISTS public.driver_factors      CASCADE;
+DROP TABLE IF EXISTS public.vehicles            CASCADE;
+DROP TABLE IF EXISTS public.drivers             CASCADE;
+DROP TABLE IF EXISTS public.clients             CASCADE;
 
 COMMIT;
