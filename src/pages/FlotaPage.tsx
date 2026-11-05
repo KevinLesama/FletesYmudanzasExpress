@@ -4,6 +4,7 @@ import {
   Avatar,
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -21,7 +22,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material'
-import { Add, Check, Close, Edit, InfoOutlined, LocalShipping, Person } from '@mui/icons-material'
+import { Add, Block, Check, Close, Edit, InfoOutlined, LocalShipping, Person, Undo } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { ErrorState, LoadingState } from '../components/EmptyState'
 import { CampoSelect, CampoTexto } from '../components/FormFields'
@@ -59,18 +60,45 @@ export function FlotaPage() {
   const vehicles: Vehicle[] = fleet.data?.vehicles ?? []
   const [dialog, setDialog] = useState<DialogState>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
+  // La baja es logica (usuarios.activo = false): el DELETE no existe. El chofer
+  // dado de baja sale de la lista, pero sigue en la base con su historial.
+  const [showInactive, setShowInactive] = useState(false)
+  const [pendingBaja, setPendingBaja] = useState<Driver | null>(null)
+  const [savingActive, setSavingActive] = useState(false)
 
   const activeVehicles = vehicles.filter((v) => v.status === 'Disponible').length
   const assignedVehicles = vehicles.filter((v) => v.status === 'Asignado').length
   const workshopVehicles = vehicles.filter((v) => v.status === 'En taller').length
   const activeDrivers = drivers.filter((d) => d.status === 'Activo').length
+  const inactiveDrivers = drivers.filter((d) => d.status === 'Inactivo')
+  const visibleDrivers = showInactive ? drivers : drivers.filter((d) => d.status !== 'Inactivo')
 
   // Cada solapa pagina por su cuenta, con el mismo tamaño de página.
-  const driverPages = usePagedList(drivers, FLEET_PAGE_SIZE)
+  const driverPages = usePagedList(visibleDrivers, FLEET_PAGE_SIZE)
   const vehiclePages = usePagedList(vehicles, FLEET_PAGE_SIZE)
 
   const openAdd = () => setDialog({ mode: tab === 0 ? 'driver' : 'vehicle', data: null })
   const openEdit = (mode: 'driver' | 'vehicle', data: Driver | Vehicle) => setDialog({ mode, data: data as any })
+
+  const setDriverActive = async (driver: Driver, activo: boolean) => {
+    setSavingActive(true)
+    try {
+      await api.setDriverActive(driver.id, activo)
+      setPendingBaja(null)
+      setToast({
+        message: activo ? `Chofer reactivado · ${driver.name}` : `Chofer dado de baja · ${driver.name}`,
+        tone: 'success',
+      })
+      fleet.reload()
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'No pudimos actualizar al chofer.',
+        tone: 'error',
+      })
+    } finally {
+      setSavingActive(false)
+    }
+  }
 
   if (fleet.loading) {
     return (
@@ -155,7 +183,7 @@ export function FlotaPage() {
             >
               {(tab === 0
                 ? [
-                    { label: 'Choferes', value: drivers.length },
+                    { label: 'Choferes', value: visibleDrivers.length },
                     { label: 'Activos', value: activeDrivers },
                   ]
                 : [
@@ -189,7 +217,7 @@ export function FlotaPage() {
           {tab === 0 &&
             (isMobile ? (
               <Stack spacing={1.5} sx={{ p: 2 }}>
-                {drivers.map((d) => (
+                {visibleDrivers.map((d) => (
                   <MobileCard
                     key={d.id}
                     header={
@@ -206,14 +234,37 @@ export function FlotaPage() {
                       </>
                     }
                     footer={
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        onClick={() => openEdit('driver', d)}
-                        sx={{ color: brand.navy, borderColor: '#D9D4C9' }}
-                      >
-                        Editar
-                      </Button>
+                      <Stack direction="row" spacing={1} sx={{ width: '100%' }}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          onClick={() => openEdit('driver', d)}
+                          sx={{ color: brand.navy, borderColor: '#D9D4C9' }}
+                        >
+                          Editar
+                        </Button>
+                        {d.status === 'Inactivo' ? (
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<Undo sx={{ fontSize: 16 }} />}
+                            onClick={() => void setDriverActive(d, true)}
+                            sx={{ color: brand.navy, borderColor: '#D9D4C9' }}
+                          >
+                            Reactivar
+                          </Button>
+                        ) : (
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<Block sx={{ fontSize: 16 }} />}
+                            onClick={() => setPendingBaja(d)}
+                            sx={{ color: color.red, borderColor: color.red }}
+                          >
+                            Baja
+                          </Button>
+                        )}
+                      </Stack>
                     }
                   >
                     <Box sx={{ minWidth: 0 }}>
@@ -255,9 +306,20 @@ export function FlotaPage() {
                       </TableCell>
                       <TableCell><StatusChip label={d.status} /></TableCell>
                       <TableCell align="right">
-                        <Button size="small" startIcon={<Edit sx={{ fontSize: 15 }} />} onClick={() => openEdit('driver', d)} sx={{ color: brand.navy }}>
-                          Editar
-                        </Button>
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          <Button size="small" startIcon={<Edit sx={{ fontSize: 15 }} />} onClick={() => openEdit('driver', d)} sx={{ color: brand.navy }}>
+                            Editar
+                          </Button>
+                          {d.status === 'Inactivo' ? (
+                            <Button size="small" startIcon={<Undo sx={{ fontSize: 15 }} />} onClick={() => void setDriverActive(d, true)} sx={{ color: brand.navy }}>
+                              Reactivar
+                            </Button>
+                          ) : (
+                            <Button size="small" startIcon={<Block sx={{ fontSize: 15 }} />} onClick={() => setPendingBaja(d)} sx={{ color: color.red }}>
+                              Dar de baja
+                            </Button>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -270,6 +332,19 @@ export function FlotaPage() {
                 itemLabel="choferes"
                 onPageChange={driverPages.setPage}
               />
+              {inactiveDrivers.length > 0 && (
+                <Box sx={{ px: 2, py: 1, borderTop: '1px solid #EDEAE3', display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    size="small"
+                    onClick={() => setShowInactive((current) => !current)}
+                    sx={{ color: '#5C6B7A', textTransform: 'none', fontWeight: 700 }}
+                  >
+                    {showInactive
+                      ? 'Ocultar dados de baja'
+                      : `Mostrar dados de baja (${inactiveDrivers.length})`}
+                  </Button>
+                </Box>
+              )}
               </>
             ))}
 
@@ -362,6 +437,15 @@ export function FlotaPage() {
         </Box>
       </AppShell>
 
+      <DeactivateDriverDialog
+        driver={pendingBaja}
+        saving={savingActive}
+        onClose={() => setPendingBaja(null)}
+        onConfirm={() => {
+          if (pendingBaja) void setDriverActive(pendingBaja, false)
+        }}
+      />
+
       {dialog && (
         <RecordDialog
           state={dialog}
@@ -376,6 +460,58 @@ export function FlotaPage() {
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </>
+  )
+}
+
+function DeactivateDriverDialog({
+  driver,
+  saving,
+  onClose,
+  onConfirm,
+}: {
+  driver: Driver | null
+  saving: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={!!driver} onClose={saving ? undefined : onClose} fullWidth maxWidth="xs">
+      <DialogTitle sx={{ px: 3, pt: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: color.redSoft, color: color.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Block sx={{ fontSize: 18 }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 17 }}>Dar de baja al chofer</Typography>
+            <Typography sx={{ fontSize: 12.5, color: color.muted }}>{driver?.name}</Typography>
+          </Box>
+          <Box sx={{ flexGrow: 1 }} />
+          <IconButton onClick={onClose} aria-label="Cerrar" disabled={saving}>
+            <Close fontSize="small" />
+          </IconButton>
+        </Stack>
+      </DialogTitle>
+      <DialogContent sx={{ px: 3, pt: 2 }}>
+        <Typography sx={{ fontSize: 13.5, color: color.inkStrong }}>
+          {driver?.name} deja de aparecer en la lista y no va a poder iniciar sesión.
+          Sus viajes, sus tarifas y el historial se conservan.
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
+        <Button onClick={onClose} disabled={saving} sx={{ color: color.ink }}>
+          Volver
+        </Button>
+        <Button
+          variant="contained"
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Block />}
+          sx={{ bgcolor: color.red, '&:hover': { bgcolor: color.red } }}
+          onClick={onConfirm}
+        >
+          Sí, dar de baja
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 

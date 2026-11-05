@@ -523,7 +523,6 @@ function PaymentDialog({
             <MenuItem value="Saldo">Saldo</MenuItem>
           </CampoSelect>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2, md: 1.5 }}>
-
             <CampoSelect label="Medio" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} size="small">
               <MenuItem value="Transferencia">Transferencia</MenuItem>
               <MenuItem value="Efectivo">Efectivo</MenuItem>
