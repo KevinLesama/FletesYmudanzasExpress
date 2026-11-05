@@ -16,26 +16,26 @@ Sistema integral para gestionar fletes, mudanzas y coordinación operativa entre
 ## Capturas de pantalla
 
 <p align="center">
-  <img src="https://placehold.co/1200x700/111827/ffffff?text=Captura+1:+Agenda" alt="Captura 1 - Agenda" width="100%" />
+  <img src="./docs/screenshots/01-agenda.png" alt="Agenda semanal con los viajes del día" width="100%" />
 </p>
 
 <p align="center">
-  <img src="https://placehold.co/1200x700/1f2937/ffffff?text=Captura+2:+Solicitudes" alt="Captura 2 - Solicitudes" width="100%" />
+  <img src="./docs/screenshots/02-solicitudes.png" alt="Listado de solicitudes con su estado" width="100%" />
 </p>
 
 <p align="center">
-  <img src="https://placehold.co/1200x700/0f172a/ffffff?text=Captura+3:+Planificacion" alt="Captura 3 - Planificación" width="100%" />
+  <img src="./docs/screenshots/03-planificacion.png" alt="Planificación de un viaje con chofer y vehículo asignados" width="100%" />
 </p>
 
 <p align="center">
-  <img src="https://placehold.co/1200x700/111827/ffffff?text=Captura+4:+Flota+y+Pagos" alt="Captura 4 - Flota y Pagos" width="100%" />
+  <img src="./docs/screenshots/04-flota.png" alt="Administración de choferes y vehículos" width="100%" />
 </p>
 
 <p align="center">
-  <img src="https://placehold.co/1200x700/1e293b/ffffff?text=Captura+5:+Dashboard+Administrativo" alt="Captura 5 - Dashboard" width="100%" />
+  <img src="./docs/screenshots/05-pagos.png" alt="Pagos registrados y resumen de cobros" width="100%" />
 </p>
 
-> Si quieres, reemplaza estos placeholders por capturas reales de la app para dejar el README listo para compartir.
+> Las imágenes se guardan en [`docs/screenshots/`](./docs/screenshots/). Ahí están los nombres y el formato recomendado.
 
 ---
 
@@ -134,6 +134,8 @@ FletesYmudanzasExpress/
 │   ├── tests/              # Tests del backend
 │   └── ...
 ├── public/                  # Assets públicos
+├── docs/
+│   └── screenshots/         # Capturas usadas en este README
 ├── tests/                   # Tests frontend / utilitarios
 ├── Dockerfile               # Build frontend + nginx
 ├── Dockerfile.dev           # Configuración de desarrollo
