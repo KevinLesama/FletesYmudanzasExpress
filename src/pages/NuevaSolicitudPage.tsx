@@ -437,7 +437,7 @@ export function NuevaSolicitudPage() {
                         aria-describedby={visibleFieldErrors['new-client-phone'] ? 'new-client-phone-error' : undefined}
                         fullWidth
                         size="small"
-                        placeholder="11 5555-0000"
+                        placeholder="1155550000"
                         inputProps={{ maxLength: 20, inputMode: 'tel' }}
                         autoComplete="off"
                       />

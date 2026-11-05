@@ -630,7 +630,7 @@ function ContactForm({ name, phone, setName, setPhone, errors, touched, onBlur }
         value={phone}
         onChange={(event) => setPhone(event.target.value)}
         onBlur={() => onBlur('phone')}
-        placeholder="11 5555-0000"
+        placeholder="1155550000"
         error={touched.phone ? errors.phone : undefined}
         autoComplete="tel"
       />
