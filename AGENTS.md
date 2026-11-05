@@ -68,6 +68,7 @@ The README documents pytest, but the currently checked-in `backend/tests/conftes
   ```
 
 - `backend/sql/seed.sql` is optional demo data. `backend/sql/futuraBD.sql` is a commented decision/notes file, not active schema.
+- `backend/sql/README.md` documents the execution order. `backend/sql/diagnostico_estado.sql` is a read-only query that reports the real state of views, constraints, triggers and row counts; use it before touching an existing database, because a Supabase schema export does not list them.
 - SQLAlchemy metadata describes database behavior but is not a migration system. A SQL change may require an explicit database migration/reinstall; `CREATE TABLE IF NOT EXISTS` does not add new columns or constraints to existing tables.
 - Preserve database constraints as the final enforcement of domain invariants. Align ORM `server_default`, nullability, constraints, and generated values with the SQL definitions.
 - Never run destructive database instructions against a user database without explicit authorization and a verified backup. Keep credentials in environment files that are not committed; the Supabase service-role key must never be exposed to the frontend.

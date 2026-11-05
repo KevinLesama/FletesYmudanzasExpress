@@ -72,6 +72,9 @@ CREATE TABLE IF NOT EXISTS configuracion_sistema (
     id                      integer PRIMARY KEY DEFAULT 1,
     margen_operativo_min    integer NOT NULL DEFAULT 30,
     margen_ganancia_pct     integer NOT NULL DEFAULT 50,
+    -- El disparador tr_configuracion_sistema_actualizado_en escribe esta
+    -- columna. Sin ella, cualquier PUT /api/settings/system falla en runtime.
+    actualizado_en          timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT ck_configuracion_sistema_singleton CHECK (id = 1),
     CONSTRAINT ck_configuracion_sistema_margen_operativo
         CHECK (margen_operativo_min BETWEEN 30 AND 1440),
@@ -740,7 +743,7 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    -- actualizado_en en las 5 tablas
+    -- actualizado_en en todas las tablas que lo tienen
     FOREACH t IN ARRAY ARRAY[
         'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos',
         'configuracion_sistema'
@@ -992,7 +995,8 @@ DECLARE
 BEGIN
     -- Tablas: RLS + revoke.
     FOREACH t IN ARRAY ARRAY[
-        'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos'
+        'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos',
+        'configuracion_sistema'
     ]
     LOOP
         EXECUTE format('ALTER TABLE IF EXISTS %I ENABLE ROW LEVEL SECURITY', t);

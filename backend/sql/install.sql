@@ -110,6 +110,9 @@ CREATE TABLE IF NOT EXISTS configuracion_sistema (
     id                      integer PRIMARY KEY DEFAULT 1,
     margen_operativo_min    integer NOT NULL DEFAULT 30,
     margen_ganancia_pct     integer NOT NULL DEFAULT 50,
+    -- El disparador tr_configuracion_sistema_actualizado_en escribe esta
+    -- columna. Sin ella, cualquier PUT /api/settings/system falla en runtime.
+    actualizado_en          timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT ck_configuracion_sistema_singleton CHECK (id = 1),
     CONSTRAINT ck_configuracion_sistema_margen_operativo
         CHECK (margen_operativo_min BETWEEN 30 AND 1440),
@@ -303,7 +306,8 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     estado                 text          NOT NULL DEFAULT 'pendiente',
     fecha                  date          NOT NULL,
     hora_desde             time          NOT NULL,
-    hora_hasta             time          NOT NULL,
+    hora_hasta             time,
+    hora_hasta_confirmado  boolean       NOT NULL DEFAULT false,
 
     -- Origen
     origen_direccion       text          NOT NULL,
@@ -343,8 +347,10 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     duracion_ida_min       integer,
     duracion_vuelta_min    integer,
     espera_min             integer       NOT NULL DEFAULT 120,
-    carga_min              integer       NOT NULL DEFAULT 60,
-    descarga_min           integer       NOT NULL DEFAULT 60,
+    carga_min              integer,
+    descarga_min           integer,
+    carga_min_confirmado   boolean       NOT NULL DEFAULT false,
+    descarga_min_confirmado boolean      NOT NULL DEFAULT false,
     horas_estimadas        numeric(6,2),
     -- Tarifas del chofer al momento de cotizar: el viaje conserva el número
     -- con el que se pagó aunque mañana cambie su configuración.
@@ -380,15 +386,22 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     CONSTRAINT ck_solicitudes_codigo CHECK (codigo ~ '^FEX-[0-9]+$'),
     CONSTRAINT ck_solicitudes_estado CHECK (
         estado IN ('pendiente', 'confirmada', 'finalizada', 'cancelada')),
-    CONSTRAINT ck_solicitudes_ventana CHECK (hora_hasta > hora_desde),
+    CONSTRAINT ck_solicitudes_ventana CHECK (
+        hora_hasta IS NULL OR hora_hasta > hora_desde),
     CONSTRAINT ck_solicitudes_direcciones CHECK (
         length(btrim(origen_direccion)) > 0 AND length(btrim(destino_direccion)) > 0),
     CONSTRAINT ck_solicitudes_km CHECK (km_estimados IS NULL OR km_estimados >= 0),
     CONSTRAINT ck_solicitudes_km_vuelta CHECK (km_vuelta IS NULL OR km_vuelta >= 0),
     CONSTRAINT ck_solicitudes_km_total CHECK (km_total IS NULL OR km_total >= 0),
     CONSTRAINT ck_solicitudes_espera CHECK (espera_min BETWEEN 0 AND 1440),
-    CONSTRAINT ck_solicitudes_carga CHECK (carga_min BETWEEN 0 AND 1440),
-    CONSTRAINT ck_solicitudes_descarga CHECK (descarga_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_carga CHECK (
+        carga_min IS NULL OR carga_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_descarga CHECK (
+        descarga_min IS NULL OR descarga_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_carga_confirmada CHECK (
+        NOT carga_min_confirmado OR carga_min IS NOT NULL),
+    CONSTRAINT ck_solicitudes_descarga_confirmada CHECK (
+        NOT descarga_min_confirmado OR descarga_min IS NOT NULL),
     CONSTRAINT ck_solicitudes_duraciones CHECK (
         (duracion_ida_min IS NULL OR duracion_ida_min >= 0)
         AND (duracion_vuelta_min IS NULL OR duracion_vuelta_min >= 0)),
@@ -414,6 +427,14 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     CONSTRAINT ck_solicitudes_con_chofer_y_vehiculo CHECK (
         estado NOT IN ('confirmada', 'finalizada')
         OR (chofer_id IS NOT NULL AND vehiculo_id IS NOT NULL)),
+    CONSTRAINT ck_solicitudes_planificacion_completa CHECK (
+        estado NOT IN ('confirmada', 'finalizada')
+        OR (
+            hora_hasta IS NOT NULL
+            AND hora_hasta_confirmado
+            AND carga_min_confirmado
+            AND descarga_min_confirmado
+        )),
 
     -- Una finalizada tiene fecha de cierre; ninguna otra la tiene. Así el
     -- historial del panel no depende del estado solo.
@@ -495,9 +516,9 @@ COMMENT ON COLUMN solicitudes.km_total IS
 COMMENT ON COLUMN solicitudes.espera_min IS
     'Dato legado de espera, conservado para solicitudes históricas. Las nuevas cotizaciones usan carga_min.';
 COMMENT ON COLUMN solicitudes.carga_min IS
-    'Minutos estimados para cargar en el origen. Se suman al inicio y a la ETA de Maps para calcular hora_hasta.';
+    'Minutos de carga definidos por administración; NULL mientras no se confirmen. Se suman al inicio y a la ETA de Maps para calcular hora_hasta.';
 COMMENT ON COLUMN solicitudes.descarga_min IS
-    'Descarga estimada tras la llegada al destino. Extiende la ocupación del recurso y no cambia la llegada estimada.';
+    'Minutos de descarga definidos por administración; NULL mientras no se confirmen. Extiende la ocupación tras la llegada.';
 COMMENT ON COLUMN solicitudes.costo_chofer IS
     'Tarifa base + km totales * tarifa por km + horas totales * tarifa por hora.';
 COMMENT ON COLUMN solicitudes.tarifa_base_aplicada IS
@@ -760,7 +781,7 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    -- actualizado_en en las 5 tablas
+    -- actualizado_en en todas las tablas que lo tienen
     FOREACH t IN ARRAY ARRAY[
         'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos',
         'configuracion_sistema'
@@ -1012,7 +1033,8 @@ DECLARE
 BEGIN
     -- Tablas: RLS + revoke.
     FOREACH t IN ARRAY ARRAY[
-        'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos'
+        'usuarios', 'vehiculos', 'solicitudes', 'items_carga', 'pagos',
+        'configuracion_sistema'
     ]
     LOOP
         EXECUTE format('ALTER TABLE IF EXISTS %I ENABLE ROW LEVEL SECURITY', t);
