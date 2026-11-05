@@ -43,7 +43,7 @@ import type { PlaceDetail } from '../types'
 import landingVideo from '../Landing/Landing.mp4'
 
 type LandingStep = 'request' | 'sent'
-type LandingField = 'name' | 'phone' | 'date' | 'arrivalFrom' | 'arrivalTo' | 'origin' | 'destination' | 'cargo'
+type LandingField = 'name' | 'phone' | 'date' | 'arrivalFrom' | 'origin' | 'destination' | 'cargo'
 type LandingErrors = Partial<Record<LandingField, string>>
 
 type ContactFormProps = Readonly<{
@@ -59,7 +59,6 @@ type ContactFormProps = Readonly<{
 type RequestFormProps = Readonly<{
   date: string
   arrivalFrom: string
-  arrivalTo: string
   origin: string
   destination: string
   originPlace: PlaceDetail | null
@@ -69,7 +68,6 @@ type RequestFormProps = Readonly<{
   busy: boolean
   setDate: (value: string) => void
   setArrivalFrom: (value: string) => void
-  setArrivalTo: (value: string) => void
   setOrigin: (value: string) => void
   setDestination: (value: string) => void
   setOriginPlace: (place: PlaceDetail | null) => void
@@ -131,7 +129,6 @@ export function LandingPage() {
   const [phone, setPhone] = useState('')
   const [date, setDate] = useState(getTodayISO)
   const [arrivalFrom, setArrivalFrom] = useState('09:00')
-  const [arrivalTo, setArrivalTo] = useState('11:00')
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [originPlace, setOriginPlace] = useState<PlaceDetail | null>(null)
@@ -178,7 +175,6 @@ export function LandingPage() {
     if (!phone.trim()) next.phone = 'Ingresá tu teléfono.'
     if (!date) next.date = 'Elegí el día del servicio.'
     if (!arrivalFrom) next.arrivalFrom = 'Elegí desde qué hora.'
-    if (!arrivalTo) next.arrivalTo = 'Elegí hasta qué hora.'
     if (!origin.trim()) next.origin = 'Ingresá el punto de retiro.'
     if (!destination.trim()) next.destination = 'Ingresá el punto de entrega.'
     if (!cargo.trim()) next.cargo = 'Contanos qué hay que trasladar.'
@@ -194,7 +190,7 @@ export function LandingPage() {
     event.preventDefault()
     const validationErrors = validate()
     setErrors(validationErrors)
-    setTouched({ name: true, phone: true, date: true, arrivalFrom: true, arrivalTo: true, origin: true, destination: true, cargo: true })
+    setTouched({ name: true, phone: true, date: true, arrivalFrom: true, origin: true, destination: true, cargo: true })
     if (Object.keys(validationErrors).length > 0) return
     setBusy(true)
     try {
@@ -203,9 +199,7 @@ export function LandingPage() {
         contact_phone: phone.trim(),
         date,
         arrival_from: arrivalFrom,
-        arrival_to: arrivalTo,
         service_from: arrivalFrom,
-        service_to: arrivalTo,
         origin: {
           address: origin,
           barrio: originPlace?.locality || originPlace?.partido || '',
@@ -341,7 +335,6 @@ export function LandingPage() {
                   phone={phone}
                   date={date}
                   arrivalFrom={arrivalFrom}
-                  arrivalTo={arrivalTo}
                   origin={origin}
                   destination={destination}
                   originPlace={originPlace}
@@ -356,7 +349,6 @@ export function LandingPage() {
                   setPhone={setPhone}
                   setDate={setDate}
                   setArrivalFrom={setArrivalFrom}
-                  setArrivalTo={setArrivalTo}
                   setOrigin={setOrigin}
                   setDestination={setDestination}
                   setOriginPlace={setOriginPlace}
@@ -651,7 +643,6 @@ function RequestForm({
   phone,
   date,
   arrivalFrom,
-  arrivalTo,
   origin,
   destination,
   originPlace,
@@ -666,7 +657,6 @@ function RequestForm({
   setPhone,
   setDate,
   setArrivalFrom,
-  setArrivalTo,
   setOrigin,
   setDestination,
   setOriginPlace,
@@ -698,7 +688,7 @@ function RequestForm({
       <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: { xs: 1.75, sm: 2 } }}>
         <ContactForm name={name} phone={phone} setName={setName} setPhone={setPhone} errors={errors} touched={touched} onBlur={onBlur} />
 
-        <Box sx={{ gridColumn: { xs: 'auto', sm: '1 / -1' }, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr 1fr' }, gap: { xs: 1.75, sm: 2 } }}>
+        <Box sx={{ gridColumn: { xs: 'auto', sm: '1 / -1' }, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, gap: { xs: 1.75, sm: 2 } }}>
           <LandingTextField
             id="landing-date"
             label="Día del servicio"
@@ -717,16 +707,6 @@ function RequestForm({
             onChange={(event) => setArrivalFrom(event.target.value)}
             onBlur={() => onBlur('arrivalFrom')}
             error={errorFor('arrivalFrom')}
-            InputLabelProps={{ shrink: true }}
-          />
-          <LandingTextField
-            id="landing-arrival-to"
-            label="Hasta las"
-            type="time"
-            value={arrivalTo}
-            onChange={(event) => setArrivalTo(event.target.value)}
-            onBlur={() => onBlur('arrivalTo')}
-            error={errorFor('arrivalTo')}
             InputLabelProps={{ shrink: true }}
           />
         </Box>

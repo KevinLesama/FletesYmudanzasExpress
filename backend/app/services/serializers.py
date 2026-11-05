@@ -22,6 +22,19 @@ def serialize_vehiculo(vehiculo: Vehiculo) -> VehiculoOut:
     return VehiculoOut.model_validate(vehiculo)
 
 
+def _hhmm(value) -> str | None:
+    """Devuelve HH:MM, o None cuando el horario no está definido.
+
+    Sin el chequeo explícito de None, `str(None)[:5]` serializa la string
+    "None" y el frontend la muestra como si fuera una hora.
+    """
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()[:5]
+    return str(value)[:5]
+
+
 def _bloqueo_confirmacion(solicitud: Solicitud) -> str | None:
     """Motivo vivo por el que un viaje listo no se confirmó, si lo hay.
 
@@ -179,10 +192,10 @@ def serialize_solicitud(solicitud: Solicitud) -> dict:
         "phone": phone,
         "status": solicitud.estado,
         "date": solicitud.fecha.isoformat() if hasattr(solicitud.fecha, "isoformat") else solicitud.fecha,
-        "arrival_from": solicitud.hora_desde.isoformat()[:5] if hasattr(solicitud.hora_desde, "isoformat") else str(solicitud.hora_desde)[:5],
-        "arrival_to": solicitud.hora_hasta.isoformat()[:5] if hasattr(solicitud.hora_hasta, "isoformat") else str(solicitud.hora_hasta)[:5],
-        "service_from": solicitud.hora_desde.isoformat()[:5] if hasattr(solicitud.hora_desde, "isoformat") else str(solicitud.hora_desde)[:5],
-        "service_to": solicitud.hora_hasta.isoformat()[:5] if hasattr(solicitud.hora_hasta, "isoformat") else str(solicitud.hora_hasta)[:5],
+        "arrival_from": _hhmm(solicitud.hora_desde),
+        "arrival_to": _hhmm(solicitud.hora_hasta),
+        "service_from": _hhmm(solicitud.hora_desde),
+        "service_to": _hhmm(solicitud.hora_hasta),
         "origin_address": solicitud.origen_direccion,
         "origin_barrio": solicitud.origen_barrio,
         "origin_floor": solicitud.origen_piso,
