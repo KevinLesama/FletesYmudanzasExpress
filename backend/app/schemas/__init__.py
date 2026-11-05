@@ -525,7 +525,6 @@ DriverFactorsIn = object
 FactorIn = object
 FactorOut = object
 ArrivedIn = object
-FinishedIn = object
 IncidentIn = object
 IncidentOut = object
 RemitoIn = object

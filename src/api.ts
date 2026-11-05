@@ -46,6 +46,58 @@ export interface SystemSettings {
 
 type HttpOptions = { public?: boolean }
 
+type ValidationDetail = { loc?: Array<string | number>; msg?: string; type?: string }
+
+const FIELD_LABELS: Record<string, string> = {
+  payload: 'los datos del cierre',
+  finished_at: 'la fecha de cierre',
+  payment_method: 'la modalidad de pago',
+  remito_captured: 'la foto del remito',
+}
+
+const LOCATION_PREFIXES = new Set(['body', 'query', 'path', 'header', 'cookie'])
+
+function validationFieldLabel(item: ValidationDetail): string | undefined {
+  const loc = item.loc ?? []
+  for (let index = loc.length - 1; index >= 0; index -= 1) {
+    const part = loc[index]
+    if (typeof part === 'string' && !LOCATION_PREFIXES.has(part)) {
+      return FIELD_LABELS[part] ?? part.replace(/_/g, ' ')
+    }
+  }
+  return undefined
+}
+
+function validationProblem(item: ValidationDetail): string {
+  if (item.type === 'missing' || item.msg === 'Field required') return 'falta completar'
+  if (item.type?.includes('date')) return 'no es una fecha válida'
+  if (item.type === 'literal_error') return 'tiene un valor no permitido'
+  if (item.type?.endsWith('_parsing') || item.type?.endsWith('_type')) return 'tiene un formato inválido'
+  return 'tiene un valor inválido'
+}
+
+function validationMessage(item: ValidationDetail): string {
+  const label = validationFieldLabel(item)
+  const problem = validationProblem(item)
+  if (!label) return `Datos inválidos: ${problem}`
+  return problem === 'falta completar' ? `Falta completar: ${label}` : `${label}: ${problem}`
+}
+
+function errorMessage(body: any, status: number): string {
+  if (typeof body?.detail === 'string' && body.detail.trim()) return body.detail
+  if (Array.isArray(body?.detail)) {
+    const messages = Array.from(
+      new Set(
+        body.detail
+          .filter((item: unknown): item is ValidationDetail => Boolean(item) && typeof item === 'object')
+          .map(validationMessage),
+      ),
+    )
+    if (messages.length) return messages.join('. ')
+  }
+  return `Error ${status}`
+}
+
 async function http<T>(path: string, init?: RequestInit, options?: HttpOptions): Promise<T> {
   const session = supabase ? (await supabase.auth.getSession()).data.session : null
   const headers = new Headers(init?.headers)
@@ -65,9 +117,7 @@ async function http<T>(path: string, init?: RequestInit, options?: HttpOptions):
   if (!response.ok) {
     let detail = `Error ${response.status}`
     try {
-      const body = await response.json()
-      if (typeof body?.detail === 'string') detail = body.detail
-      else if (Array.isArray(body?.detail)) detail = body.detail.map((d: any) => d.msg).join(', ')
+      detail = errorMessage(await response.json(), response.status)
     } catch {
       /* respuesta sin JSON */
     }
