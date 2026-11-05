@@ -17,7 +17,8 @@ import { color } from '../design/tokens'
  * Confirmacion de cancelacion de un viaje.
  *
  * El estado `cancelada` es terminal en la base (`fn_validar_transicion_estado`)
- * y el DELETE fisico esta prohibido: cancelar es la unica baja posible.
+ * y el DELETE fisico esta prohibido: cancelar es la unica baja posible. La
+ * solicitud cancelada se oculta del listado y vuelve con "Mostrar canceladas".
  */
 export function CancelDialog({
   open,
@@ -51,7 +52,7 @@ export function CancelDialog({
       </DialogTitle>
       <DialogContent sx={{ px: 3, pt: 2 }}>
         <Typography sx={{ fontSize: 13.5, color: color.inkStrong }}>
-          ¿Estás seguro de cancelar el viaje {requestId}? El cliente dejará de verlo y se liberará la asignación de chofer y vehículo.
+          ¿Estás seguro de cancelar el viaje {requestId}? El cliente dejará de verlo, se liberará la asignación de chofer y vehículo, y la solicitud se ocultará del listado.
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
