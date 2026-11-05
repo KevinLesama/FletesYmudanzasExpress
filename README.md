@@ -1,250 +1,296 @@
-# Fletes PPP
+# Fletes Y Mudanzas Express
 
-Sistema de gestión de fletes (demo) con frontend MPA en React + TypeScript + Vite + MUI y backend FastAPI + SQLAlchemy + PostgreSQL.
+Sistema integral para gestionar fletes, mudanzas y coordinación operativa entre clientes, conductores y administración. La plataforma centraliza la agenda, solicitudes, planificación, flota y pagos para optimizar la operación diaria y mejorar la trazabilidad del servicio.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white" alt="React 18" />
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Supabase-Auth-3ECF8E?logo=supabase&logoColor=white" alt="Supabase" />
+</p>
+
+---
+
+## Capturas de pantalla
+
+<p align="center">
+  <img src="https://placehold.co/1200x700/111827/ffffff?text=Captura+1:+Agenda" alt="Captura 1 - Agenda" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://placehold.co/1200x700/1f2937/ffffff?text=Captura+2:+Solicitudes" alt="Captura 2 - Solicitudes" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://placehold.co/1200x700/0f172a/ffffff?text=Captura+3:+Planificacion" alt="Captura 3 - Planificación" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://placehold.co/1200x700/111827/ffffff?text=Captura+4:+Flota+y+Pagos" alt="Captura 4 - Flota y Pagos" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://placehold.co/1200x700/1e293b/ffffff?text=Captura+5:+Dashboard+Administrativo" alt="Captura 5 - Dashboard" width="100%" />
+</p>
+
+> Si quieres, reemplaza estos placeholders por capturas reales de la app para dejar el README listo para compartir.
+
+---
+
+## Sobre el proyecto
+
+Fletes Y Mudanzas Express es una solución diseñada para empresas de transporte y mudanzas que necesitan controlar la operación de principio a fin. La app permite:
+
+- gestionar clientes y solicitudes de servicio;
+- organizar la agenda diaria de viajes y choferes;
+- planificar rutas, tiempos y disponibilidad;
+- supervisar la flota y los vehículos activos;
+- registrar pagos y seguimiento del estado de cada operación;
+- separar accesos por rol para administrador y chofer.
+
+La idea es mantener toda la operación en una misma plataforma con flujo claro, visualización simple y control de permisos para cada tipo de usuario.
+
+---
+
+## Funcionalidades principales
+
+| Módulo | Descripción |
+|---|---|
+| Agenda | Visualización semanal o diaria de viajes, turnos y disponibilidad. |
+| Solicitudes | Registro, seguimiento y estado de cada pedido o servicio solicitado. |
+| Planificación | Coordinación de rutas, tiempos y asignación de recursos. |
+| Flota | Administración de vehículos, estado operativo y disponibilidad. |
+| Pagos | Control de cobros, liquidaciones y movimientos financieros. |
+| Roles y permisos | Acceso diferenciado para administración y conductores. |
+| Autenticación | Login con Supabase Auth y validación de sesión por backend. |
+
+### Funcionalidades adicionales
+
+- Portal multi-página con frontend en React + TypeScript.
+- API REST con FastAPI para lógica de negocio y validaciones.
+- Persistencia con PostgreSQL y modelos de datos SQLAlchemy.
+- Seguridad basada en roles y autenticación real del usuario.
+- Arquitectura lista para despliegue con Docker y Nginx.
+- Base preparada para crecimiento de módulos y nuevos procesos de operación.
+
+---
+
+## Stack tecnológico
+
+### Frontend
+- React
+- TypeScript
+- Vite
+- MUI
+- Leaflet / mapas interactivos
+
+### Backend
+- Python
+- FastAPI
+- SQLAlchemy
+- Pydantic
+- PostgreSQL
+
+### Autenticación y datos
+- Supabase Auth
+- Supabase PostgreSQL
+- Variables de entorno para configuración segura
+
+### Infraestructura
+- Docker
+- Docker Compose
+- Nginx
+
+---
 
 ## Arquitectura
-- **Frontend**: MPA multi-HTML (`*.html` en raíz) con entradas en `src/entries/`. Rutas sin extensión vía plugin en `vite.config.ts`. Todas las llamadas al backend usan rutas relativas `/api` (proxy en desarrollo/nginx en Docker).
-- **Backend**: FastAPI en `backend/app/`. Endpoints REST bajo `/api` + `/health`. ORM SQLAlchemy 2.x, esquemas Pydantic v2. Soporta arranque sin base de datos (devuelve 503 con mensaje claro). **Autenticación**: valida los JWT de Supabase Auth (`Authorization: Bearer`) y aplica roles por endpoint.
-- **Base de datos**: PostgreSQL. Soporta Supabase con **Session pooler IPv4 (puerto 5432)** y `sslmode=require`. SQL de esquema y seed en `backend/sql/`.
-- **Auth**: Supabase Auth (email + password). El frontend guarda la sesión en `localStorage` y manda el access token al backend; no se usan cookies. La autorización vive en FastAPI (el backend conecta como `postgres` y bypasea RLS).
+
+La aplicación está dividida en dos capas principales:
+
+- Frontend: aplicación web multi-página construida en React + TypeScript con Vite.
+- Backend: API REST en FastAPI con validaciones de negocio y conexión a PostgreSQL.
+
+La comunicación entre ambas capas se realiza a través de rutas de API bajo /api, con proxy en desarrollo y nginx en producción. La autenticación y autorización se gestionan con Supabase y validación de rol del backend.
+
+---
+
+## Estructura del proyecto
+
+```bash
+FletesYmudanzasExpress/
+├── src/                     # Frontend React + TypeScript
+│   ├── components/         # Componentes reutilizables
+│   ├── pages/              # Páginas y workflows del producto
+│   ├── entries/            # Entradas de cada HTML multi-page
+│   ├── api.ts              # Capa HTTP del frontend
+│   ├── guard.ts            # Protección de rutas por rol
+│   ├── types.ts            # Tipos del dominio
+│   └── ...
+├── backend/                 # API FastAPI
+│   ├── app/                # Código principal de la aplicación
+│   ├── sql/                # SQL del esquema, auth y migraciones
+│   ├── tests/              # Tests del backend
+│   └── ...
+├── public/                  # Assets públicos
+├── tests/                   # Tests frontend / utilitarios
+├── Dockerfile               # Build frontend + nginx
+├── Dockerfile.dev           # Configuración de desarrollo
+├── docker-compose.yaml      # Infraestructura de producción
+├── docker-compose.dev.yaml  # Infraestructura de desarrollo
+├── nginx.conf              # Proxy de rutas en producción
+├── package.json             # Scripts y dependencias frontend
+├── vite.config.ts          # Configuración de Vite y rutas
+├── README.md               # Documentación principal
+├── DESIGN.md               # Referencias de diseño
+├── AGENTS.md               # Reglas y contexto del proyecto
+├── CONTRIBUTING.md         # Guía de contribución
+└── ...
+```
+
+---
 
 ## Requisitos
-- Node.js 18+ / npm
+
+Antes de comenzar, asegurate de tener instalado:
+
+- Node.js 18+
+- npm
 - Python 3.12+
-- (Opcional) Docker + Docker Compose
-- Base PostgreSQL (o proyecto Supabase)
+- PostgreSQL o acceso a Supabase
+- Docker y Docker Compose (opcional, pero recomendado)
 
-## Puesta en marcha (desarrollo)
+---
 
-### 1) Clonar e instalar
+## Instalación y puesta en marcha
+
+### 1) Clonar el repositorio
+
 ```bash
-# Frontend
-npm install
+git clone https://github.com/KevinLesama/FletesYmudanzasExpress.git
+cd FletesYmudanzasExpress
+```
 
-# Backend
+### 2) Instalar dependencias del frontend
+
+```bash
+npm install
+```
+
+### 3) Configurar el backend
+
+```bash
 cd backend
 python -m venv .venv
+
 # Windows
 .\.venv\Scripts\activate
+
 # Linux/macOS
 # source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-### 2) Configurar variables de entorno
-Copiar los archivos `.env.example` y completar con credenciales (nunca commitear `.env`).
+### 4) Configurar variables de entorno
+
+Copiar los ejemplos y completar los valores correspondientes:
 
 ```bash
-# Raíz del frontend
-cp .env.example .env  # opcional; por defecto usa /api
+# En la raíz del proyecto
+cp .env.example .env
 
-# Backend
+# En backend
 cp backend/.env.example backend/.env
 ```
 
-Editar `backend/.env`:
-- `DATABASE_URL`: usar cadena de **Session pooler** de Supabase (IPv4). Ejemplo:
-  `postgresql+psycopg://postgres.<project-ref>:<PASSWORD>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require`
-  (codificar caracteres especiales de la contraseña, p. ej. `@` → `%40`).
-- `CORS_ORIGINS`: incluir `http://localhost:5173` y/o `http://localhost:8080`.
-- `SUPABASE_URL` y `SUPABASE_ANON_KEY`: **Project Settings → API** del proyecto de Supabase. Con estas dos el backend valida los JWT.
-- `SUPABASE_SERVICE_ROLE_KEY`: opcional, solo si el backend necesita operar con privilegios de servicio. Nunca va al frontend.
+Ajusta variables como:
 
-Editar `.env` (raíz, para Vite):
-- `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`: mismos valores que el backend. Vite los inyecta en build-time.
-- `VITE_MAP_TILES_KEY` y `VITE_MAP_STYLE_ID`: credenciales/estilo de MapTiler usados para dibujar el mapa. También se inyectan en build-time; la key de mapas es visible en el navegador y conviene restringirla por dominio.
+- DATABASE_URL
+- SUPABASE_URL
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- CORS_ORIGINS
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_ANON_KEY
 
-> El host directo `db.<ref>.supabase.co` resuelve a IPv6 y suele fallar en redes sin IPv6. Usar siempre Session pooler (puerto 5432).
+> Nunca subas archivos .env al repositorio. Mantener estas credenciales fuera del control de versiones.
 
-### 3) Inicializar la base de datos (Supabase)
-Abrir el **SQL Editor** de Supabase y ejecutar en orden:
-1. `backend/sql/install.sql` (esquema + auth en un solo archivo, idempotente)
-2. `backend/sql/seed.sql` (datos demo, idempotente con `ON CONFLICT DO NOTHING`)
+### 5) Ejecutar en desarrollo
 
-`install.sql` es **generado**: combina `schema.sql` + `auth.sql`. Si tocás alguno de los dos, regeneralo con `python backend/sql/build_install.py`. Requiere la extensión `btree_gist` (viene con Supabase y con `postgresql-contrib`).
+Terminal 1 - Backend:
 
-> **Migrar una base con el esquema viejo**: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` y correr `install.sql` otra vez. Es destructivo: borra los datos existentes (eran de simulación).
-
-### 4) Levantar los servicios
-**Terminal 1 — Backend:**
 ```bash
 cd backend
-# activar venv
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**Terminal 2 — Frontend (con proxy a /api):**
+Terminal 2 - Frontend:
+
 ```bash
 npm run dev
 ```
-Abrir [http://localhost:5173](http://localhost:5173).
 
-Endpoints útiles:
-- Salud: [http://localhost:8000/health](http://localhost:8000/health)
-- Documentación: [http://localhost:8000/docs](http://localhost:8000/docs)
-- OpenAPI: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
+Abre la app en:
 
-## Autenticación y roles
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8000
+- Documentación API: http://localhost:8000/docs
 
-El login usa **Supabase Auth** (email + contraseña). El backend valida el JWT y resuelve el rol contra la base.
+---
 
-**El rol NO viaja en el token**: sale de `usuarios.rol`, así un cambio de permisos aplica al instante (no hay que esperar a que venza el JWT). La resolución por email usa la vista `v_personal`, que solo trae `administrador` y `chofer`: los clientes son contactos de la empresa, no cuentas del sistema, aunque tengan email cargado.
+## Ejecutar con Docker
 
-- `administrador` → operación diaria (agenda, solicitudes, flota, pagos).
-- `chofer` → solo `chofer` (sus viajes).
-
-**Primer ingreso**: si `usuarios.auth_user_id` está vacío, el backend vincula la cuenta de Auth por email (el mismo email en el panel y en Authentication) y completa el vínculo solo. Si el rol no es de personal o el usuario está inactivo, responde 403 y el frontend cierra la sesión.
-
-**Alta de cuentas** (Supabase Dashboard):
-1. Cargá a la persona en `usuarios` con su email y `rol` (`administrador` o `chofer`).
-2. Authentication → Users → **Add user** con el **mismo email**.
-3. Al primer ingreso el vínculo se completa solo. También se puede forzar:
-   ```sql
-   UPDATE usuarios SET auth_user_id = '<uuid-del-usuario>' WHERE email = 'persona@empresa.com';
-   ```
-
-**Mapa de rutas del frontend** (`src/guard.ts`): `ingreso` es pública; `agenda`, `solicitudes`, `nueva-solicitud`, `planificacion`, `flota`, `pagos` y `chofer-config` requieren `administrador`; `chofer` requiere `chofer`. El guard consulta `GET /api/me` (no el JWT) y, si el rol no corresponde, redirige al home del rol.
-
-**Deuda conocida (fase 1)**: se protege el acceso pero **no se scopean filas**. Un `chofer` autenticado puede listar todas las `solicitudes` vía API. Cerrarlo requiere filtrar por el usuario vinculado a `auth_user_id` en los endpoints de lectura.
-
-## Docker
-
-Hay dos configuraciones: `docker-compose.dev.yaml` (desarrollo con hot-reload) y `docker-compose.yaml` (build de producción servido por nginx). Comparten el nombre de proyecto, así que levantar una reemplaza los contenedores de la otra.
-
-### Desarrollo (hot-reload)
-
-Vite en **5173** y FastAPI en **8000**, con el código del host montado por volumen:
+### Desarrollo
 
 ```bash
-docker compose -f docker-compose.dev.yaml up --build   # primera vez o tras cambiar dependencias
-docker compose -f docker-compose.dev.yaml up           # uso diario
+docker compose -f docker-compose.dev.yaml up --build
 ```
 
-- Frontend: [http://localhost:5173](http://localhost:5173) (HMR, sin reconstruir la imagen)
-- Backend: [http://localhost:8000](http://localhost:8000) (uvicorn `--reload`)
-- Vite proxya `/api` hacia `backend:8000`; el backend lo apunta `VITE_PROXY_TARGET` en el compose (dentro del contenedor `localhost` no es el backend).
-- `.:/app` monta el frontend y `backend:/app` el backend. `node_modules` del host queda tapado por un volumen anónimo con las dependencias de Linux instaladas en la imagen.
-- Logs: `docker compose -f docker-compose.dev.yaml logs -f`
-- Bajar: `docker compose -f docker-compose.dev.yaml down`
+### Producción local
 
-### Producción local (build + nginx)
-
-1. Copiar `backend/.env.example` → `backend/.env` y completar `DATABASE_URL` + `CORS_ORIGINS`.
-2. Levantar:
 ```bash
 docker compose up --build
 ```
-- Frontend: [http://localhost:8080](http://localhost:8080)
-- Backend: [http://localhost:8000](http://localhost:8000)
-- Nginx hace proxy de `/api/` hacia el backend. El frontend usa `VITE_API_URL=/api` por defecto.
-- `docker compose` toma `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MAP_TILES_KEY` y `VITE_MAP_STYLE_ID` del `.env` de la raíz (o del entorno) y las pasa como build args: Vite las necesita en build-time. `backend/.env` llega al backend vía `env_file`.
 
-### Reconstruir solo lo necesario
+El proyecto está preparado para trabajar con Vite y Nginx en contenedores, junto con la API FastAPI y PostgreSQL/Supabase como backend persistente.
 
-```bash
-docker compose -f docker-compose.dev.yaml build frontend   # cambió package.json / package-lock.json
-docker compose -f docker-compose.dev.yaml up -d frontend
-docker compose -f docker-compose.dev.yaml build backend    # cambió backend/requirements.txt
-docker compose -f docker-compose.dev.yaml up -d backend
-```
+---
 
-Cambios en `.env` de la raíz los toma Vite al reiniciar el dev server: `docker compose -f docker-compose.dev.yaml restart frontend`. Cambios en `backend/.env` requieren recrear el contenedor: `docker compose -f docker-compose.dev.yaml up -d --force-recreate backend`.
+## Casos de uso
 
-En la configuración de producción local, los cambios en las variables `VITE_*` requieren reconstruir la imagen compilada: `docker compose up --build frontend`.
+El sistema está pensado para empresas de transporte de carga y mudanzas que necesitan:
 
-## Pruebas
+- atender pedidos de clientes en tiempo real;
+- distribuir viajes según disponibilidad y calendario;
+- controlar la asignación de recursos y conductores;
+- llevar un registro claro de pagos y operación;
+- reducir la carga administrativa del día a día.
 
-**Backend — carril unitario (sin base de datos ni red):**
-```bash
-cd backend
-pytest -m unit -v
-```
+---
 
-**Backend — carril PostgreSQL (integración real):**
-```bash
-cd backend
-# Apuntar a una base DESCARTABLE cuyo nombre contenga "test".
-# El conftest se niega a recrear el esquema en cualquier otra.
-export FEX_TEST_DATABASE_URL="postgresql+psycopg://postgres:test@127.0.0.1:55432/fex_test"
-pytest -m pg -v
-```
-Sin `FEX_TEST_DATABASE_URL` el carril `pg` se omite y `pytest tests` corre solo lo unitario.
-El esquema de prueba se crea desde `sql/schema.sql` y `sql/auth.sql`, y cada test arranca con las tablas vacías.
+## Estado del proyecto
 
-**Frontend — unitarios (Vitest):**
-```bash
-npm test         # una corrida
-npm run test:watch
-```
+Este repositorio está en evolución continua. Se recomienda revisar la documentación técnica adicional en:
 
-**Frontend — typecheck y build de producción:**
-```bash
-npx tsc --noEmit
-npm run build
-```
+- [DESIGN.md](./DESIGN.md)
+- [AGENTS.md](./AGENTS.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
 
-## Enriquecimiento geográfico opcional
+---
 
-El backend expone el autocomplete y las rutas a través de `services/scraping/`,
-pero no realiza scraping del DOM de Google Maps. El proveedor principal reutiliza
-la integración oficial de Places API y Routes API de `services/geo.py`.
+## Contribución
 
-Para usar Google desde Docker, definir `GOOGLE_MAPS_API_KEY` en `backend/.env`
-(no en el `.env` del frontend ni como `VITE_*`) y recrear el backend. Compose
-carga ese archivo como variables del contenedor; la configuración se cachea al
-iniciar el proceso. Si Google está configurado, se intenta primero y OSM/OSRM
-queda como fallback explícito ante indisponibilidad. El endpoint autenticado
-`POST /api/geo/route` incluye `provider` en su respuesta; también se registra
-`Route provider selected: google` o `osm` en los logs del backend sin incluir
-credenciales. Para comprobarlo:
+Las contribuciones son bienvenidas. Antes de enviar cambios:
 
-```powershell
-docker compose logs backend | Select-String "Route provider"
-```
+1. crea una rama de trabajo;
+2. mantén cambios enfocados;
+3. valida que el frontend y el backend sigan funcionando;
+4. documenta cambios relevantes en el código o en este README.
 
-Cuando la salida programada es futura, se envía a Routes API como `departureTime`
-en la zona horaria de Buenos Aires. Para solicitudes pasadas se omite, ya que
-Google no puede estimar tráfico futuro para ellas.
+---
 
-Opcionalmente se puede habilitar un fallback HTTP a Nominatim y OSRM:
+## Licencia
 
-```env
-GEO_ENRICHMENT_ENABLED=true
-GEO_FALLBACK_ENABLED=true
-NOMINATIM_URL=https://nominatim.openstreetmap.org/search
-ROUTING_URL=https://router.project-osrm.org
-GEO_USER_AGENT=fletes-express/1.0
-GEO_TIMEOUT_SECONDS=6
-```
-
-El fallback debe habilitarse sólo después de revisar las políticas y límites
-vigentes de cada servicio. Nominatim exige un `User-Agent` identificable y
-limita el uso intensivo; OSRM público no ofrece garantías de disponibilidad ni
-de capacidad para producción. Photon no se activa por defecto porque requiere
-un endpoint concreto y sus límites dependen de la instancia elegida.
-
-La capa devuelve `ok`, `not_found` o `unavailable`. Cuando no hay resultado,
-el formulario conserva la entrada manual; los kilómetros manuales se guardan
-como datos pendientes de cálculo y nunca se convierten en una distancia
-automática ficticia.
-
-## Notas importantes
-- **Sin DELETE de entidades** (la UI no lo ofrece). Solo se permite `DELETE /api/requests/{id}/remito` y la cancelación de viajes (`PATCH /requests/{id}` con estado `Cancelada`).
-- **Foto de remito**: se guarda como `data URL` en columna `text`.
-- **Viajes generados**: IDs `FEX-####` / `INC-####` los genera el backend.
-- **Conflictos**: solo cuentan viajes con estado `Confirmada` para la verificación de chofer/vehículo.
-- **Login**: real, contra Supabase Auth. El ingreso usa email + contraseña; la sesión persiste en `localStorage` y se refresca sola. Logout desde el sidebar.
-- **Seguridad**: nunca subir `.env` al repositorio. Usar los `.env.example` provistos. La `service_role_key` es solo del backend.
-
-## Estructura relevante
-```
-fletes_ppp/
-├── src/                # Frontend React/TS
-├── backend/            # API FastAPI
-│   ├── app/            # Código de la API
-│   ├── sql/            # install.sql (generado), schema.sql, auth.sql y seed.sql
-│   └── tests/          # Tests (pytest)
-├── Dockerfile          # Frontend (multi-stage + nginx)
-├── docker-compose.yaml
-└── nginx.conf
-```
+Este proyecto se distribuye con fines de desarrollo y operación interna del negocio. Ajustar la licencia según el uso final del producto antes de publicarlo o distribuirlo externamente.
