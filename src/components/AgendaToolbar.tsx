@@ -31,8 +31,6 @@ export interface AgendaFilters {
 
 export const EMPTY_FILTERS: AgendaFilters = { driver: 'all', vehicle: 'all', status: 'all' }
 
-const STATUS_OPTIONS = ['Confirmada', 'Pendiente de seña', 'Pendiente de revisión', 'Cancelada']
-
 export function countActiveFilters(filters: AgendaFilters): number {
   return Object.values(filters).filter((value) => value !== 'all').length
 }
@@ -48,12 +46,18 @@ export function driverFilterOptions(drivers: Driver[]): { value: string; label: 
 export function vehicleFilterOptions(vehicles: Vehicle[]): { value: string; label: string }[] {
   return [
     { value: 'all', label: 'Todos los vehículos' },
-    ...vehicles.map((v) => ({ value: v.id, label: `${v.id} · ${v.type}` })),
+    // El filtro compara contra `solicitudes.vehiculo_id`, que guarda la PK: la
+    // patente (`v.id`) es solo para mostrar.
+    ...vehicles.map((v) => ({ value: v.vehicleId, label: `${v.id} · ${v.type}` })),
   ]
 }
 
+/** Los estados salen de la leyenda de la agenda para que nunca se desincronicen. */
 export function statusFilterOptions(): { value: string; label: string }[] {
-  return [{ value: 'all', label: 'Todos los estados' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s }))]
+  return [
+    { value: 'all', label: 'Todos los estados' },
+    ...ESTADOS_AGENDA.map((status) => ({ value: status.key, label: status.label })),
+  ]
 }
 
 /** Calendar month (`0`-based) that contains an ISO date. */
