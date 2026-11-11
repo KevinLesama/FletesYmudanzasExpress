@@ -1,4 +1,5 @@
 import type { RequestStatus, ShiftRequest } from '../types'
+import { occupancyEnd } from './planificacionHorarios'
 
 /**
  * CARACTERIZACIÓN de la agenda tal como funciona HOY, no una especificación de
@@ -42,19 +43,28 @@ export function occupiesAgenda(request: ShiftRequest): boolean {
 /**
  * Viajes del día que ocuparían la agenda en la franja pedida. Excluye el viaje
  * que se está editando para que no se bloquee a sí mismo.
+ *
+ * `start`/`end` es la franja que se quiere reservar: el llamador debe pasar la
+ * franja ya extendida (llegada + descarga + margen) del viaje que está creando.
+ * Los viajes existentes se extienden acá con sus propios datos, porque comparar
+ * contra la llegada dejaría libre la descarga y el margen.
  */
 export function agendaTripsInSlot(
   requests: readonly ShiftRequest[],
   start: string,
   end: string,
   excludeId?: string,
+  bufferMinutes: number | null = null,
 ): ShiftRequest[] {
   const range = usableRange([start, end])
   if (!range) return []
   return requests.filter((request) => {
     if (request.id === excludeId) return false
     if (!occupiesAgenda(request)) return false
-    const other = usableRange(request.serviceRange)
+    const other = usableRange([
+      request.serviceRange[0],
+      occupancyEnd(request.serviceRange, request.downloadMinutes ?? null, bufferMinutes),
+    ])
     return other !== null && overlaps(range[0], range[1], other[0], other[1])
   })
 }

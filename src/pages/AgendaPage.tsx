@@ -271,6 +271,7 @@ export function AgendaPage() {
     allRequests,
     { driver: filters.driver, vehicle: filters.vehicle, status: filters.status },
     today,
+    bufferMinutes,
   )
   const selectedMapTrip = mapTripId ? allRequests.find((request) => request.id === mapTripId) ?? null : null
   const mapTrips = selectedMapTrip ? [selectedMapTrip] : upcomingMapTrips

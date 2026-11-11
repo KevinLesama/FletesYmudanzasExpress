@@ -41,10 +41,23 @@ interface Placed {
 
 type Range = AgendaBlockRange
 
-/** Greedy lane packing for the overlapping trips of a single day. */
-function computeLanes(trips: ShiftRequest[], ranges: Map<string, Range>): Placed[] {
+/**
+ * Greedy lane packing for the overlapping trips of a single day.
+ *
+ * Los cancelados se empaquetan aparte: no reservan capacidad, así que no le
+ * quitan ancho a los viajes que sí se hacen, pero tampoco se pisan entre ellos.
+ * Se devuelven primero y `TripBlock` les baja el `zIndex` para que queden detrás.
+ */
+export function computeLanes(trips: ShiftRequest[], ranges: Map<string, Range>): Placed[] {
   const rangeOf = (trip: ShiftRequest): Range =>
     ranges.get(trip.id) ?? { start: trip.serviceRange[0], end: trip.serviceRange[1], complete: false }
+  const cancelled = trips.filter((trip) => trip.status === 'Cancelada')
+  const active = trips.filter((trip) => trip.status !== 'Cancelada')
+  return [...packLanes(cancelled, rangeOf), ...packLanes(active, rangeOf)]
+}
+
+/** Reparte los viajes recibidos en carriles por clúster de superposición. */
+function packLanes(trips: ShiftRequest[], rangeOf: (trip: ShiftRequest) => Range): Placed[] {
   const sorted = [...trips].sort((a, b) => toMin(rangeOf(a).start) - toMin(rangeOf(b).start))
   const clusters: ShiftRequest[][] = []
   let current: ShiftRequest[] = []
@@ -255,7 +268,7 @@ function TripBlock({
           overflow: 'hidden',
           cursor: 'pointer',
           outline: 0,
-          zIndex: 1,
+          zIndex: cancelled ? 0 : 1,
           opacity: cancelled ? 0.75 : 1,
           transition: 'box-shadow 120ms, transform 120ms',
           '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 10px rgba(19,43,74,0.09)' },

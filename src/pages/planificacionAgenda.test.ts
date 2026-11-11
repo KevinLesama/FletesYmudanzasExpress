@@ -70,6 +70,20 @@ describe('agendaTripsInSlot', () => {
 
     expect(agendaTripsInSlot([actual], '11:00', '09:00')).toEqual([])
   })
+
+  it('ocupa tambien durante la descarga y el margen', () => {
+    const actual = trip({ id: 'FEX-4', driverId: '7', downloadMinutes: 60 })
+
+    // Llega a las 11:00 y sigue descargando hasta las 12:00.
+    expect(agendaTripsInSlot([actual], '11:30', '12:30')).toEqual([actual])
+  })
+
+  it('suma el margen operativo configurado', () => {
+    const actual = trip({ id: 'FEX-5', driverId: '7', downloadMinutes: 60 })
+
+    expect(agendaTripsInSlot([actual], '12:15', '13:00', undefined, 30)).toEqual([actual])
+    expect(agendaTripsInSlot([actual], '12:15', '13:00', undefined, null)).toEqual([])
+  })
 })
 
 describe('driverDayAgenda', () => {

@@ -41,6 +41,26 @@ export function occupiedUntil(finish: string, bufferMinutes: number | null): str
 }
 
 /**
+ * Hasta qué hora el recurso sigue tomado: llegada + descarga + margen operativo.
+ *
+ * Es la misma regla que `agendaRange`, pero con otra tolerancia: acá la descarga
+ * alcanza. `agendaRange` devuelve solo la llegada cuando falta el margen porque
+ * dibuja la franja; para decidir si un viaje terminó, la descarga confirmada ya
+ * es información suficiente y el margen se suma únicamente si se conoce.
+ */
+export function occupancyEnd(
+  serviceRange: readonly string[],
+  downloadMinutes: number | null,
+  bufferMinutes: number | null,
+): string {
+  const arrival = serviceRange[1] ?? ''
+  if (!arrival) return ''
+  const finish = estimatedFinish(arrival, downloadMinutes)
+  if (!finish) return arrival
+  return occupiedUntil(finish, bufferMinutes) || finish
+}
+
+/**
  * Franja que el viaje ocupa realmente en la agenda.
  *
  * Arranca en el inicio del servicio y termina cuando el recurso vuelve a estar
