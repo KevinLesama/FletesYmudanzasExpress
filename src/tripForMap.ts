@@ -1,4 +1,5 @@
 import type { ShiftRequest } from './types'
+import { occupancyEnd } from './pages/planificacionHorarios'
 
 export type TripForMapReason = 'seleccionado' | 'en-curso' | 'proximo' | 'ultimo'
 
@@ -28,6 +29,7 @@ export function tripForMap(
   selectedId: string | null,
   timeZone: string,
   now: Date = new Date(),
+  bufferMinutes: number | null = null,
 ): TripForMap | null {
   const eligible = requests.filter(
     (request) => request.status !== 'Cancelada' && request.status !== 'Finalizada',
@@ -44,10 +46,16 @@ export function tripForMap(
   }
 
   const timestamp = (request: ShiftRequest, time: string) => `${request.date}T${time}`
+  // El viaje sigue en curso mientras descarga: no termina al llegar al destino.
+  const endOf = (request: ShiftRequest) =>
+    timestamp(
+      request,
+      occupancyEnd(request.serviceRange, request.downloadMinutes ?? null, bufferMinutes) ||
+        request.serviceRange[1],
+    )
   const inProgress = eligible.find((request) => {
     const start = timestamp(request, request.serviceRange[0])
-    const end = timestamp(request, request.serviceRange[1])
-    return start <= currentTime && currentTime <= end
+    return start <= currentTime && currentTime <= endOf(request)
   })
   if (inProgress) return { trip: inProgress, reason: 'en-curso' }
 
@@ -57,7 +65,7 @@ export function tripForMap(
   if (upcoming) return { trip: upcoming, reason: 'proximo' }
 
   const previous = eligible
-    .filter((request) => timestamp(request, request.serviceRange[1]) < currentTime)
-    .sort((a, b) => timestamp(b, b.serviceRange[1]).localeCompare(timestamp(a, a.serviceRange[1])))[0]
+    .filter((request) => endOf(request) < currentTime)
+    .sort((a, b) => endOf(b).localeCompare(endOf(a)))[0]
   return previous ? { trip: previous, reason: 'ultimo' } : null
 }

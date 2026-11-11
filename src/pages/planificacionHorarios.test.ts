@@ -4,10 +4,33 @@ import {
   agendaRange,
   estimatedArrival,
   estimatedFinish,
+  occupancyEnd,
   occupiedUntil,
   planningTimesComplete,
   shiftTime,
 } from './planificacionHorarios'
+
+describe('fin de la ocupación del recurso', () => {
+  it('suma llegada, descarga y margen operativo', () => {
+    expect(occupancyEnd(['11:00', '13:00'], 60, 30)).toBe('14:30')
+  })
+
+  it('sin margen cargado suma al menos la descarga', () => {
+    expect(occupancyEnd(['11:00', '13:00'], 60, null)).toBe('14:00')
+  })
+
+  it('sin descarga confirmada se queda en la llegada', () => {
+    expect(occupancyEnd(['11:00', '13:00'], null, 30)).toBe('13:00')
+  })
+
+  it('sin llegada confirmada no inventa un fin', () => {
+    expect(occupancyEnd(['11:00', ''], 60, 30)).toBe('')
+  })
+
+  it('si la suma cruza la medianoche no devuelve una hora anterior', () => {
+    expect(occupancyEnd(['22:00', '23:30'], 60, 30)).toBe('23:30')
+  })
+})
 
 describe('hora de llegada estimada', () => {
   it('se calcula con la hora de inicio, carga y duración de ruta', () => {

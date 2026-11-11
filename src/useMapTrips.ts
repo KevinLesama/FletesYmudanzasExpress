@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { api } from './api'
 import { addDays, getTodayISO } from './agendaDates'
+import { occupancyEnd } from './pages/planificacionHorarios'
 import { useAsync } from './useAsync'
 import type { ShiftRequest } from './types'
 
@@ -20,8 +21,14 @@ export function isTripInProgress(trip: ShiftRequest): boolean {
   )
 }
 
-function hasEnded(trip: ShiftRequest, now: Date): boolean {
-  const end = new Date(`${trip.date}T${trip.serviceRange[1]}:00`)
+/**
+ * Un viaje no terminó al llegar al destino: sigue ocupado durante la descarga y
+ * el margen operativo. `bufferMinutes` es el margen configurado; si todavía no
+ * cargó, se usa la descarga sola en vez de dar el viaje por cerrado.
+ */
+function hasEnded(trip: ShiftRequest, now: Date, bufferMinutes: number | null): boolean {
+  const endTime = occupancyEnd(trip.serviceRange, trip.downloadMinutes ?? null, bufferMinutes)
+  const end = new Date(`${trip.date}T${endTime}:00`)
   return !Number.isNaN(end.getTime()) && end < now
 }
 
@@ -29,6 +36,7 @@ export function selectMapTrips(
   requests: ShiftRequest[],
   filters: MapTripFilters = {},
   today = getTodayISO(),
+  bufferMinutes: number | null = null,
 ): ShiftRequest[] {
   const maxDate = addDays(today, WINDOW_DAYS)
   return requests
@@ -37,7 +45,7 @@ export function selectMapTrips(
       (filters.vehicle === undefined || filters.vehicle === 'all' || request.vehicleId === filters.vehicle) &&
       (filters.status === undefined || filters.status === 'all' || request.status === filters.status) &&
       (request.status === 'Confirmada' || isTripInProgress(request)) &&
-      (!hasEnded(request, new Date()) || isTripInProgress(request)),
+      (!hasEnded(request, new Date(), bufferMinutes) || isTripInProgress(request)),
     )
     .filter((request) => isTripInProgress(request) || (request.date >= today && request.date <= maxDate))
     .sort(
@@ -52,6 +60,7 @@ export function useMapTrips(
   sourceRequests?: ShiftRequest[],
   filters: MapTripFilters = {},
   today?: string,
+  bufferMinutes: number | null = null,
 ) {
   const state = useAsync(
     () => sourceRequests === undefined ? api.listRequests() : Promise.resolve([] as ShiftRequest[]),
@@ -59,8 +68,8 @@ export function useMapTrips(
   )
   const requests = sourceRequests ?? state.data ?? []
   const trips = useMemo(
-    () => selectMapTrips(requests, filters, today),
-    [requests, filters.driver, filters.vehicle, filters.status, today],
+    () => selectMapTrips(requests, filters, today, bufferMinutes),
+    [requests, filters.driver, filters.vehicle, filters.status, today, bufferMinutes],
   )
 
   return {
