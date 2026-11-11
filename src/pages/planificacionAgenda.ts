@@ -92,3 +92,49 @@ export function driverDayAgenda(
     .filter((request) => request.driverId === driverId && request.status !== 'Cancelada')
     .sort((a, b) => a.serviceRange[0].localeCompare(b.serviceRange[0]))
 }
+
+/**
+ * Selección de filtros de la agenda. Es estructural a propósito: `AgendaFilters`
+ * vive en el componente del toolbar y esta capa no tiene por qué depender de él.
+ */
+export interface AgendaFilterSelection {
+  driver: string
+  vehicle: string
+  status: string
+}
+
+/** `'all'` (o un valor vacío) significa "sin filtrar" para ese campo. */
+const isUnfiltered = (value: string) => !value || value === 'all'
+
+/**
+ * Un viaje entra en la agenda si cumple **todos** los filtros activos.
+ *
+ * Es la única regla de filtrado: la grilla, los puntitos del calendario y los
+ * chips salen de acá. Si se duplica, vuelven a mostrar conjuntos distintos.
+ */
+export function matchesAgendaFilters(
+  trip: ShiftRequest,
+  filters: AgendaFilterSelection,
+): boolean {
+  return (
+    (isUnfiltered(filters.driver) || trip.driverId === filters.driver) &&
+    (isUnfiltered(filters.vehicle) || trip.vehicleId === filters.vehicle) &&
+    (isUnfiltered(filters.status) || trip.status === filters.status)
+  )
+}
+
+/**
+ * Días con puntito en el calendario: los que tienen al menos un viaje que
+ * sobrevive a los filtros. Se calcula sobre TODAS las fechas, no solo la semana
+ * visible, porque el calendario mensual necesita marcar los días de afuera.
+ */
+export function agendaMarkedDates(
+  requests: readonly ShiftRequest[],
+  filters: AgendaFilterSelection,
+): Set<string> {
+  const dates = new Set<string>()
+  for (const request of requests) {
+    if (matchesAgendaFilters(request, filters)) dates.add(request.date)
+  }
+  return dates
+}

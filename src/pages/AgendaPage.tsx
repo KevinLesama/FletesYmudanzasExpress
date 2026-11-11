@@ -5,6 +5,7 @@ import { Add, Tune } from '@mui/icons-material'
 import { AppShell, SECCION_BREADCRUMB } from '../components/AppShell'
 import { EncabezadoPagina } from '../components/EncabezadoPagina'
 import {
+  ActiveFilterChips,
   AgendaToolbar,
   EMPTY_FILTERS,
   calendarMonthOf,
@@ -41,6 +42,7 @@ import { currentUser } from '../supabase'
 import type { ShiftRequest } from '../types'
 import { isTripInProgress, useMapTrips } from '../useMapTrips'
 import { agendaBlockRange } from './planificacionHorarios'
+import { agendaMarkedDates, matchesAgendaFilters } from './planificacionAgenda'
 
 const summaryLinkSx = {
   color: color.navy,
@@ -88,13 +90,15 @@ const AGENDA_STATE_KEY = 'fex_agenda_state'
 interface AgendaNavigationState {
   anchor: string
   view: AgendaView
-  filters: AgendaFilters
 }
 
 /**
- * Última fecha, vista y filtros usados. La agenda se va a `/planificacion` con
+ * Última fecha y vista usadas. La agenda se va a `/planificacion` con
  * `window.location`, así que sin esto volver del detalle siempre recae en la
- * semana actual y pierde el filtro que estabas mirando.
+ * semana actual.
+ *
+ * Los filtros NO se persisten a propósito: son una decisión de la sesión, y uno
+ * viejo que sobrevive a la recarga oculta viajes sin que nadie lo haya pedido.
  */
 function readNavigationState(): AgendaNavigationState | null {
   if (typeof window === 'undefined') return null
@@ -103,13 +107,12 @@ function readNavigationState(): AgendaNavigationState | null {
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return null
-    const { anchor, view, filters } = parsed as Record<string, unknown>
+    // Las entradas anteriores todavía traen `filters`: se ignoran, no invalidan
+    // la fecha ni la vista.
+    const { anchor, view } = parsed as Record<string, unknown>
     if (typeof anchor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(anchor)) return null
     if (view !== 'day' && view !== 'workWeek') return null
-    if (!filters || typeof filters !== 'object') return null
-    const { driver, vehicle, status } = filters as Record<string, unknown>
-    if (typeof driver !== 'string' || typeof vehicle !== 'string' || typeof status !== 'string') return null
-    return { anchor, view, filters: { driver, vehicle, status } }
+    return { anchor, view }
   } catch (error) {
     console.error('No se pudo restaurar el estado de la agenda.', error)
     return null
@@ -122,7 +125,8 @@ export function AgendaPage() {
   const [restored] = useState(readNavigationState)
   const [anchor, setAnchor] = useState(() => restored?.anchor ?? getInitialAnchor(new Date()))
   const [view, setView] = useState<AgendaView>(restored?.view ?? 'workWeek')
-  const [filters, setFilters] = useState<AgendaFilters>(() => restored?.filters ?? EMPTY_FILTERS)
+  // Los filtros arrancan siempre en "todos": no se restauran de la sesión.
+  const [filters, setFilters] = useState<AgendaFilters>(EMPTY_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Mobile only: the filters and the month picker live in bottom sheets.
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -162,11 +166,11 @@ export function AgendaPage() {
   // `effectiveView`) para que el mobile no pise la vista elegida en desktop.
   useEffect(() => {
     try {
-      window.sessionStorage.setItem(AGENDA_STATE_KEY, JSON.stringify({ anchor, view, filters }))
+      window.sessionStorage.setItem(AGENDA_STATE_KEY, JSON.stringify({ anchor, view }))
     } catch (error) {
       console.error('No se pudo guardar el estado de la agenda.', error)
     }
-  }, [anchor, view, filters])
+  }, [anchor, view])
 
   // Los bloques muestran chofer y vehículo: mapas armados una sola vez en vez de
   // un `find` por tarjeta en cada render.
@@ -210,25 +214,19 @@ export function AgendaPage() {
     [anchor, effectiveView],
   )
 
+  // Grilla y puntitos del calendario salen de la MISMA regla de filtrado. Si se
+  // separan, el calendario marca días que la agenda después no muestra.
   const trips = useMemo(
     () =>
       allRequests
-        .filter(
-          (trip) =>
-            days.includes(trip.date) &&
-            (filters.driver === 'all' || trip.driverId === filters.driver) &&
-            (filters.vehicle === 'all' || trip.vehicleId === filters.vehicle) &&
-            (filters.status === 'all' || trip.status === filters.status),
-        )
+        .filter((trip) => matchesAgendaFilters(trip, filters) && days.includes(trip.date))
         .sort((a, b) => a.date.localeCompare(b.date) || a.serviceRange[0].localeCompare(b.serviceRange[0])),
     [allRequests, days, filters],
   )
 
-  const marked = useMemo(() => {
-    const dates = new Set<string>()
-    allRequests.filter((request) => request.status !== 'Cancelada').forEach((request) => dates.add(request.date))
-    return dates
-  }, [allRequests])
+  // Todas las fechas visibles, no solo la semana: el calendario mensual también
+  // necesita marcar los días de afuera.
+  const marked = useMemo(() => agendaMarkedDates(allRequests, filters), [allRequests, filters])
 
   // Same filter options and same active count as the desktop toolbar.
   const activeFilters = countActiveFilters(filters)
@@ -485,6 +483,15 @@ export function AgendaPage() {
                 </Badge>
               }
             />
+            {/* Los mismos chips del escritorio, debajo del selector de días. */}
+            <Box sx={{ mt: activeFilters > 0 ? 1 : 0 }}>
+              <ActiveFilterChips
+                filters={filters}
+                onChange={setFilters}
+                drivers={drivers}
+                vehicles={vehicles}
+              />
+            </Box>
           </Box>
         ) : (
           <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${color.border}` }}>

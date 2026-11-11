@@ -3,6 +3,7 @@ import {
   Badge,
   Box,
   Button,
+  Chip,
   FormControl,
   IconButton,
   InputLabel,
@@ -13,11 +14,11 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { CalendarMonth, ChevronLeft, ChevronRight, Tune } from '@mui/icons-material'
+import { CalendarMonth, ChevronLeft, ChevronRight, Close, Tune } from '@mui/icons-material'
 import { MiniCalendar } from './MiniCalendar'
 import { SegmentedControl } from './SegmentedControl'
 import { ESTADOS_AGENDA } from './AgendaGrid'
-import { color, type } from '../design/tokens'
+import { color, radius, type } from '../design/tokens'
 import { fmtRange } from '../agendaDates'
 import type { Driver, Vehicle } from '../types'
 
@@ -107,6 +108,71 @@ function FilterSelect({
         ))}
       </Select>
     </FormControl>
+  )
+}
+
+/**
+ * Chips de los filtros activos. Repiten el label del selector (misma fuente, sin
+ * duplicar nombres) y se quitan con la X. Sin filtros no renderizan nada: el
+ * encabezado no carga un contenedor vacío.
+ */
+export function ActiveFilterChips({
+  filters,
+  onChange,
+  drivers,
+  vehicles,
+}: {
+  filters: AgendaFilters
+  onChange: (filters: AgendaFilters) => void
+  drivers: Driver[]
+  vehicles: Vehicle[]
+}) {
+  const chips: { key: keyof AgendaFilters; label: string }[] = []
+  if (filters.driver !== 'all') {
+    const label = driverFilterOptions(drivers).find((option) => option.value === filters.driver)?.label
+    chips.push({ key: 'driver', label: `Chofer: ${label ?? filters.driver}` })
+  }
+  if (filters.vehicle !== 'all') {
+    const label = vehicleFilterOptions(vehicles).find((option) => option.value === filters.vehicle)?.label
+    chips.push({ key: 'vehicle', label: `Vehículo: ${label ?? filters.vehicle}` })
+  }
+  if (filters.status !== 'all') {
+    const label = statusFilterOptions().find((option) => option.value === filters.status)?.label
+    chips.push({ key: 'status', label: `Estado: ${label ?? filters.status}` })
+  }
+
+  if (chips.length === 0) return null
+
+  return (
+    <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', rowGap: 0.75, columnGap: 0.75, minWidth: 0 }}>
+      {chips.map((chip) => (
+        <Chip
+          key={chip.key}
+          label={chip.label}
+          onClick={() => onChange({ ...filters, [chip.key]: 'all' })}
+          onDelete={() => onChange({ ...filters, [chip.key]: 'all' })}
+          deleteIcon={<Close sx={{ fontSize: 16 }} />}
+          aria-label={`Quitar filtro ${chip.label}`}
+          sx={{
+            height: 'auto',
+            minHeight: { xs: 40, md: 28 },
+            maxWidth: '100%',
+            borderRadius: `${radius.pill}px`,
+            bgcolor: color.blueSoft,
+            border: `1px solid ${color.border}`,
+            color: color.navy,
+            fontWeight: 700,
+            fontSize: type.caption,
+            '& .MuiChip-label': { px: 1.25, py: 0.5, minWidth: 0, overflowWrap: 'anywhere' },
+            '& .MuiChip-deleteIcon': {
+              color: color.muted,
+              mr: 0.6,
+              '&:hover': { color: color.navy },
+            },
+          }}
+        />
+      ))}
+    </Stack>
   )
 }
 
@@ -217,6 +283,13 @@ export function AgendaToolbar({
         >
           {rangeLabel}
         </Button>
+
+        <ActiveFilterChips
+          filters={filters}
+          onChange={onFiltersChange}
+          drivers={drivers}
+          vehicles={vehicles}
+        />
 
         <Box sx={{ flexGrow: 1 }} />
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { agendaTripsInSlot, driverDayAgenda, overlaps } from './planificacionAgenda'
+import { agendaMarkedDates, agendaTripsInSlot, driverDayAgenda, matchesAgendaFilters, overlaps } from './planificacionAgenda'
 import type { ShiftRequest } from '../types'
 
 /**
@@ -98,5 +98,60 @@ describe('driverDayAgenda', () => {
 
   it('devuelve vacio sin chofer seleccionado', () => {
     expect(driverDayAgenda([trip({ id: 'FEX-A', driverId: '7' })], '')).toEqual([])
+  })
+})
+
+describe('filtros de la agenda y puntitos del calendario', () => {
+  const sinFiltros = { driver: 'all', vehicle: 'all', status: 'all' }
+
+  // Dos choferes y dos vehiculos, con el 19 compartido por ambos.
+  const agenda = [
+    trip({ id: 'FEX-1', date: '2026-11-19', driverId: 'agus', vehicleId: 'v1' }),
+    trip({ id: 'FEX-2', date: '2026-11-20', driverId: 'emanuel', vehicleId: 'v2' }),
+    trip({
+      id: 'FEX-3',
+      date: '2026-11-19',
+      driverId: 'emanuel',
+      vehicleId: 'v2',
+      status: 'Pendiente de seña',
+    }),
+  ]
+
+  it('sin filtros la grilla y los puntitos muestran todo', () => {
+    expect(agenda.filter((item) => matchesAgendaFilters(item, sinFiltros))).toHaveLength(3)
+    expect([...agendaMarkedDates(agenda, sinFiltros)].sort()).toEqual(['2026-11-19', '2026-11-20'])
+  })
+
+  it('un filtro de chofer apaga los dias que solo tienen viajes de otro', () => {
+    const filtros = { ...sinFiltros, driver: 'agus' }
+
+    // El 20 es solo de Emanuel: sin puntito. El 19 sobrevive por FEX-1.
+    expect([...agendaMarkedDates(agenda, filtros)]).toEqual(['2026-11-19'])
+  })
+
+  it('el filtro de vehiculo compara contra la PK, no contra la patente', () => {
+    const porPk = { ...sinFiltros, vehicle: 'v2' }
+    const porPatente = { ...sinFiltros, vehicle: 'AB123CD' }
+
+    expect([...agendaMarkedDates(agenda, porPk)].sort()).toEqual(['2026-11-19', '2026-11-20'])
+    expect([...agendaMarkedDates(agenda, porPatente)]).toEqual([])
+  })
+
+  it('dos filtros activos se aplican juntos sobre la misma fecha', () => {
+    const filtros = { ...sinFiltros, driver: 'emanuel', status: 'Pendiente de seña' }
+
+    expect([...agendaMarkedDates(agenda, filtros)]).toEqual(['2026-11-19'])
+  })
+
+  it('sin coincidencias no queda ningun dia marcado', () => {
+    expect([...agendaMarkedDates(agenda, { ...sinFiltros, driver: 'nadie' })]).toEqual([])
+  })
+
+  it('un cancelado marca el dia cuando el filtro lo pide', () => {
+    const cancelada = trip({ id: 'FEX-4', date: '2026-11-21', driverId: 'agus', status: 'Cancelada' })
+    const filtros = { ...sinFiltros, status: 'Cancelada' }
+
+    // El calendario y la grilla tienen que mostrar el mismo conjunto.
+    expect([...agendaMarkedDates([...agenda, cancelada], filtros)]).toEqual(['2026-11-21'])
   })
 })
