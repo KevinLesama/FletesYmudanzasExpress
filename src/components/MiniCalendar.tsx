@@ -91,7 +91,6 @@ export function MiniCalendar({
                 fontWeight: isSelected ? 800 : 600,
                 color: isSelected ? '#FFFFFF' : isToday || hasTrips ? brand.navy : '#5C6B7A',
                 bgcolor: isSelected ? brand.navy : 'transparent',
-                boxShadow: isToday && !isSelected ? 'inset 0 0 0 1.5px #132B4A' : 'none',
                 cursor: 'pointer',
                 position: 'relative',
                 '&:hover': { bgcolor: isSelected ? brand.navy : 'rgba(19,43,74,0.06)' },
@@ -107,7 +106,10 @@ export function MiniCalendar({
                   width: 4,
                   height: 4,
                   borderRadius: 50,
-                  bgcolor: hasTrips ? brand.orange : isToday && !isSelected ? '#8A929B' : 'transparent',
+                  // Solo hay punto si hay viajes: "hoy" ya se lee en el anillo y
+                  // el texto en navy. Un punto gris de fallback se confundía con
+                  // el indicador de viajes cuando un filtro dejaba el día vacío.
+                  bgcolor: hasTrips ? brand.orange : 'transparent',
                 }}
               />
             </Box>
