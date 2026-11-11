@@ -201,6 +201,10 @@ class Solicitud(Base):
     descarga_min_confirmado: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Margen operativo vigente al planificar: lo escribe
+    # fn_fijar_margen_operativo() desde configuracion_sistema y lo usan las
+    # restricciones EXCLUDE de agenda.
+    margen_operativo_min: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     horas_estimadas: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     # Tarifas del chofer al momento de cotizar: si manana cambia su tarifa, el
     # viaje conserva el numero con el que se le pago.
@@ -276,6 +280,10 @@ class Solicitud(Base):
         CheckConstraint(
             "descarga_min IS NULL OR descarga_min BETWEEN 0 AND 1440",
             name="ck_solicitudes_descarga",
+        ),
+        CheckConstraint(
+            "margen_operativo_min BETWEEN 0 AND 1440",
+            name="ck_solicitudes_margen_operativo",
         ),
         CheckConstraint(
             "NOT carga_min_confirmado OR carga_min IS NOT NULL",

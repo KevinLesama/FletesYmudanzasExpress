@@ -73,7 +73,11 @@
 -- REGLAS DE NEGOCIO QUE ESTA BASE HACE CUMPLIR SOLA
 --   1. Solo los viajes 'confirmada' reservan recursos; los 'pendiente'
 --      generan advertencias. La reserva llega hasta hora_hasta (llegada al
---      destino) + descarga_min + 30 minutos de margen operativo.
+--      destino) + descarga_min + margen operativo.
+--      El margen se copia de configuracion_sistema.margen_operativo_min a
+--      solicitudes.margen_operativo_min al escribir el viaje, porque un índice
+--      EXCLUDE no puede leer otra tabla. Así la base usa el valor configurado
+--      y no una constante.
 --      PostgreSQL impide solapamientos incluso ante confirmaciones concurrentes.
 --   2. Un viaje no se puede confirmar ni finalizar sin chofer y vehículo.
 --   3. Un cliente no puede figurar como chofer (ni al revés): las claves
@@ -351,6 +355,10 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     descarga_min           integer,
     carga_min_confirmado   boolean       NOT NULL DEFAULT false,
     descarga_min_confirmado boolean      NOT NULL DEFAULT false,
+    -- Margen operativo vigente cuando se escribió el viaje. Lo copia
+    -- fn_fijar_margen_operativo() desde configuracion_sistema: la expresión de
+    -- un índice EXCLUDE tiene que ser inmutable y no puede consultar tablas.
+    margen_operativo_min   integer       NOT NULL DEFAULT 30,
     horas_estimadas        numeric(6,2),
     -- Tarifas del chofer al momento de cotizar: el viaje conserva el número
     -- con el que se pagó aunque mañana cambie su configuración.
@@ -398,6 +406,8 @@ CREATE TABLE IF NOT EXISTS solicitudes (
         carga_min IS NULL OR carga_min BETWEEN 0 AND 1440),
     CONSTRAINT ck_solicitudes_descarga CHECK (
         descarga_min IS NULL OR descarga_min BETWEEN 0 AND 1440),
+    CONSTRAINT ck_solicitudes_margen_operativo CHECK (
+        margen_operativo_min BETWEEN 0 AND 1440),
     CONSTRAINT ck_solicitudes_carga_confirmada CHECK (
         NOT carga_min_confirmado OR carga_min IS NOT NULL),
     CONSTRAINT ck_solicitudes_descarga_confirmada CHECK (
@@ -466,11 +476,13 @@ CREATE TABLE IF NOT EXISTS solicitudes (
 
     -- El horario termina al llegar al destino. La descarga y el margen
     -- operativo reservan el recurso; ambos son independientes de la espera facturada.
+    -- El margen sale de la fila (lo congela fn_fijar_margen_operativo) para
+    -- reflejar configuracion_sistema.margen_operativo_min.
     CONSTRAINT ex_solicitudes_chofer_sin_solape EXCLUDE USING gist (
         chofer_id WITH =,
         tsrange(
             fecha + hora_desde,
-            fecha + hora_hasta + make_interval(mins => descarga_min + 30),
+            fecha + hora_hasta + make_interval(mins => descarga_min + margen_operativo_min),
             '[)'
         ) WITH &&
     ) WHERE (estado = 'confirmada'),
@@ -480,7 +492,7 @@ CREATE TABLE IF NOT EXISTS solicitudes (
         vehiculo_id WITH =,
         tsrange(
             fecha + hora_desde,
-            fecha + hora_hasta + make_interval(mins => descarga_min + 30),
+            fecha + hora_hasta + make_interval(mins => descarga_min + margen_operativo_min),
             '[)'
         ) WITH &&
     ) WHERE (estado = 'confirmada')
@@ -519,6 +531,8 @@ COMMENT ON COLUMN solicitudes.carga_min IS
     'Minutos de carga definidos por administración; NULL mientras no se confirmen. Se suman al inicio y a la ETA de Maps para calcular hora_hasta.';
 COMMENT ON COLUMN solicitudes.descarga_min IS
     'Minutos de descarga definidos por administración; NULL mientras no se confirmen. Extiende la ocupación tras la llegada.';
+COMMENT ON COLUMN solicitudes.margen_operativo_min IS
+    'Margen operativo de configuracion_sistema al momento de planificar el viaje. Es el colchón que la restricción de agenda reserva después de la descarga.';
 COMMENT ON COLUMN solicitudes.costo_chofer IS
     'Tarifa base + km totales * tarifa por km + horas totales * tarifa por hora.';
 COMMENT ON COLUMN solicitudes.tarifa_base_aplicada IS
@@ -775,7 +789,32 @@ BEGIN
 END;
 $$;
 
--- 6.6 Disparadores.
+-- 6.6 Congelar el margen operativo en la fila. La restricción EXCLUDE compara
+--     rangos y su expresión tiene que ser inmutable, así que no puede leer
+--     configuracion_sistema: se copia el valor al escribir el viaje.
+--     Se refresca cuando cambia la planificación o el estado (ahí es cuando se
+--     reserva), no en cualquier UPDATE: editar una nota no puede mover una
+--     reserva ya tomada.
+CREATE OR REPLACE FUNCTION fn_fijar_margen_operativo()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT c.margen_operativo_min
+      INTO NEW.margen_operativo_min
+      FROM configuracion_sistema c
+     WHERE c.id = 1;
+
+    -- La configuración todavía no tiene fila: se usa el mismo default del esquema.
+    IF NEW.margen_operativo_min IS NULL THEN
+        NEW.margen_operativo_min := 30;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- 6.7 Disparadores.
 --     Se recrean en cada corrida para que el archivo sea idempotente.
 DO $$
 DECLARE
@@ -823,6 +862,13 @@ BEGIN
     CREATE TRIGGER tr_pagos_validar_monto
         BEFORE INSERT OR UPDATE ON pagos
         FOR EACH ROW EXECUTE FUNCTION fn_validar_pago();
+
+    -- Margen operativo de la reserva: se congela en la fila al planificar.
+    DROP TRIGGER IF EXISTS tr_solicitudes_margen_operativo ON solicitudes;
+    CREATE TRIGGER tr_solicitudes_margen_operativo
+        BEFORE INSERT OR UPDATE OF fecha, hora_desde, hora_hasta, descarga_min, estado
+        ON solicitudes
+        FOR EACH ROW EXECUTE FUNCTION fn_fijar_margen_operativo();
 END;
 $$;
 

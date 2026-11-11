@@ -58,7 +58,7 @@ esos hace falta una migración con `ALTER TABLE`.
 `migrate_load_time` → `migrate_operational_availability` →
 `migrate_custom_download_minutes` → `migrate_explicit_planning_times` →
 `migrate_system_settings` → `migrate_configuracion_sistema_fix` →
-`migrate_drop_legacy_mock`
+`migrate_drop_legacy_mock` → `migrate_margen_operativo_reserva`
 
 El orden importa: `migrate_operational_availability` deja `descarga_min` como
 `NOT NULL DEFAULT 60`, `migrate_custom_download_minutes` reemplaza su CHECK por
