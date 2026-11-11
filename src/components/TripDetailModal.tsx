@@ -53,6 +53,7 @@ export function TripDetailModal({
   driverName,
   vehicleName,
   role,
+  bufferMinutes,
   onClose,
   onOpenPlan,
   earnings,
@@ -67,6 +68,8 @@ export function TripDetailModal({
   driverName?: string
   vehicleName?: string
   role: 'admin' | 'chofer'
+  /** Margen operativo para extender el fin del bloque hasta la liberación real. */
+  bufferMinutes?: number | null
   onClose: () => void
   onOpenPlan?: () => void
   earnings?: { lines: { label: string; value: number }[]; total: number }
@@ -161,7 +164,7 @@ export function TripDetailModal({
         </Stack>
 
         <DialogContent sx={{ px: { xs: 2.5, md: 3 }, py: 1.5 }}>
-          <TrackingHero trip={trip} />
+          <TrackingHero trip={trip} bufferMinutes={bufferMinutes} />
           <StatusStepper stage={stage} cancelled={trip.status === 'Cancelada'} />
 
           <Divider sx={{ my: { xs: 2, md: 2.5 }, borderColor: color.borderSoft }} />

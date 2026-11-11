@@ -1,10 +1,11 @@
 import { Box, Button, Stack, Typography } from '@mui/material'
-import { Check, Inventory2, Schedule } from '@mui/icons-material'
+import { Check, Inventory2 } from '@mui/icons-material'
 import { color, motion, type } from '../design/tokens'
 import { formatShortPlace, joinParts } from '../format'
 import { PlaceMarker } from './PlaceMarker'
 import { STAGES, groupUpdatesByDay, stageIndex } from '../tripUpdates'
 import type { TripUpdate } from '../tripUpdates'
+import { agendaBlockRange } from '../pages/planificacionHorarios'
 import type { ShiftRequest } from '../types'
 
 export { STAGES, buildUpdates, stageIndex } from '../tripUpdates'
@@ -12,7 +13,32 @@ export type { TripUpdate } from '../tripUpdates'
 
 const HERO = "'Manrope', sans-serif"
 
-const canceledTone = (cancelled: boolean) => (cancelled ? color.red : color.green)
+/** Número grande del encabezado: la hora de inicio y, si hay planificación, la del fin. */
+const heroTime = (complete: boolean) => ({
+  fontFamily: HERO,
+  fontWeight: 800,
+  fontSize: complete ? { xs: 22, md: 28 } : { xs: 30, md: 38 },
+  lineHeight: 1,
+  letterSpacing: '-0.03em',
+  color: color.navy,
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap' as const,
+})
+
+/** Rótulo debajo de cada hora, para que se entienda cuál es cuál. */
+const heroTimeCaption = {
+  fontSize: type.micro,
+  fontWeight: 700,
+  color: color.muted,
+  mt: 0.5,
+  whiteSpace: 'nowrap' as const,
+}
+
+/**
+ * Columna de una hora. El ancho lo define el rótulo, que es más ancho que el
+ * número; centrar el texto deja cada hora centrada sobre su propio rótulo.
+ */
+const heroColumn = { textAlign: 'center' as const }
 
 const hhmm = (iso?: string) => (iso && iso.length >= 16 ? iso.slice(11, 16) : '')
 
@@ -23,9 +49,7 @@ export function updatedAt(trip: ShiftRequest) {
   return realTime || hhmm(lastIncident) || trip.serviceRange[1]
 }
 
-export function TrackingHero({ trip }: { trip: ShiftRequest }) {
-  const cancelled = trip.status === 'Cancelada'
-  const finished = Boolean(trip.finishedAt)
+export function TrackingHero({ trip, bufferMinutes }: { trip: ShiftRequest; bufferMinutes?: number | null }) {
   // La flecha sólo tiene sentido con origen y destino; si falta uno, queda el
   // nombre del cliente solo, sin flecha ni separador colgado.
   const route =
@@ -33,6 +57,9 @@ export function TrackingHero({ trip }: { trip: ShiftRequest }) {
       ? `${trip.origin.barrio} → ${trip.destination.barrio}`
       : ''
   const subtitle = joinParts([route, trip.client])
+  // Mismo criterio que la agenda: el fin solo aparece con llegada, carga y
+  // descarga planificadas; si falta alguna, queda únicamente el inicio.
+  const range = agendaBlockRange(trip, bufferMinutes ?? null)
   return (
     <Stack
       direction={{ xs: 'column', sm: 'row' }}
@@ -59,37 +86,37 @@ export function TrackingHero({ trip }: { trip: ShiftRequest }) {
         )}
       </Box>
 
-      <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, flexShrink: 0 }}>
-        <Typography
-          sx={{
-            fontFamily: HERO,
-            fontWeight: 800,
-            fontSize: { xs: 30, md: 38 },
-            lineHeight: 1,
-            letterSpacing: '-0.03em',
-            color: color.navy,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {trip.serviceRange[0]}
-        </Typography>
-        <Stack
-          direction="row"
-          spacing={0.5}
-          alignItems="center"
-          justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
-          sx={{ mt: 0.5 }}
-        >
-          {finished ? (
-            <Check sx={{ fontSize: 14, color: cancelled ? color.red : color.green }} />
-          ) : (
-            <Schedule sx={{ fontSize: 14, color: canceledTone(cancelled) }} />
-          )}
-          <Typography sx={{ fontSize: type.caption, fontWeight: 700, color: canceledTone(cancelled) }}>
-            Servicio {trip.serviceRange[0]}–{trip.serviceRange[1]}
-          </Typography>
-        </Stack>
-      </Box>
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="flex-start"
+        sx={{ textAlign: 'center', flexShrink: 0 }}
+      >
+        <Box sx={heroColumn}>
+          <Typography sx={heroTime(range.complete)}>{range.start}</Typography>
+          <Typography sx={heroTimeCaption}>Inicio del trabajo</Typography>
+        </Box>
+        {range.complete && (
+          <>
+            <Typography
+              aria-hidden
+              sx={{
+                fontFamily: HERO,
+                fontWeight: 800,
+                fontSize: { xs: 22, md: 28 },
+                lineHeight: 1,
+                color: color.muted,
+              }}
+            >
+              –
+            </Typography>
+            <Box sx={heroColumn}>
+              <Typography sx={heroTime(range.complete)}>{range.end}</Typography>
+              <Typography sx={heroTimeCaption}>Fin del trabajo</Typography>
+            </Box>
+          </>
+        )}
+      </Stack>
     </Stack>
   )
 }

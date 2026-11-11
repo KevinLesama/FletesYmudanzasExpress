@@ -40,6 +40,7 @@ import { loadSettings } from '../settingsStore'
 import { currentUser } from '../supabase'
 import type { ShiftRequest } from '../types'
 import { isTripInProgress, useMapTrips } from '../useMapTrips'
+import { agendaBlockRange } from './planificacionHorarios'
 
 const summaryLinkSx = {
   color: color.navy,
@@ -104,6 +105,10 @@ export function AgendaPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const requestsState = useAsync(() => api.listRequests(), [])
+  // El margen operativo vive en la base (`configuracion_sistema`), no en el
+  // perfil local: la agenda tiene que bloquear el mismo tiempo que el backend.
+  const settingsState = useAsync(() => api.getSystemSettings(), [])
+  const bufferMinutes = settingsState.data?.operationalBufferMinutes ?? null
   const catalogState = useAsync(async () => {
     const [drivers, vehicles] = await Promise.all([api.listDrivers(), api.listVehicles()])
     return { drivers, vehicles }
@@ -454,6 +459,7 @@ export function AgendaPage() {
             {trips.map((trip) => {
               const vehicle = vehicleFor(trip)
               const crew = joinParts([driverNameFor(trip), vehicle?.type])
+              const range = agendaBlockRange(trip, bufferMinutes)
               return (
                 <MobileCard
                   key={trip.id}
@@ -461,7 +467,7 @@ export function AgendaPage() {
                   header={
                     <>
                       <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.2, color: color.navy }}>
-                        {trip.serviceRange[0]}–{trip.serviceRange[1]}
+                        {range.complete ? `${range.start}–${range.end}` : range.start}
                       </Typography>
                       <Box sx={{ flexGrow: 1 }} />
                       <StatusChip label={trip.status} />
@@ -498,6 +504,7 @@ export function AgendaPage() {
               today={today}
               now={now}
               fill
+              bufferMinutes={bufferMinutes}
               onOpenTrip={(trip) => openTripDetail(trip.id)}
             />
           </Box>
@@ -568,6 +575,7 @@ export function AgendaPage() {
           role="admin"
           driverName={selectedDriverName}
           vehicleName={selectedVehicleName}
+          bufferMinutes={bufferMinutes}
           onClose={() => setSelectedId(null)}
           onOpenPlan={() => {
             window.location.href = R.planificacion(selected.id)

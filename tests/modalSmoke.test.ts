@@ -59,3 +59,52 @@ export function renderModal(trip) {
     rmSync(outdir, { recursive: true, force: true })
   }
 })
+
+test('TrackingHero muestra inicio y fin solo con la planificación completa', async () => {
+  const outdir = mkdtempSync(join(root, '.tmp-hero-smoke-'))
+  const entry = join(outdir, 'entry.tsx')
+  const outfile = join(outdir, 'entry.cjs')
+
+  writeFileSync(
+    entry,
+    `import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
+import { TrackingHero } from '../src/components/TripTracking'
+export function renderHero(trip, bufferMinutes) {
+  return renderToString(createElement(TrackingHero, { trip, bufferMinutes }))
+}
+`,
+  )
+
+  try {
+    await build({
+      entryPoints: [entry],
+      bundle: true,
+      platform: 'node',
+      format: 'cjs',
+      outfile,
+      logLevel: 'silent',
+    })
+
+    const require = createRequire(import.meta.url)
+    const { renderHero } = require(outfile) as {
+      renderHero: (trip: unknown, bufferMinutes?: number | null) => string
+    }
+
+    const planned = { ...agendaTrip, loadMinutes: 60, downloadMinutes: 60 }
+    const complete = renderHero(planned, 30)
+    assert.match(complete, /09:00/)
+    assert.match(complete, /12:30/)
+    assert.match(complete, /Inicio del trabajo/)
+    assert.match(complete, /Fin del trabajo/)
+
+    // Sin descarga confirmada no hay fin: queda solo el inicio, sin guion colgado.
+    const noDownload = renderHero({ ...planned, downloadMinutes: undefined }, 30)
+    assert.match(noDownload, /09:00/)
+    assert.match(noDownload, /Inicio del trabajo/)
+    assert.doesNotMatch(noDownload, /Fin del trabajo/)
+    assert.doesNotMatch(noDownload, /–/)
+  } finally {
+    rmSync(outdir, { recursive: true, force: true })
+  }
+})

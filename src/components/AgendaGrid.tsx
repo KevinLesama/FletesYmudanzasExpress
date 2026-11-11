@@ -4,10 +4,11 @@ import { color, type } from '../design/tokens'
 import { dayNumber, weekdayShort } from '../agendaDates'
 import { formatShortPlace } from '../format'
 import { loadSettings } from '../settingsStore'
+import { agendaBlockRange, type AgendaBlockRange } from '../pages/planificacionHorarios'
 import type { RequestStatus, ShiftRequest } from '../types'
 
 const HOUR_START = 7
-const HOUR_END = 19
+const HOUR_END = 21
 const MIN_START = HOUR_START * 60
 const MIN_END = HOUR_END * 60
 const GUTTER = 62
@@ -38,20 +39,24 @@ interface Placed {
   cols: number
 }
 
+type Range = AgendaBlockRange
+
 /** Greedy lane packing for the overlapping trips of a single day. */
-function computeLanes(trips: ShiftRequest[]): Placed[] {
-  const sorted = [...trips].sort((a, b) => toMin(a.serviceRange[0]) - toMin(b.serviceRange[0]))
+function computeLanes(trips: ShiftRequest[], ranges: Map<string, Range>): Placed[] {
+  const rangeOf = (trip: ShiftRequest): Range =>
+    ranges.get(trip.id) ?? { start: trip.serviceRange[0], end: trip.serviceRange[1], complete: false }
+  const sorted = [...trips].sort((a, b) => toMin(rangeOf(a).start) - toMin(rangeOf(b).start))
   const clusters: ShiftRequest[][] = []
   let current: ShiftRequest[] = []
   let barrier = -1
   for (const trip of sorted) {
-    const start = toMin(trip.serviceRange[0])
+    const start = toMin(rangeOf(trip).start)
     if (current.length > 0 && start >= barrier) {
       clusters.push(current)
       current = []
     }
     current.push(trip)
-    barrier = Math.max(barrier, toMin(trip.serviceRange[1]))
+    barrier = Math.max(barrier, toMin(rangeOf(trip).end))
   }
   if (current.length) clusters.push(current)
 
@@ -60,8 +65,8 @@ function computeLanes(trips: ShiftRequest[]): Placed[] {
     const lanes: ShiftRequest[][] = []
     const assignments: { trip: ShiftRequest; lane: number }[] = []
     for (const trip of cluster) {
-      const start = toMin(trip.serviceRange[0])
-      let lane = lanes.findIndex((l) => l.length === 0 || toMin(l[l.length - 1].serviceRange[1]) <= start)
+      const start = toMin(rangeOf(trip).start)
+      let lane = lanes.findIndex((l) => l.length === 0 || toMin(rangeOf(l[l.length - 1]).end) <= start)
       if (lane === -1) {
         lane = lanes.length
         lanes.push([])
@@ -104,9 +109,21 @@ function fullPlaceLabel(place: ShiftRequest['origin']): string {
   return [place.label, place.address, place.barrio].filter(Boolean).join(' · ')
 }
 
-function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: number; cols: number; onOpen: () => void }) {
-  const startMin = Math.max(MIN_START, Math.min(MIN_END, toMin(trip.serviceRange[0])))
-  const endMin = Math.max(MIN_START, Math.min(MIN_END, toMin(trip.serviceRange[1])))
+function TripBlock({
+  trip,
+  range,
+  lane,
+  cols,
+  onOpen,
+}: {
+  trip: ShiftRequest
+  range: Range
+  lane: number
+  cols: number
+  onOpen: () => void
+}) {
+  const startMin = Math.max(MIN_START, Math.min(MIN_END, toMin(range.start)))
+  const endMin = Math.max(MIN_START, Math.min(MIN_END, toMin(range.end)))
   const top = ((startMin - MIN_START) / 60) * ROW_H + 2
   const height = Math.max(30, ((endMin - startMin) / 60) * ROW_H)
   const style = styleFor(trip.status)
@@ -115,13 +132,21 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
   const cancelled = trip.status === 'Cancelada'
   const origin = formatShortPlace(trip.origin)
   const destination = formatShortPlace(trip.destination)
+  const arrival = trip.serviceRange[1]
+  const arrivalDetail = arrival && arrival !== range.end ? `Llegada ${arrival}` : ''
+  // El fin solo se muestra con la planificación completa: si falta la llegada,
+  // la carga o la descarga, queda únicamente el inicio.
+  const timeLabel = range.complete ? `${range.start}–${range.end}` : range.start
   const title = [
     trip.client,
     trip.id,
-    `${trip.serviceRange[0]} – ${trip.serviceRange[1]}`,
+    timeLabel,
+    arrivalDetail,
     `${fullPlaceLabel(trip.origin)} → ${fullPlaceLabel(trip.destination)}`,
     `Estado: ${trip.status}`,
-  ].join(' · ')
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <Box
@@ -134,7 +159,7 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
           onOpen()
         }
       }}
-      aria-label={`${trip.id} · ${trip.client} · ${trip.serviceRange.join(' a ')} · ${trip.status}`}
+      aria-label={`${trip.id} · ${trip.client} · ${timeLabel} · ${trip.status}`}
       title={title}
       sx={{
         position: 'absolute',
@@ -175,13 +200,13 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
             textDecoration: cancelled ? 'line-through' : 'none',
           }}
         >
-          {`${trip.serviceRange[0]} · ${trip.client}`}
+          {`${range.start} · ${trip.client}`}
         </Typography>
       ) : (
         <>
           <Typography
             sx={{
-              fontSize: 11,
+              fontSize: cols > 1 ? 10 : 11,
               fontWeight: 800,
               letterSpacing: '0.02em',
               color: style.ink,
@@ -191,7 +216,7 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
               textOverflow: 'ellipsis',
             }}
           >
-            {cols === 1 ? `${trip.serviceRange[0]}–${trip.serviceRange[1]}` : trip.serviceRange[0]}
+            {timeLabel}
           </Typography>
           <Typography
             sx={{
@@ -260,16 +285,21 @@ function TripBlock({ trip, lane, cols, onOpen }: { trip: ShiftRequest; lane: num
 
 function DayColumn({
   trips,
+  bufferMinutes,
   isToday,
   nowMinutes,
   onOpenTrip,
 }: {
   trips: ShiftRequest[]
+  bufferMinutes: number | null
   isToday: boolean
   nowMinutes?: number
   onOpenTrip: (trip: ShiftRequest) => void
 }) {
-  const placed = computeLanes(trips)
+  const ranges = new Map<string, Range>(
+    trips.map((trip) => [trip.id, agendaBlockRange(trip, bufferMinutes)]),
+  )
+  const placed = computeLanes(trips, ranges)
   const nowPosition =
     nowMinutes !== undefined && nowMinutes >= MIN_START && nowMinutes <= MIN_END
       ? ((nowMinutes - MIN_START) / 60) * ROW_H
@@ -335,7 +365,14 @@ function DayColumn({
         />
       ))}
       {placed.map(({ trip, lane, cols }) => (
-        <TripBlock key={trip.id} trip={trip} lane={lane} cols={cols} onOpen={() => onOpenTrip(trip)} />
+        <TripBlock
+          key={trip.id}
+          trip={trip}
+          range={ranges.get(trip.id) ?? { start: trip.serviceRange[0], end: trip.serviceRange[1], complete: false }}
+          lane={lane}
+          cols={cols}
+          onOpen={() => onOpenTrip(trip)}
+        />
       ))}
     </Box>
   )
@@ -347,6 +384,7 @@ export function AgendaGrid({
   today,
   now,
   fill,
+  bufferMinutes = null,
   onOpenTrip,
 }: {
   days: string[]
@@ -355,6 +393,8 @@ export function AgendaGrid({
   now?: Date
   /** El grid ocupa el alto disponible y hace scroll interno, con el encabezado fijo. */
   fill?: boolean
+  /** Margen operativo configurado: extiende cada bloque hasta el fin real del trabajo. */
+  bufferMinutes?: number | null
   onOpenTrip: (trip: ShiftRequest) => void
 }) {
   const tripsByDay = new Map<string, ShiftRequest[]>()
@@ -500,6 +540,7 @@ export function AgendaGrid({
             <DayColumn
               key={day}
               trips={tripsByDay.get(day) ?? []}
+              bufferMinutes={bufferMinutes}
               isToday={day === today}
               nowMinutes={day === today ? nowMinutes : undefined}
               onOpenTrip={onOpenTrip}
