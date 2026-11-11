@@ -83,10 +83,46 @@ function getMinutesInTimeZone(date: Date, timeZone: string) {
   return hour * 60 + minute
 }
 
+const AGENDA_STATE_KEY = 'fex_agenda_state'
+
+interface AgendaNavigationState {
+  anchor: string
+  view: AgendaView
+  filters: AgendaFilters
+}
+
+/**
+ * Última fecha, vista y filtros usados. La agenda se va a `/planificacion` con
+ * `window.location`, así que sin esto volver del detalle siempre recae en la
+ * semana actual y pierde el filtro que estabas mirando.
+ */
+function readNavigationState(): AgendaNavigationState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(AGENDA_STATE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const { anchor, view, filters } = parsed as Record<string, unknown>
+    if (typeof anchor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(anchor)) return null
+    if (view !== 'day' && view !== 'workWeek') return null
+    if (!filters || typeof filters !== 'object') return null
+    const { driver, vehicle, status } = filters as Record<string, unknown>
+    if (typeof driver !== 'string' || typeof vehicle !== 'string' || typeof status !== 'string') return null
+    return { anchor, view, filters: { driver, vehicle, status } }
+  } catch (error) {
+    console.error('No se pudo restaurar el estado de la agenda.', error)
+    return null
+  }
+}
+
 export function AgendaPage() {
-  const [anchor, setAnchor] = useState(() => getInitialAnchor(new Date()))
-  const [view, setView] = useState<AgendaView>('workWeek')
-  const [filters, setFilters] = useState<AgendaFilters>(EMPTY_FILTERS)
+  // Se lee una sola vez, antes del primer render, para no mostrar la semana
+  // actual y saltar después a la guardada.
+  const [restored] = useState(readNavigationState)
+  const [anchor, setAnchor] = useState(() => restored?.anchor ?? getInitialAnchor(new Date()))
+  const [view, setView] = useState<AgendaView>(restored?.view ?? 'workWeek')
+  const [filters, setFilters] = useState<AgendaFilters>(() => restored?.filters ?? EMPTY_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Mobile only: the filters and the month picker live in bottom sheets.
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -121,6 +157,41 @@ export function AgendaPage() {
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  // Mantiene el estado de navegación en sessionStorage. Se guarda `view` (no
+  // `effectiveView`) para que el mobile no pise la vista elegida en desktop.
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(AGENDA_STATE_KEY, JSON.stringify({ anchor, view, filters }))
+    } catch (error) {
+      console.error('No se pudo guardar el estado de la agenda.', error)
+    }
+  }, [anchor, view, filters])
+
+  // Los bloques muestran chofer y vehículo: mapas armados una sola vez en vez de
+  // un `find` por tarjeta en cada render.
+  const driverNameById = useMemo(() => new Map(drivers.map((driver) => [driver.id, driver.name])), [drivers])
+  const vehicleNameById = useMemo(
+    () => new Map(vehicles.map((vehicle) => [vehicle.vehicleId, joinParts([vehicle.id, vehicle.type]) || vehicle.id])),
+    [vehicles],
+  )
+
+  // Un filtro restaurado puede apuntar a un chofer o vehículo que ya no existe:
+  // sin esto la agenda queda vacía y el select, en blanco, sin explicación.
+  useEffect(() => {
+    if (!catalogState.data) return
+    setFilters((current) => {
+      const driverOk = current.driver === 'all' || drivers.some((driver) => driver.id === current.driver)
+      const vehicleOk = current.vehicle === 'all' || vehicles.some((vehicle) => vehicle.vehicleId === current.vehicle)
+      const statusOk = current.status === 'all' || statusFilterOptions().some((option) => option.value === current.status)
+      if (driverOk && vehicleOk && statusOk) return current
+      return {
+        driver: driverOk ? current.driver : 'all',
+        vehicle: vehicleOk ? current.vehicle : 'all',
+        status: statusOk ? current.status : 'all',
+      }
+    })
+  }, [catalogState.data, drivers, vehicles])
 
   const selectMapTrip = (id: string | null) => {
     setMapTripId(id)
@@ -505,6 +576,8 @@ export function AgendaPage() {
               now={now}
               fill
               bufferMinutes={bufferMinutes}
+              driverNameById={driverNameById}
+              vehicleNameById={vehicleNameById}
               onOpenTrip={(trip) => openTripDetail(trip.id)}
             />
           </Box>

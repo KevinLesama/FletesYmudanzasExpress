@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { alpha, Box, Typography } from '@mui/material'
+import { alpha, Box, Tooltip, Typography } from '@mui/material'
 import { color, type } from '../design/tokens'
 import { dayNumber, weekdayShort } from '../agendaDates'
-import { formatShortPlace } from '../format'
+import { formatShortPlace, joinParts } from '../format'
 import { loadSettings } from '../settingsStore'
 import { agendaBlockRange, type AgendaBlockRange } from '../pages/planificacionHorarios'
 import type { RequestStatus, ShiftRequest } from '../types'
@@ -105,8 +105,66 @@ function getAgendaTime(date: Date, timeZone: string): { date: string; minutes: n
   }
 }
 
-function fullPlaceLabel(place: ShiftRequest['origin']): string {
-  return [place.label, place.address, place.barrio].filter(Boolean).join(' · ')
+/** Mapa vacío compartido para no crear uno nuevo en cada render. */
+const NO_NAMES = new Map<string, string>()
+
+/**
+ * Resumen del viaje sin abrir el modal. Va en tres niveles: horario y estado,
+ * a quién es, y con qué recursos se hace (con la ruta).
+ */
+function TripTooltip({
+  trip,
+  range,
+  driverName,
+  vehicleName,
+}: {
+  trip: ShiftRequest
+  range: Range
+  driverName?: string
+  vehicleName?: string
+}) {
+  const status = styleFor(trip.status)
+  const route = joinParts([formatShortPlace(trip.origin), formatShortPlace(trip.destination)], ' → ')
+  const crew = joinParts([driverName, vehicleName])
+  const arrival = trip.serviceRange[1]
+  return (
+    <Box sx={{ display: 'grid', gap: 0.4, minWidth: 180, maxWidth: 250 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+        <Typography
+          sx={{
+            fontFamily: "'Manrope', sans-serif",
+            fontSize: 13,
+            fontWeight: 800,
+            lineHeight: 1.2,
+            color: color.navy,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {range.complete ? `${range.start}–${range.end}` : range.start}
+        </Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2, color: status.ink, whiteSpace: 'nowrap' }}>
+          {trip.status}
+        </Typography>
+      </Box>
+      <Typography sx={{ fontSize: type.caption, fontWeight: 700, lineHeight: 1.3, color: color.navy }}>
+        {trip.client}
+      </Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.3, color: color.muted, fontVariantNumeric: 'tabular-nums' }}>
+        {trip.id}
+      </Typography>
+      {crew && (
+        <Typography sx={{ fontSize: 11, lineHeight: 1.3, color: color.ink }}>{crew}</Typography>
+      )}
+      {route && (
+        <Typography sx={{ fontSize: 11, lineHeight: 1.3, color: color.ink }}>{route}</Typography>
+      )}
+      {arrival && (
+        <Typography sx={{ fontSize: 11, lineHeight: 1.3, color: color.muted }}>
+          Llegada estimada {arrival}
+        </Typography>
+      )}
+    </Box>
+  )
 }
 
 function TripBlock({
@@ -114,12 +172,16 @@ function TripBlock({
   range,
   lane,
   cols,
+  driverNameById,
+  vehicleNameById,
   onOpen,
 }: {
   trip: ShiftRequest
   range: Range
   lane: number
   cols: number
+  driverNameById: Map<string, string>
+  vehicleNameById: Map<string, string>
   onOpen: () => void
 }) {
   const startMin = Math.max(MIN_START, Math.min(MIN_END, toMin(range.start)))
@@ -129,124 +191,137 @@ function TripBlock({
   const style = styleFor(trip.status)
   const compact = height < 44
   const showDetails = height >= 110
+  const showCrew = height >= 150
   const cancelled = trip.status === 'Cancelada'
   const origin = formatShortPlace(trip.origin)
   const destination = formatShortPlace(trip.destination)
-  const arrival = trip.serviceRange[1]
-  const arrivalDetail = arrival && arrival !== range.end ? `Llegada ${arrival}` : ''
+  const driverName = trip.driverId ? driverNameById.get(trip.driverId) : undefined
+  const vehicleName = trip.vehicleId ? vehicleNameById.get(trip.vehicleId) : undefined
+  const crew = joinParts([driverName, vehicleName])
   // El fin solo se muestra con la planificación completa: si falta la llegada,
   // la carga o la descarga, queda únicamente el inicio.
   const timeLabel = range.complete ? `${range.start}–${range.end}` : range.start
-  const title = [
-    trip.client,
-    trip.id,
-    timeLabel,
-    arrivalDetail,
-    `${fullPlaceLabel(trip.origin)} → ${fullPlaceLabel(trip.destination)}`,
-    `Estado: ${trip.status}`,
-  ]
-    .filter(Boolean)
-    .join(' · ')
 
   return (
-    <Box
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onOpen()
-        }
-      }}
-      aria-label={`${trip.id} · ${trip.client} · ${timeLabel} · ${trip.status}`}
-      title={title}
-      sx={{
-        position: 'absolute',
-        left: `calc(${(lane * 100) / cols}% + ${lane === 0 ? EDGE_GAP : COL_GAP / 2}px)`,
-        right: `calc(${((cols - 1 - lane) * 100) / cols}% + ${lane === cols - 1 ? EDGE_GAP : COL_GAP / 2}px)`,
-        top,
-        height,
-        borderRadius: 1.5,
-        border: `1px solid ${style.border}`,
-        borderLeft: `3px solid ${style.border}`,
-        bgcolor: style.bg,
-        px: 0.6,
-        py: compact ? '2px' : 0.6,
-        display: compact ? 'flex' : undefined,
-        flexDirection: compact ? 'column' : undefined,
-        justifyContent: compact ? 'center' : 'flex-start',
-        overflow: 'hidden',
-        cursor: 'pointer',
-        outline: 0,
-        zIndex: 1,
-        opacity: cancelled ? 0.75 : 1,
-        transition: 'box-shadow 120ms, transform 120ms',
-        '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 10px rgba(19,43,74,0.09)' },
-        '&:focus-visible': { boxShadow: `0 0 0 2px ${color.orangeInk}` },
+    <Tooltip
+      title={
+        <TripTooltip trip={trip} range={range} driverName={driverName} vehicleName={vehicleName} />
+      }
+      enterDelay={400}
+      disableTouchListener
+      disableInteractive
+      arrow
+      slotProps={{
+        tooltip: {
+          sx: {
+            bgcolor: color.paper,
+            color: color.navy,
+            border: `1px solid ${color.border}`,
+            p: 1.2,
+            borderRadius: 1.5,
+            boxShadow: '0 8px 24px rgba(19,43,74,0.12)',
+            maxWidth: 280,
+          },
+        },
+        arrow: { sx: { color: color.paper, '&::before': { border: `1px solid ${color.border}` } } },
       }}
     >
-      {compact ? (
-        <Typography
-          sx={{
-            width: '100%',
-            fontSize: 12,
-            fontWeight: 700,
-            color: color.navy,
-            lineHeight: 1.2,
-            whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
-            overflow: 'hidden',
-            textDecoration: cancelled ? 'line-through' : 'none',
-          }}
-        >
-          {`${range.start} · ${trip.client}`}
-        </Typography>
-      ) : (
-        <>
+      <Box
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onOpen()
+          }
+        }}
+        aria-label={`${trip.id} · ${trip.client} · ${timeLabel} · ${trip.status}`}
+        sx={{
+          position: 'absolute',
+          left: `calc(${(lane * 100) / cols}% + ${lane === 0 ? EDGE_GAP : COL_GAP / 2}px)`,
+          right: `calc(${((cols - 1 - lane) * 100) / cols}% + ${lane === cols - 1 ? EDGE_GAP : COL_GAP / 2}px)`,
+          top,
+          height,
+          borderRadius: 1.5,
+          border: `1px solid ${style.border}`,
+          borderLeft: `3px solid ${style.border}`,
+          bgcolor: style.bg,
+          px: 0.6,
+          py: compact ? '2px' : 0.6,
+          display: compact ? 'flex' : undefined,
+          flexDirection: compact ? 'column' : undefined,
+          justifyContent: compact ? 'center' : 'flex-start',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          outline: 0,
+          zIndex: 1,
+          opacity: cancelled ? 0.75 : 1,
+          transition: 'box-shadow 120ms, transform 120ms',
+          '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 10px rgba(19,43,74,0.09)' },
+          '&:focus-visible': { boxShadow: `0 0 0 2px ${color.orangeInk}` },
+        }}
+      >
+        {compact ? (
           <Typography
             sx={{
-              fontSize: cols > 1 ? 10 : 11,
-              fontWeight: 800,
-              letterSpacing: '0.02em',
-              color: style.ink,
-              lineHeight: 1.4,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {timeLabel}
-          </Typography>
-          <Typography
-            sx={{
+              width: '100%',
               fontSize: 12,
               fontWeight: 700,
               color: color.navy,
-              lineHeight: 1.35,
+              lineHeight: 1.2,
               whiteSpace: 'nowrap',
-              overflow: 'hidden',
               textOverflow: 'ellipsis',
+              overflow: 'hidden',
               textDecoration: cancelled ? 'line-through' : 'none',
             }}
           >
-            {trip.client}
+            {`${range.start} · ${trip.client}`}
           </Typography>
-          {showDetails && (
-            <>
-              <Typography
-                sx={{
-                  fontSize: 11,
-                  color: color.ink,
-                  lineHeight: 1.4,
-                  whiteSpace: 'normal',
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {trip.id}
-              </Typography>
-              <Box sx={{ overflow: 'hidden' }}>
-                {origin && (
+        ) : (
+          <>
+            <Typography
+              sx={{
+                fontSize: cols > 1 ? 10 : 11,
+                fontWeight: 800,
+                letterSpacing: '0.02em',
+                color: style.ink,
+                lineHeight: 1.4,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {timeLabel}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: color.navy,
+                lineHeight: 1.35,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                textDecoration: cancelled ? 'line-through' : 'none',
+              }}
+            >
+              {trip.client}
+            </Typography>
+            {showDetails && (
+              <>
+                <Typography
+                  sx={{
+                    fontSize: 11,
+                    color: color.ink,
+                    lineHeight: 1.4,
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {trip.id}
+                </Typography>
+                {showCrew && crew && (
                   <Typography
                     sx={{
                       fontSize: 11,
@@ -257,41 +332,61 @@ function TripBlock({
                       textOverflow: 'ellipsis',
                     }}
                   >
-                    {origin}
+                    {crew}
                   </Typography>
                 )}
-                {destination && (
-                  <Typography
-                    sx={{
-                      fontSize: 11,
-                      color: color.ink,
-                      lineHeight: 1.4,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {destination}
-                  </Typography>
-                )}
-              </Box>
-            </>
-          )}
-        </>
-      )}
-    </Box>
+                <Box sx={{ overflow: 'hidden' }}>
+                  {origin && (
+                    <Typography
+                      sx={{
+                        fontSize: 11,
+                        color: color.ink,
+                        lineHeight: 1.4,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {origin}
+                    </Typography>
+                  )}
+                  {destination && (
+                    <Typography
+                      sx={{
+                        fontSize: 11,
+                        color: color.ink,
+                        lineHeight: 1.4,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {destination}
+                    </Typography>
+                  )}
+                </Box>
+              </>
+            )}
+          </>
+        )}
+      </Box>
+    </Tooltip>
   )
 }
 
 function DayColumn({
   trips,
   bufferMinutes,
+  driverNameById,
+  vehicleNameById,
   isToday,
   nowMinutes,
   onOpenTrip,
 }: {
   trips: ShiftRequest[]
   bufferMinutes: number | null
+  driverNameById: Map<string, string>
+  vehicleNameById: Map<string, string>
   isToday: boolean
   nowMinutes?: number
   onOpenTrip: (trip: ShiftRequest) => void
@@ -371,6 +466,8 @@ function DayColumn({
           range={ranges.get(trip.id) ?? { start: trip.serviceRange[0], end: trip.serviceRange[1], complete: false }}
           lane={lane}
           cols={cols}
+          driverNameById={driverNameById}
+          vehicleNameById={vehicleNameById}
           onOpen={() => onOpenTrip(trip)}
         />
       ))}
@@ -385,6 +482,8 @@ export function AgendaGrid({
   now,
   fill,
   bufferMinutes = null,
+  driverNameById = NO_NAMES,
+  vehicleNameById = NO_NAMES,
   onOpenTrip,
 }: {
   days: string[]
@@ -395,6 +494,10 @@ export function AgendaGrid({
   fill?: boolean
   /** Margen operativo configurado: extiende cada bloque hasta el fin real del trabajo. */
   bufferMinutes?: number | null
+  /** Choferes por id, para mostrar quién hace cada viaje sin abrir el modal. */
+  driverNameById?: Map<string, string>
+  /** Vehículos por `vehicleId` (la PK que guarda la solicitud, no la patente). */
+  vehicleNameById?: Map<string, string>
   onOpenTrip: (trip: ShiftRequest) => void
 }) {
   const tripsByDay = new Map<string, ShiftRequest[]>()
@@ -541,6 +644,8 @@ export function AgendaGrid({
               key={day}
               trips={tripsByDay.get(day) ?? []}
               bufferMinutes={bufferMinutes}
+              driverNameById={driverNameById}
+              vehicleNameById={vehicleNameById}
               isToday={day === today}
               nowMinutes={day === today ? nowMinutes : undefined}
               onOpenTrip={onOpenTrip}
